@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -79,56 +80,56 @@ function pct(v) {
   return `${Math.max(0, Math.min(100, Number(v || 0)))}%`;
 }
 
-function WordCloudCanvas({ items }) {
-  const canvasRef = useRef(null);
+const D3WordCloud = dynamic(() => import("react-d3-cloud"), { ssr: false });
+
+function WordCloudChart({ items }) {
+  const wrapRef = useRef(null);
+  const [size, setSize] = useState({ width: 980, height: 320 });
+  const words = useMemo(
+    () => (items || []).slice(0, 120).map((w) => ({ text: w.word, value: Math.max(8, Number(w.count || 0)) })),
+    [items]
+  );
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    if (!items || items.length === 0) return;
-
-    let canceled = false;
-    const run = async () => {
-      const mod = await import("wordcloud");
-      if (canceled || !canvasRef.current) return;
-      const canvas = canvasRef.current;
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const cssWidth = canvas.parentElement?.clientWidth || 980;
-      const cssHeight = 320;
-
-      canvas.style.width = `${cssWidth}px`;
-      canvas.style.height = `${cssHeight}px`;
-      canvas.width = Math.floor(cssWidth * dpr);
-      canvas.height = Math.floor(cssHeight * dpr);
-
-      const words = items.slice(0, 120).map((w) => [w.word, Math.max(8, Number(w.count || 0))]);
-      mod.default(canvas, {
-        list: words,
-        gridSize: Math.max(6, Math.round((10 * cssWidth) / 1024) * dpr),
-        weightFactor: (size) => Math.max(14 * dpr, Math.min(64 * dpr, size * 1.2 * dpr)),
-        fontFamily: "'Noto Sans KR', sans-serif",
-        color: () => {
-          const palette = ["#0a4fb9", "#0d6bff", "#123d7e", "#2b5f9d", "#1d4f8c"];
-          return palette[Math.floor(Math.random() * palette.length)];
-        },
-        rotateRatio: 0.35,
-        rotationSteps: 2,
-        backgroundColor: "#f8fbff",
-        drawOutOfBound: false,
-        shrinkToFit: true,
-        clearCanvas: true,
-      });
+    if (!wrapRef.current) return;
+    const update = () => {
+      if (!wrapRef.current) return;
+      const nextWidth = Math.max(320, Math.floor(wrapRef.current.clientWidth - 2));
+      setSize({ width: nextWidth, height: 320 });
     };
-
-    run();
-    const onResize = () => run();
-    window.addEventListener("resize", onResize);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrapRef.current);
     return () => {
-      canceled = true;
-      window.removeEventListener("resize", onResize);
+      ro.disconnect();
     };
-  }, [items]);
+  }, []);
 
-  return <canvas ref={canvasRef} className="keywordCloudCanvas" />;
+  if (words.length === 0) {
+    return (
+      <div className="keywordCloud">
+        <p className="muted">표시할 키워드가 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={wrapRef} className="keywordCloud">
+      <D3WordCloud
+        data={words}
+        width={size.width}
+        height={size.height}
+        font="'Noto Sans KR'"
+        fontWeight="700"
+        fontStyle="normal"
+        spiral="archimedean"
+        rotate={(word) => (word.value % 3 === 0 ? 90 : 0)}
+        fontSize={(word) => Math.max(14, Math.min(56, 10 + word.value * 1.7))}
+        random={() => 0.5}
+        padding={2}
+      />
+    </div>
+  );
 }
 
 export default function NexonPage() {
@@ -327,7 +328,7 @@ export default function NexonPage() {
 
       <section className="panel">
         <h3>키워드 워드클라우드</h3>
-        <div className="keywordCloud">{keywordCloud.length === 0 ? <p className="muted">표시할 키워드가 없습니다.</p> : <WordCloudCanvas items={keywordCloud} />}</div>
+        <WordCloudChart items={keywordCloud} />
       </section>
 
       <section className="panel">
