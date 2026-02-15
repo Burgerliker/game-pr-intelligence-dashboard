@@ -104,6 +104,9 @@ export default function NexonPage() {
           <Link href="/compare" className="compareHomeLink">
             경쟁사 비교
           </Link>
+          <Link href="/risk" className="compareHomeLink">
+            IP 위험
+          </Link>
         </div>
       </header>
 

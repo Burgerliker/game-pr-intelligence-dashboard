@@ -511,7 +511,7 @@ td {
 .landingPanel {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -609,6 +609,14 @@ td {
   border-radius: 8px;
   padding: 7px 8px;
   background: #fff;
+}
+
+.riskIpSelect {
+  border: 1px solid #c7d5ec;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: #fff;
+  min-width: 140px;
 }
 
 .nexonMockTag {
@@ -784,5 +792,223 @@ td {
 
   .nexonTimeline {
     grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}
+
+.riskStoryPage {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 12px 80px;
+}
+
+.riskStoryHeader {
+  margin-bottom: 12px;
+}
+
+.riskStoryWrap {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 14px;
+}
+
+.riskStickyStage {
+  position: sticky;
+  top: 12px;
+  height: calc(100vh - 24px);
+  border-radius: 20px;
+  border: 1px solid #173362;
+  padding: 16px;
+  background:
+    radial-gradient(420px 210px at 88% 10%, rgba(96, 167, 255, 0.38), transparent 65%),
+    linear-gradient(145deg, #060f21 0%, #0a2245 52%, #0f3870 100%);
+  color: #eef4ff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: background 320ms ease;
+}
+
+.riskStickyStage[data-ip="dnf"] {
+  background:
+    radial-gradient(420px 210px at 88% 10%, rgba(255, 149, 115, 0.35), transparent 65%),
+    linear-gradient(145deg, #1b0a08 0%, #47210c 52%, #7b3a14 100%);
+}
+
+.riskStickyStage[data-ip="fconline"] {
+  background:
+    radial-gradient(420px 210px at 88% 10%, rgba(112, 255, 230, 0.32), transparent 65%),
+    linear-gradient(145deg, #031713 0%, #0a3c31 52%, #0d5b4a 100%);
+}
+
+.riskStickyStage[data-ip="bluearchive"] {
+  background:
+    radial-gradient(420px 210px at 88% 10%, rgba(255, 201, 116, 0.34), transparent 65%),
+    linear-gradient(145deg, #1c1205 0%, #4b2e0d 52%, #735017 100%);
+}
+
+.riskStickyStage[data-ip="all"] {
+  background:
+    radial-gradient(420px 210px at 88% 10%, rgba(173, 159, 255, 0.3), transparent 65%),
+    linear-gradient(145deg, #0f0f25 0%, #24245a 52%, #34347a 100%);
+}
+
+.riskStageCard {
+  border: 1px solid rgba(181, 212, 255, 0.3);
+  border-radius: 16px;
+  padding: 14px;
+  backdrop-filter: blur(4px);
+  background: rgba(5, 16, 34, 0.36);
+}
+
+.riskStageKicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9fd2ff;
+  letter-spacing: 0.06em;
+}
+
+.riskStageCard h2 {
+  margin: 6px 0 10px;
+  font-size: clamp(26px, 3vw, 42px);
+}
+
+.riskStageKpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.riskStageKpis article {
+  border: 1px solid rgba(183, 206, 255, 0.28);
+  border-radius: 12px;
+  padding: 9px;
+  background: rgba(4, 12, 26, 0.42);
+}
+
+.riskStageKpis span {
+  font-size: 11px;
+  color: #b5caea;
+}
+
+.riskStageKpis strong {
+  margin-top: 6px;
+  display: block;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.riskThemeStack {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.riskThemeRow {
+  border: 1px solid rgba(171, 201, 255, 0.25);
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(3, 11, 25, 0.3);
+}
+
+.riskThemeLabel {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.riskThemeBar {
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(245, 249, 255, 0.2);
+}
+
+.riskThemeBar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f6cb65 0%, #ff9f52 56%, #f25d63 100%);
+}
+
+.riskThemeMeta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #c2d5f0;
+}
+
+.riskStepDots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.riskStepDots span {
+  border: 1px solid rgba(190, 211, 255, 0.35);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 5px 9px;
+  color: #d8e5fb;
+}
+
+.riskStepDots span.on {
+  background: #fff;
+  color: #0c2a54;
+  border-color: #fff;
+  font-weight: 700;
+}
+
+.riskStorySteps {
+  display: grid;
+  gap: 16px;
+}
+
+.riskStep {
+  min-height: 92vh;
+  border-radius: 18px;
+  border: 1px solid #d4deef;
+  background: linear-gradient(165deg, #ffffff 0%, #f4f8ff 100%);
+  padding: 28px 24px;
+  display: grid;
+  align-content: center;
+}
+
+.riskStep p {
+  margin: 0;
+  color: #5d79a5;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.riskStep h3 {
+  margin: 10px 0 0;
+  font-size: clamp(30px, 4vw, 56px);
+  line-height: 1;
+}
+
+.riskStep span {
+  margin-top: 10px;
+  color: #4f607d;
+  font-size: 15px;
+}
+
+@media (max-width: 980px) {
+  .riskStoryWrap {
+    grid-template-columns: 1fr;
+  }
+
+  .riskStickyStage {
+    position: relative;
+    height: auto;
+    min-height: 64vh;
+  }
+
+  .riskStageKpis {
+    grid-template-columns: 1fr;
+  }
+
+  .riskStep {
+    min-height: 55vh;
   }
 }

@@ -15,7 +15,14 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from backend.storage import get_articles, get_nexon_dashboard, init_db, save_articles
+from backend.storage import (
+    get_articles,
+    get_nexon_dashboard,
+    get_risk_dashboard,
+    get_risk_ip_catalog,
+    init_db,
+    save_articles,
+)
 from services.naver_api import (
     COMPANIES,
     fetch_company_news_compare,
@@ -335,6 +342,32 @@ def nexon_dashboard(
         raise HTTPException(status_code=400, detail="date_from은 date_to보다 이전이어야 합니다.")
 
     return get_nexon_dashboard(date_from=date_from, date_to=date_to)
+
+
+@app.get("/api/risk-ips")
+def risk_ips() -> dict:
+    return {"items": get_risk_ip_catalog()}
+
+
+@app.get("/api/risk-dashboard")
+def risk_dashboard(
+    ip: str = Query(default="all"),
+    date_from: str = Query(default="2024-01-01"),
+    date_to: str = Query(default="2026-12-31"),
+) -> dict:
+    try:
+        start = datetime.strptime(date_from, "%Y-%m-%d")
+        end = datetime.strptime(date_to, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="date_from/date_to 형식은 YYYY-MM-DD여야 합니다.") from exc
+
+    if start > end:
+        raise HTTPException(status_code=400, detail="date_from은 date_to보다 이전이어야 합니다.")
+
+    try:
+        return get_risk_dashboard(date_from=date_from, date_to=date_to, ip=ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/analyze")

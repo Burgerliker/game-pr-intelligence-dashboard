@@ -37,6 +37,18 @@ export default function HomePage() {
             열기
           </Link>
         </article>
+
+        <article className="landingCard sub">
+          <h3>IP 위험 대시보드</h3>
+          <p>메이플/던파/FC온라인 IP 단위 위험 모니터링</p>
+          <ul>
+            <li>IP별 부정 추이와 테마 우선순위</li>
+            <li>언론사별 감성 분포</li>
+          </ul>
+          <Link className="landingBtn ghost" href="/risk">
+            열기
+          </Link>
+        </article>
       </section>
     </main>
   );

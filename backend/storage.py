@@ -21,6 +21,21 @@ RISK_THEME_RULES: dict[str, list[str]] = {
     "여론/논란": ["논란", "비판", "불만", "시위", "잡음"],
     "신작/성과": ["신작", "출시", "흥행", "매출", "사전예약", "수상"],
 }
+IP_RULES: dict[str, dict[str, Any]] = {
+    "전체": {"slug": "all", "keywords": []},
+    "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "메이플", "maplestory"]},
+    "던전앤파이터": {"slug": "dnf", "keywords": ["던전앤파이터", "던파", "dnf"]},
+    "FC온라인": {
+        "slug": "fconline",
+        "keywords": ["fc온라인", "fc online", "fconline", "피파온라인", "fifa온라인", "ea sports fc online"],
+    },
+    "블루아카이브": {"slug": "bluearchive", "keywords": ["블루아카이브", "블루 아카이브", "블루아카", "blue archive"]},
+    "카트라이더": {"slug": "kartrider", "keywords": ["카트라이더", "kartrider"]},
+    "바람의나라": {"slug": "baram", "keywords": ["바람의나라"]},
+    "마비노기": {"slug": "mabinogi", "keywords": ["마비노기", "mabinogi"]},
+    "서든어택": {"slug": "suddenattack", "keywords": ["서든어택", "sudden attack"]},
+    "퍼스트 디센던트": {"slug": "thefirstdescendant", "keywords": ["퍼스트 디센던트", "the first descendant"]},
+}
 
 
 def _connect() -> sqlite3.Connection:
@@ -259,52 +274,43 @@ def clear_articles(company: str | None = None) -> int:
         conn.close()
 
 
-def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31") -> dict[str, Any]:
+def get_risk_ip_catalog() -> list[dict[str, str]]:
+    return [{"id": v["slug"], "name": k} for k, v in IP_RULES.items()]
+
+
+def _resolve_ip_name(ip: str) -> str:
+    ip_val = (ip or "all").strip().lower()
+    for name, meta in IP_RULES.items():
+        if meta["slug"] == ip_val:
+            return name
+    return ""
+
+
+def _detect_ip(text: str) -> str:
+    low = (text or "").lower()
+    for name, meta in IP_RULES.items():
+        if meta["slug"] == "all":
+            continue
+        if any(k.lower() in low for k in meta["keywords"]):
+            return name
+    return "기타"
+
+
+def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31", ip: str = "all") -> dict[str, Any]:
+    ip_name = _resolve_ip_name(ip)
+    if not ip_name:
+        raise ValueError("지원하지 않는 IP입니다.")
+
     params = ["넥슨", date_from, date_to]
     conn = _connect()
     try:
-        total = conn.execute(
-            """
-            SELECT COUNT(1) AS cnt
-            FROM articles
-            WHERE company = ? AND date BETWEEN ? AND ?
-            """,
-            params,
-        ).fetchone()["cnt"]
-
-        daily_rows = conn.execute(
+        rows = conn.execute(
             """
             SELECT date,
-                   COUNT(1) AS article_count,
-                   ROUND(100.0 * SUM(CASE WHEN sentiment = '부정' THEN 1 ELSE 0 END) / COUNT(1), 1) AS negative_ratio
-            FROM articles
-            WHERE company = ? AND date BETWEEN ? AND ?
-            GROUP BY date
-            ORDER BY date
-            """,
-            params,
-        ).fetchall()
-
-        outlet_rows = conn.execute(
-            """
-            SELECT COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet,
-                   COUNT(1) AS article_count,
-                   ROUND(100.0 * SUM(CASE WHEN sentiment = '긍정' THEN 1 ELSE 0 END) / COUNT(1), 1) AS positive_ratio,
-                   ROUND(100.0 * SUM(CASE WHEN sentiment = '중립' THEN 1 ELSE 0 END) / COUNT(1), 1) AS neutral_ratio,
-                   ROUND(100.0 * SUM(CASE WHEN sentiment = '부정' THEN 1 ELSE 0 END) / COUNT(1), 1) AS negative_ratio
-            FROM articles
-            WHERE company = ? AND date BETWEEN ? AND ?
-            GROUP BY outlet
-            HAVING COUNT(1) >= 2
-            ORDER BY article_count DESC
-            LIMIT 40
-            """,
-            params,
-        ).fetchall()
-
-        theme_source = conn.execute(
-            """
-            SELECT title_clean, description_clean, sentiment
+                   title_clean,
+                   description_clean,
+                   sentiment,
+                   COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet
             FROM articles
             WHERE company = ? AND date BETWEEN ? AND ?
             """,
@@ -313,21 +319,68 @@ def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-3
     finally:
         conn.close()
 
-    daily = [dict(r) for r in daily_rows]
-    outlets = [dict(r) for r in outlet_rows]
-
+    daily_acc: dict[str, dict[str, int]] = {}
+    outlet_acc: dict[str, dict[str, int]] = {}
+    ip_breakdown_acc: dict[str, int] = {}
     theme_counts: dict[str, dict[str, float]] = {
         k: {"article_count": 0, "negative_count": 0, "negative_ratio": 0.0, "risk_score": 0.0}
         for k in RISK_THEME_RULES
     }
-    for r in theme_source:
+
+    total = 0
+    for r in rows:
+        date = str(r["date"] or "")
         text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}".lower()
         sentiment = str(r["sentiment"] or "")
+        outlet = str(r["outlet"] or "unknown")
+        detected_ip = _detect_ip(text)
+        ip_breakdown_acc[detected_ip] = ip_breakdown_acc.get(detected_ip, 0) + 1
+
+        if ip_name != "전체" and detected_ip != ip_name:
+            continue
+
+        total += 1
+        if date not in daily_acc:
+            daily_acc[date] = {"article_count": 0, "negative_count": 0}
+        daily_acc[date]["article_count"] += 1
+        if sentiment == "부정":
+            daily_acc[date]["negative_count"] += 1
+
+        if outlet not in outlet_acc:
+            outlet_acc[outlet] = {"article_count": 0, "positive": 0, "neutral": 0, "negative": 0}
+        outlet_acc[outlet]["article_count"] += 1
+        if sentiment == "긍정":
+            outlet_acc[outlet]["positive"] += 1
+        elif sentiment == "중립":
+            outlet_acc[outlet]["neutral"] += 1
+        elif sentiment == "부정":
+            outlet_acc[outlet]["negative"] += 1
+
         for theme, kws in RISK_THEME_RULES.items():
             if any(k.lower() in text for k in kws):
                 theme_counts[theme]["article_count"] += 1
                 if sentiment == "부정":
                     theme_counts[theme]["negative_count"] += 1
+
+    daily = []
+    for date in sorted(daily_acc.keys()):
+        count = daily_acc[date]["article_count"]
+        neg = daily_acc[date]["negative_count"]
+        ratio = round(100.0 * neg / max(count, 1), 1)
+        daily.append({"date": date, "article_count": count, "negative_ratio": ratio})
+
+    outlets = []
+    for outlet, row in sorted(outlet_acc.items(), key=lambda kv: kv[1]["article_count"], reverse=True)[:40]:
+        count = int(row["article_count"])
+        outlets.append(
+            {
+                "outlet": outlet,
+                "article_count": count,
+                "positive_ratio": round(100.0 * row["positive"] / max(count, 1), 1),
+                "neutral_ratio": round(100.0 * row["neutral"] / max(count, 1), 1),
+                "negative_ratio": round(100.0 * row["negative"] / max(count, 1), 1),
+            }
+        )
 
     max_count = max([v["article_count"] for v in theme_counts.values()] + [1])
     themed = []
@@ -348,10 +401,16 @@ def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-3
             }
         )
     themed.sort(key=lambda x: (x["risk_score"], x["article_count"]), reverse=True)
+    ip_breakdown = [
+        {"ip": ip_name_key, "article_count": count}
+        for ip_name_key, count in sorted(ip_breakdown_acc.items(), key=lambda kv: kv[1], reverse=True)
+    ]
 
     return {
         "meta": {
             "company": "넥슨",
+            "ip": ip_name,
+            "ip_id": (ip or "all").strip().lower(),
             "date_from": date_from,
             "date_to": date_to,
             "total_articles": int(total),
@@ -359,4 +418,10 @@ def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-3
         "daily": daily,
         "outlets": outlets,
         "risk_themes": themed,
+        "ip_breakdown": ip_breakdown,
+        "ip_catalog": get_risk_ip_catalog(),
     }
+
+
+def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31") -> dict[str, Any]:
+    return get_risk_dashboard(date_from=date_from, date_to=date_to, ip="all")
