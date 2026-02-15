@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 const NEXON_LOGO = "/nexon-logo.png";
@@ -77,6 +77,45 @@ async function apiGet(path) {
 
 function pct(v) {
   return `${Math.max(0, Math.min(100, Number(v || 0)))}%`;
+}
+
+function WordCloudCanvas({ items }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (!items || items.length === 0) return;
+
+    let canceled = false;
+    const run = async () => {
+      const mod = await import("wordcloud");
+      if (canceled || !canvasRef.current) return;
+
+      const words = items.slice(0, 120).map((w) => [w.word, Math.max(8, Number(w.count || 0))]);
+      mod.default(canvasRef.current, {
+        list: words,
+        gridSize: Math.round((16 * canvasRef.current.offsetWidth) / 1024),
+        weightFactor: (size) => Math.max(14, Math.min(64, size * 1.2)),
+        fontFamily: "'Noto Sans KR', sans-serif",
+        color: () => {
+          const palette = ["#0a4fb9", "#0d6bff", "#123d7e", "#2b5f9d", "#1d4f8c"];
+          return palette[Math.floor(Math.random() * palette.length)];
+        },
+        rotateRatio: 0.35,
+        rotationSteps: 2,
+        backgroundColor: "#f8fbff",
+        drawOutOfBound: false,
+        shrinkToFit: true,
+      });
+    };
+
+    run();
+    return () => {
+      canceled = true;
+    };
+  }, [items]);
+
+  return <canvas ref={canvasRef} className="keywordCloudCanvas" width={980} height={320} />;
 }
 
 export default function NexonPage() {
@@ -275,22 +314,7 @@ export default function NexonPage() {
 
       <section className="panel">
         <h3>키워드 워드클라우드</h3>
-        <div className="keywordCloud">
-          {keywordCloud.map((k) => (
-            <span
-              key={k.word}
-              className="keywordCloudItem"
-              style={{
-                fontSize: `${12 + Math.round(Number(k.weight || 0) * 20)}px`,
-                opacity: 0.55 + Number(k.weight || 0) * 0.45,
-              }}
-              title={`${k.word} (${k.count})`}
-            >
-              {k.word}
-            </span>
-          ))}
-          {keywordCloud.length === 0 ? <p className="muted">표시할 키워드가 없습니다.</p> : null}
-        </div>
+        <div className="keywordCloud">{keywordCloud.length === 0 ? <p className="muted">표시할 키워드가 없습니다.</p> : <WordCloudCanvas items={keywordCloud} />}</div>
       </section>
 
       <section className="panel">
