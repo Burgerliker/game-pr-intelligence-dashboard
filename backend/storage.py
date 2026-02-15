@@ -27,16 +27,12 @@ IP_RULES: dict[str, dict[str, Any]] = {
     "전체": {"slug": "all", "keywords": []},
     "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "메이플", "maplestory"]},
     "던전앤파이터": {"slug": "dnf", "keywords": ["던전앤파이터", "던파", "dnf"]},
+    "카트라이더": {"slug": "kartrider", "keywords": ["카트라이더", "카트", "kartrider", "아크라이더"]},
     "FC온라인": {
         "slug": "fconline",
         "keywords": ["fc온라인", "fc online", "fconline", "피파온라인", "fifa온라인", "ea sports fc online"],
     },
     "블루아카이브": {"slug": "bluearchive", "keywords": ["블루아카이브", "블루 아카이브", "블루아카", "blue archive"]},
-    "카트라이더": {"slug": "kartrider", "keywords": ["카트라이더", "kartrider"]},
-    "바람의나라": {"slug": "baram", "keywords": ["바람의나라"]},
-    "마비노기": {"slug": "mabinogi", "keywords": ["마비노기", "mabinogi"]},
-    "서든어택": {"slug": "suddenattack", "keywords": ["서든어택", "sudden attack"]},
-    "퍼스트 디센던트": {"slug": "thefirstdescendant", "keywords": ["퍼스트 디센던트", "the first descendant"]},
 }
 
 
