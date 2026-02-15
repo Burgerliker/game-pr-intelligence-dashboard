@@ -1,4 +1,4 @@
-"""네이버 검색 API를 통한 뉴스 데이터 수집 서비스"""
+"""네이버 검색 API를 통한 뉴스 데이터 수집 서비스."""
 
 import os
 import re
@@ -23,6 +23,22 @@ COMPANIES = {
     "넷마블": {"query": "넷마블", "color": "#28A745"},
     "크래프톤": {"query": "크래프톤", "color": "#9B59B6"},
 }
+
+# 넥슨 군집 분석용 쿼리 그룹(다양한 이슈를 확보하기 위한 확장형 쿼리)
+NEXON_CLUSTER_QUERIES = [
+    "넥슨",
+    "NEXON OR 넥슨",
+    "넥슨 AND 신작",
+    "넥슨 AND 업데이트",
+    "넥슨 AND 실적",
+    "넥슨 AND 이벤트",
+    "넥슨 AND 글로벌",
+    "넥슨 AND 이용자",
+    "넥슨 AND 운영",
+    "넥슨 AND 논란",
+    "넥슨 AND 확률형",
+    "넥슨 AND 보상",
+]
 
 
 def _clean_html(text: str) -> str:
@@ -129,11 +145,51 @@ def search_news(query: str, display: int = 100, start: int = 1, sort: str = "dat
         return []
 
 
-def fetch_company_news(company: str, total: int = 100) -> pd.DataFrame:
-    """특정 회사의 뉴스를 수집하여 DataFrame으로 반환
+def _to_company_dataframe(items: list[dict], company: str) -> pd.DataFrame:
+    if not items:
+        return pd.DataFrame()
 
-    네이버 API는 한 번에 최대 100건이므로 필요 시 페이징 처리
-    """
+    df = pd.DataFrame(items)
+    if df.empty:
+        return pd.DataFrame()
+
+    df["title_clean"] = df["title"].apply(_clean_html)
+    df["description_clean"] = df["description"].apply(_clean_html)
+    df["pubDate_parsed"] = df["pubDate"].apply(_parse_date)
+    df["date"] = df["pubDate_parsed"].dt.strftime("%Y-%m-%d")
+    df["company"] = company
+    return df[["title_clean", "description_clean", "originallink", "link", "pubDate_parsed", "date", "company"]]
+
+
+def _dedupe_news(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    out = df.copy()
+    out["originallink_norm"] = out["originallink"].fillna("").apply(_normalize_url)
+    out["link_norm"] = out["link"].fillna("").apply(_normalize_url)
+    out["title_norm"] = out["title_clean"].apply(_normalize_title)
+    out["unique_key"] = (
+        out["originallink_norm"]
+        .where(out["originallink_norm"] != "", out["link_norm"])
+        .where(out["link_norm"] != "", out["title_norm"] + "|" + out["date"])
+    )
+    out = (
+        out.sort_values("pubDate_parsed", ascending=False)
+        .drop_duplicates(subset=["unique_key"], keep="first")
+        .drop(columns=["unique_key", "originallink_norm", "link_norm", "title_norm"])
+        .reset_index(drop=True)
+    )
+    return out
+
+
+def fetch_company_news(company: str, total: int = 100) -> pd.DataFrame:
+    """기존 호환용: 회사 비교 수집 로직을 사용."""
+    return fetch_company_news_compare(company=company, total=total)
+
+
+def fetch_company_news_compare(company: str, total: int = 100) -> pd.DataFrame:
+    """회사 비교용 수집 로직(최신순/안정적)."""
     config = COMPANIES.get(company)
     if not config:
         return pd.DataFrame()
@@ -153,32 +209,40 @@ def fetch_company_news(company: str, total: int = 100) -> pd.DataFrame:
         if len(items) < batch_size:
             break
 
-    if not all_items:
+    df = _to_company_dataframe(all_items, company=company)
+    df = _dedupe_news(df)
+    return df
+
+
+def fetch_nexon_cluster_news(total: int = 300) -> pd.DataFrame:
+    """넥슨 군집 분석용 수집 로직(다양한 이슈 쿼리 + date/sim 혼합)."""
+    query_plan = list(NEXON_CLUSTER_QUERIES)
+    if total <= 0:
         return pd.DataFrame()
 
-    df = pd.DataFrame(all_items)
-    df["title_clean"] = df["title"].apply(_clean_html)
-    df["description_clean"] = df["description"].apply(_clean_html)
-    df["pubDate_parsed"] = df["pubDate"].apply(_parse_date)
-    df["date"] = df["pubDate_parsed"].dt.strftime("%Y-%m-%d")
-    df["company"] = company
+    # 쿼리별 최소 확보량을 두고, 전체 총량 내에서 균등 배분
+    per_query = max(10, total // max(len(query_plan), 1))
+    all_frames: list[pd.DataFrame] = []
 
-    df["originallink_norm"] = df["originallink"].fillna("").apply(_normalize_url)
-    df["link_norm"] = df["link"].fillna("").apply(_normalize_url)
-    df["title_norm"] = df["title_clean"].apply(_normalize_title)
-    df["unique_key"] = (
-        df["originallink_norm"]
-        .where(df["originallink_norm"] != "", df["link_norm"])
-        .where(df["link_norm"] != "", df["title_norm"] + "|" + df["date"])
-    )
-    df = (
-        df.sort_values("pubDate_parsed", ascending=False)
-        .drop_duplicates(subset=["unique_key"], keep="first")
-        .drop(columns=["unique_key", "originallink_norm", "link_norm", "title_norm"])
-        .reset_index(drop=True)
-    )
+    for query in query_plan:
+        # 최신 이슈 수집
+        date_items = search_news(query, display=min(50, per_query), start=1, sort="date")
+        df_date = _to_company_dataframe(date_items, company="넥슨")
+        if not df_date.empty:
+            all_frames.append(df_date)
 
-    return df[["title_clean", "description_clean", "originallink", "link", "pubDate_parsed", "date", "company"]]
+        # 대표성 기사 보완(sim)
+        sim_items = search_news(query, display=min(25, max(10, per_query // 2)), start=1, sort="sim")
+        df_sim = _to_company_dataframe(sim_items, company="넥슨")
+        if not df_sim.empty:
+            all_frames.append(df_sim)
+
+    if not all_frames:
+        return pd.DataFrame()
+
+    merged = pd.concat(all_frames, ignore_index=True)
+    merged = _dedupe_news(merged)
+    return merged.head(total).reset_index(drop=True)
 
 
 def fetch_all_companies(total_per_company: int = 100) -> pd.DataFrame:

@@ -16,7 +16,13 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from backend.storage import get_articles, init_db, save_articles
-from services.naver_api import COMPANIES, fetch_company_news, get_daily_counts, get_last_api_error
+from services.naver_api import (
+    COMPANIES,
+    fetch_company_news_compare,
+    fetch_nexon_cluster_news,
+    get_daily_counts,
+    get_last_api_error,
+)
 from utils.keywords import get_keyword_data
 from utils.sentiment import add_sentiment_column, get_model_id, get_sentiment_summary
 
@@ -24,6 +30,10 @@ from utils.sentiment import add_sentiment_column, get_model_id, get_sentiment_su
 class AnalyzeRequest(BaseModel):
     companies: list[str] = Field(default_factory=lambda: list(COMPANIES.keys()))
     articles_per_company: int = Field(default=40, ge=10, le=100)
+
+
+class NexonClusterRequest(BaseModel):
+    total_articles: int = Field(default=300, ge=50, le=1000)
 
 
 app = FastAPI(title="NEXON PR API", version="1.0.0")
@@ -318,7 +328,7 @@ def analyze(req: AnalyzeRequest) -> dict:
 
     frames = []
     for company in selected:
-        part = fetch_company_news(company, total=req.articles_per_company)
+        part = fetch_company_news_compare(company, total=req.articles_per_company)
         if not part.empty:
             frames.append(part)
 
@@ -336,6 +346,40 @@ def analyze(req: AnalyzeRequest) -> dict:
     save_articles(merged)
 
     return _build_payload(merged, selected)
+
+
+@app.post("/api/nexon-cluster-source")
+def nexon_cluster_source(req: NexonClusterRequest) -> dict:
+    """넥슨 군집분석용 데이터 소스 수집(비교 수집과 분리된 호출 전략)."""
+    df = fetch_nexon_cluster_news(total=req.total_articles)
+    if df.empty:
+        raise HTTPException(status_code=502, detail=get_last_api_error() or "넥슨 군집용 뉴스를 수집하지 못했습니다.")
+
+    try:
+        df = add_sentiment_column(df)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"감성 분석 실패: {exc}") from exc
+    save_articles(df)
+
+    keywords = get_keyword_data(df, company="넥슨", top_n=40)
+    latest = (
+        df.sort_values("pubDate_parsed", ascending=False)
+        .loc[:, ["company", "title_clean", "sentiment", "date", "originallink"]]
+        .rename(columns={"title_clean": "title", "originallink": "url"})
+        .head(300)
+    )
+
+    return {
+        "meta": {
+            "source": "nexon_cluster",
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "total_articles": int(len(df)),
+            "selected_companies": ["넥슨"],
+            "model_id": get_model_id(),
+        },
+        "keywords": {"넥슨": keywords},
+        "latest_articles": _to_records(latest),
+    }
 
 
 @app.post("/api/demo")

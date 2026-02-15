@@ -50,7 +50,12 @@ uvicorn backend.main:app --reload --port 8000
 - `GET /health`
 - `GET /api/config`
 - `POST /api/analyze`
+- `POST /api/nexon-cluster-source`
 - `POST /api/demo`
+
+수집 전략:
+- `POST /api/analyze`: 회사 비교용(회사명 중심, 최신순 안정 수집)
+- `POST /api/nexon-cluster-source`: 넥슨 군집분석용(이슈 확장 쿼리 + `date/sim` 혼합 수집)
 
 ### 프론트엔드
 
