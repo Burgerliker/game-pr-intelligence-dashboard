@@ -359,6 +359,7 @@ def get_ip_clusters(
         conn.close()
 
     buckets: dict[str, dict[str, Any]] = {}
+    overall_keywords = Counter()
     total = 0
     outlets = Counter()
 
@@ -394,7 +395,9 @@ def get_ip_clusters(
             bucket["negative_count"] += 1
         if sentiment in bucket["sentiments"]:
             bucket["sentiments"][sentiment] += 1
-        bucket["keywords"].update(_extract_cluster_tokens(text, ip_name))
+        tokens = _extract_cluster_tokens(text, ip_name)
+        bucket["keywords"].update(tokens)
+        overall_keywords.update(tokens)
         if len(bucket["samples"]) < 3 and r["title_clean"]:
             bucket["samples"].append(str(r["title_clean"]))
 
@@ -419,6 +422,16 @@ def get_ip_clusters(
 
     clusters.sort(key=lambda x: (x["article_count"], x["negative_ratio"]), reverse=True)
     clusters = clusters[: max(1, min(int(limit), 12))]
+    top_keyword_counts = overall_keywords.most_common(40)
+    max_keyword_count = max([count for _, count in top_keyword_counts] + [1])
+    keyword_cloud = [
+        {
+            "word": word,
+            "count": int(count),
+            "weight": round(float(count) / float(max_keyword_count), 3),
+        }
+        for word, count in top_keyword_counts
+    ]
 
     return {
         "meta": {
@@ -432,6 +445,7 @@ def get_ip_clusters(
         },
         "ip_catalog": get_risk_ip_catalog(),
         "top_outlets": [{"outlet": k, "article_count": int(v)} for k, v in outlets.most_common(5)],
+        "keyword_cloud": keyword_cloud,
         "clusters": clusters,
     }
 

@@ -41,6 +41,14 @@ const MOCK_CLUSTER = {
     { outlet: "thisisgame.com", article_count: 260 },
     { outlet: "newsis.com", article_count: 180 },
   ],
+  keyword_cloud: [
+    { word: "확률", count: 120, weight: 1.0 },
+    { word: "보상", count: 96, weight: 0.8 },
+    { word: "업데이트", count: 88, weight: 0.73 },
+    { word: "환불", count: 74, weight: 0.62 },
+    { word: "점검", count: 66, weight: 0.55 },
+    { word: "이벤트", count: 62, weight: 0.52 },
+  ],
   clusters: [
     {
       cluster: "확률형/BM",
@@ -124,8 +132,19 @@ export default function NexonPage() {
   const outletRows = riskData?.outlets || [];
   const themes = riskData?.risk_themes || [];
   const clusters = clusterData?.clusters || [];
+  const keywordCloud = clusterData?.keyword_cloud || [];
   const maxDaily = useMemo(() => Math.max(...dailyRows.map((r) => Number(r.article_count || 0)), 1), [dailyRows]);
   const topRisk = themes[0];
+  const topNegativeCluster = useMemo(() => {
+    const sorted = [...clusters].sort((a, b) => Number(b.negative_ratio || 0) - Number(a.negative_ratio || 0));
+    return sorted[0];
+  }, [clusters]);
+  const topOutletShare = useMemo(() => {
+    const total = Number(riskData?.meta?.total_articles || 0);
+    const top = Number(clusterData?.top_outlets?.[0]?.article_count || 0);
+    if (!total) return 0;
+    return Math.round((top / total) * 1000) / 10;
+  }, [clusterData?.top_outlets, riskData?.meta?.total_articles]);
 
   return (
     <main className="page nexonPage">
@@ -252,6 +271,56 @@ export default function NexonPage() {
             ))}
           </div>
         </section>
+      </section>
+
+      <section className="panel">
+        <h3>키워드 워드클라우드</h3>
+        <div className="keywordCloud">
+          {keywordCloud.map((k) => (
+            <span
+              key={k.word}
+              className="keywordCloudItem"
+              style={{
+                fontSize: `${12 + Math.round(Number(k.weight || 0) * 20)}px`,
+                opacity: 0.55 + Number(k.weight || 0) * 0.45,
+              }}
+              title={`${k.word} (${k.count})`}
+            >
+              {k.word}
+            </span>
+          ))}
+          {keywordCloud.length === 0 ? <p className="muted">표시할 키워드가 없습니다.</p> : null}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h3>추가 인사이트</h3>
+        <div className="insightGrid">
+          <article className="insightCard">
+            <h4>부정 상위 군집</h4>
+            <p>
+              {topNegativeCluster?.cluster || "-"} · 부정 {topNegativeCluster?.negative_ratio ?? "-"}%
+            </p>
+          </article>
+          <article className="insightCard">
+            <h4>매체 편중도</h4>
+            <p>
+              상위 매체 비중 {topOutletShare}% ({clusterData?.top_outlets?.[0]?.outlet || "-"})
+            </p>
+          </article>
+          <article className="insightCard">
+            <h4>리스크 집중도</h4>
+            <p>
+              1위 테마 {topRisk?.theme || "-"} · Risk {topRisk?.risk_score ?? "-"}
+            </p>
+          </article>
+          <article className="insightCard">
+            <h4>군집 분산도</h4>
+            <p>
+              총 {clusters.length}개 군집 기준, 상위 군집 기사 {clusters[0]?.article_count || 0}건
+            </p>
+          </article>
+        </div>
       </section>
 
       <section className="panel">

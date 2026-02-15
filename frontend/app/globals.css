@@ -357,6 +357,25 @@ a:hover {
   padding: 4px 8px;
 }
 
+.keywordCloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  min-height: 110px;
+  padding: 10px;
+  border: 1px solid #e3eaf7;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.keywordCloudItem {
+  line-height: 1;
+  color: #1e3f7f;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
 .insightCard ul {
   margin: 0;
   padding-left: 18px;
