@@ -3,6 +3,7 @@
 import os
 import re
 from datetime import datetime
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import pandas as pd
 import requests
@@ -29,6 +30,42 @@ def _clean_html(text: str) -> str:
     text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"&[a-zA-Z]+;", " ", text)
     return text.strip()
+
+
+def _normalize_title(text: str) -> str:
+    """중복 판별용 제목 정규화."""
+    t = _clean_html(text or "").lower()
+    t = re.sub(r"\[[^\]]*\]|\([^)]+\)", " ", t)
+    t = re.sub(r"[^0-9a-z가-힣]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _normalize_url(url: str) -> str:
+    """추적 파라미터를 제거해 URL을 정규화."""
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    try:
+        p = urlparse(raw)
+    except Exception:
+        return raw
+
+    host = (p.netloc or "").lower()
+    path = p.path or ""
+    if host.startswith("www."):
+        host = host[4:]
+
+    drop_prefixes = ("utm_", "fbclid", "gclid", "ref", "source")
+    keep = []
+    for k, v in parse_qsl(p.query, keep_blank_values=False):
+        lk = k.lower()
+        if lk.startswith(drop_prefixes):
+            continue
+        keep.append((k, v))
+    keep.sort()
+
+    return urlunparse(("https", host, path, "", urlencode(keep), ""))
 
 
 def _parse_date(date_str: str) -> datetime:
@@ -126,15 +163,18 @@ def fetch_company_news(company: str, total: int = 100) -> pd.DataFrame:
     df["date"] = df["pubDate_parsed"].dt.strftime("%Y-%m-%d")
     df["company"] = company
 
+    df["originallink_norm"] = df["originallink"].fillna("").apply(_normalize_url)
+    df["link_norm"] = df["link"].fillna("").apply(_normalize_url)
+    df["title_norm"] = df["title_clean"].apply(_normalize_title)
     df["unique_key"] = (
-        df["originallink"].fillna("")
-        .where(df["originallink"].fillna("") != "", df["link"].fillna(""))
-        .where(df["originallink"].fillna("") != "", df["title_clean"] + "|" + df["date"])
+        df["originallink_norm"]
+        .where(df["originallink_norm"] != "", df["link_norm"])
+        .where(df["link_norm"] != "", df["title_norm"] + "|" + df["date"])
     )
     df = (
         df.sort_values("pubDate_parsed", ascending=False)
         .drop_duplicates(subset=["unique_key"], keep="first")
-        .drop(columns=["unique_key"])
+        .drop(columns=["unique_key", "originallink_norm", "link_norm", "title_norm"])
         .reset_index(drop=True)
     )
 

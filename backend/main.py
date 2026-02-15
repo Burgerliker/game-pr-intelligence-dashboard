@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import random
+import re
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-import sys
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+from backend.storage import get_articles, init_db, save_articles
 from services.naver_api import COMPANIES, fetch_company_news, get_daily_counts, get_last_api_error
 from utils.keywords import get_keyword_data
 from utils.sentiment import add_sentiment_column, get_model_id, get_sentiment_summary
@@ -34,6 +35,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
 
 
 def _to_records(df: pd.DataFrame) -> list[dict]:
@@ -73,6 +79,177 @@ def _generate_demo_data() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _extract_tokens(text: str) -> list[str]:
+    words = re.findall(r"[가-힣]{2,6}", text or "")
+    stop = {
+        "있다",
+        "하는",
+        "되는",
+        "이번",
+        "대한",
+        "이후",
+        "통해",
+        "위해",
+        "하고",
+        "에서",
+        "으로",
+        "까지",
+        "부터",
+        "라고",
+        "했다",
+        "된다",
+        "한다",
+        "것으로",
+        "이라고",
+        "밝혔다",
+        "전했다",
+        "말했다",
+        "보도",
+        "기자",
+        "뉴스",
+        "관련",
+        "지난",
+        "올해",
+        "내년",
+        "최근",
+        "현재",
+        "오늘",
+        "어제",
+        "내일",
+        "것이",
+        "수도",
+        "등을",
+        "것을",
+        "하며",
+        "또한",
+        "있는",
+        "없는",
+        "같은",
+        "따른",
+        "관한",
+        "의한",
+        "넥슨",
+        "엔씨소프트",
+        "NC소프트",
+        "넷마블",
+        "크래프톤",
+    }
+    return [w for w in words if w not in stop]
+
+
+def _negative_ratio(df: pd.DataFrame) -> float:
+    if df.empty:
+        return 0.0
+    return round(float((df["sentiment"] == "부정").mean() * 100), 1)
+
+
+def _issue_candidates(df_company: pd.DataFrame, company: str) -> list[dict]:
+    if df_company.empty:
+        return []
+
+    text_series = df_company["title_clean"].fillna("") + " " + df_company["description_clean"].fillna("")
+    counts: dict[str, int] = {}
+    for text in text_series:
+        for token in _extract_tokens(text):
+            counts[token] = counts.get(token, 0) + 1
+
+    ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:3]
+    out: list[dict] = []
+    total = len(df_company)
+    for keyword, count in ranked:
+        match_rows = df_company[df_company["title_clean"].fillna("").str.contains(keyword, na=False)].head(1)
+        example = match_rows["title_clean"].iloc[0] if not match_rows.empty else (df_company["title_clean"].iloc[0] or "")
+        out.append(
+            {
+                "company": company,
+                "keyword": keyword,
+                "count": int(count),
+                "share_pct": round(count / max(total, 1) * 100, 1),
+                "example_title": example,
+            }
+        )
+    return out
+
+
+def _build_interview_insights(df: pd.DataFrame, selected: list[str]) -> dict:
+    now = datetime.now()
+    cur_start = now - timedelta(days=7)
+    prev_start = now - timedelta(days=14)
+
+    top_issues: list[dict] = []
+    competitive_changes: list[dict] = []
+    risk_alerts: list[dict] = []
+    actions: list[dict] = []
+
+    for company in selected:
+        cdf = df[df["company"] == company].copy()
+        if cdf.empty:
+            continue
+
+        cdf["pub_dt"] = pd.to_datetime(cdf["pubDate_parsed"], errors="coerce", utc=True).dt.tz_convert(None)
+        cdf = cdf.dropna(subset=["pub_dt"]).reset_index(drop=True)
+        if cdf.empty:
+            continue
+
+        top_issues.extend(_issue_candidates(cdf, company))
+
+        cur = cdf[(cdf["pub_dt"] >= cur_start) & (cdf["pub_dt"] <= now)]
+        prev = cdf[(cdf["pub_dt"] >= prev_start) & (cdf["pub_dt"] < cur_start)]
+
+        cur_cnt = int(len(cur))
+        prev_cnt = int(len(prev))
+        change_pct = round(((cur_cnt - prev_cnt) / max(prev_cnt, 1)) * 100, 1)
+        cur_neg = _negative_ratio(cur)
+        prev_neg = _negative_ratio(prev)
+        neg_change = round(cur_neg - prev_neg, 1)
+
+        competitive_changes.append(
+            {
+                "company": company,
+                "current_articles": cur_cnt,
+                "previous_articles": prev_cnt,
+                "article_change_pct": change_pct,
+                "current_negative_ratio": cur_neg,
+                "previous_negative_ratio": prev_neg,
+                "negative_ratio_change_pp": neg_change,
+            }
+        )
+
+        risk_reasons = []
+        if cur_cnt >= 8 and change_pct >= 35:
+            risk_reasons.append(f"보도량 전주 대비 +{change_pct}%")
+        if cur_cnt >= 8 and cur_neg >= 45 and neg_change >= 8:
+            risk_reasons.append(f"부정 비중 {cur_neg}% (전주 대비 +{neg_change}%p)")
+
+        level = "high" if len(risk_reasons) >= 2 else ("medium" if len(risk_reasons) == 1 else "low")
+        if level != "low":
+            risk_alerts.append({"company": company, "level": level, "reason": " / ".join(risk_reasons)})
+
+        top_keyword = _issue_candidates(cur if not cur.empty else cdf, company)
+        lead_kw = top_keyword[0]["keyword"] if top_keyword else "핵심 이슈"
+        if level == "high":
+            msg = f"{lead_kw} 이슈 중심으로 공식 입장문과 FAQ를 24시간 내 동시 배포해 부정 확산을 차단하세요."
+            priority = "P1"
+        elif level == "medium":
+            msg = f"{lead_kw} 관련 메시지를 선제 정리하고 커뮤니티 Q&A 대응 문안을 준비하세요."
+            priority = "P2"
+        else:
+            msg = f"{lead_kw} 성과 포인트를 활용해 긍정 기사 증폭용 후속 콘텐츠를 배포하세요."
+            priority = "P3"
+        actions.append({"company": company, "priority": priority, "action": msg})
+
+    top_issues = sorted(top_issues, key=lambda x: x["count"], reverse=True)[:5]
+    competitive_changes = sorted(competitive_changes, key=lambda x: x["article_change_pct"], reverse=True)
+    actions = sorted(actions, key=lambda x: x["priority"])
+
+    return {
+        "top_issues": top_issues,
+        "competitive_changes": competitive_changes,
+        "risk_alerts": risk_alerts,
+        "actions": actions,
+    }
+
+
 def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
     company_counts = df.groupby("company").size().to_dict()
     total = int(len(df))
@@ -105,6 +282,7 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
         "sentiment_summary": _to_records(sentiment),
         "keywords": keyword_map,
         "latest_articles": _to_records(latest),
+        "insights": _build_interview_insights(df, selected),
     }
 
 
@@ -120,6 +298,16 @@ def config() -> dict:
         "model_id": get_model_id(),
         "limits": {"articles_per_company_min": 10, "articles_per_company_max": 100},
     }
+
+
+@app.get("/api/articles")
+def articles(
+    company: str | None = Query(default=None),
+    sentiment: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=10, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    return get_articles(company=company, sentiment=sentiment, limit=limit, offset=offset)
 
 
 @app.post("/api/analyze")
@@ -145,6 +333,7 @@ def analyze(req: AnalyzeRequest) -> dict:
         merged = add_sentiment_column(merged)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"감성 분석 실패: {exc}") from exc
+    save_articles(merged)
 
     return _build_payload(merged, selected)
 
@@ -157,4 +346,3 @@ def demo() -> dict:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"감성 분석 실패: {exc}") from exc
     return _build_payload(df, list(COMPANIES.keys()))
-

@@ -9,10 +9,38 @@
 - `services/`, `utils/` : 뉴스 수집/감성분석/키워드 로직
 - `app.py` : 기존 Streamlit 버전 (비교용)
 
-## 1) 백엔드 실행
+## 1) Docker로 실행 (권장)
+
+사전 준비:
 
 ```bash
-cd nexon-press-dashboard
+cp .env.example .env
+```
+
+`.env`에 네이버 API 키를 채운 뒤 실행:
+
+```bash
+docker compose up --build
+```
+
+접속:
+
+- 프론트엔드: `http://localhost:3000`
+- 백엔드: `http://localhost:8000`
+
+중지:
+
+```bash
+docker compose down
+```
+
+## 2) 로컬 개발 실행
+
+### 백엔드
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn backend.main:app --reload --port 8000
 ```
@@ -24,10 +52,10 @@ uvicorn backend.main:app --reload --port 8000
 - `POST /api/analyze`
 - `POST /api/demo`
 
-## 2) 프론트엔드 실행
+### 프론트엔드
 
 ```bash
-cd nexon-press-dashboard/frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -40,4 +68,3 @@ npm run dev
 ```bash
 NEXT_PUBLIC_API_BASE=http://localhost:8000
 ```
-
