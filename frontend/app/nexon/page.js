@@ -90,12 +90,21 @@ function WordCloudCanvas({ items }) {
     const run = async () => {
       const mod = await import("wordcloud");
       if (canceled || !canvasRef.current) return;
+      const canvas = canvasRef.current;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const cssWidth = canvas.parentElement?.clientWidth || 980;
+      const cssHeight = 320;
+
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
 
       const words = items.slice(0, 120).map((w) => [w.word, Math.max(8, Number(w.count || 0))]);
-      mod.default(canvasRef.current, {
+      mod.default(canvas, {
         list: words,
-        gridSize: Math.round((16 * canvasRef.current.offsetWidth) / 1024),
-        weightFactor: (size) => Math.max(14, Math.min(64, size * 1.2)),
+        gridSize: Math.max(6, Math.round((10 * cssWidth) / 1024) * dpr),
+        weightFactor: (size) => Math.max(14 * dpr, Math.min(64 * dpr, size * 1.2 * dpr)),
         fontFamily: "'Noto Sans KR', sans-serif",
         color: () => {
           const palette = ["#0a4fb9", "#0d6bff", "#123d7e", "#2b5f9d", "#1d4f8c"];
@@ -106,16 +115,20 @@ function WordCloudCanvas({ items }) {
         backgroundColor: "#f8fbff",
         drawOutOfBound: false,
         shrinkToFit: true,
+        clearCanvas: true,
       });
     };
 
     run();
+    const onResize = () => run();
+    window.addEventListener("resize", onResize);
     return () => {
       canceled = true;
+      window.removeEventListener("resize", onResize);
     };
   }, [items]);
 
-  return <canvas ref={canvasRef} className="keywordCloudCanvas" width={980} height={320} />;
+  return <canvas ref={canvasRef} className="keywordCloudCanvas" />;
 }
 
 export default function NexonPage() {
