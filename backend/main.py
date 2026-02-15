@@ -15,7 +15,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from backend.storage import get_articles, init_db, save_articles
+from backend.storage import get_articles, get_nexon_dashboard, init_db, save_articles
 from services.naver_api import (
     COMPANIES,
     fetch_company_news_compare,
@@ -318,6 +318,23 @@ def articles(
     offset: int = Query(default=0, ge=0),
 ) -> dict:
     return get_articles(company=company, sentiment=sentiment, limit=limit, offset=offset)
+
+
+@app.get("/api/nexon-dashboard")
+def nexon_dashboard(
+    date_from: str = Query(default="2024-01-01"),
+    date_to: str = Query(default="2026-12-31"),
+) -> dict:
+    try:
+        start = datetime.strptime(date_from, "%Y-%m-%d")
+        end = datetime.strptime(date_to, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="date_from/date_to 형식은 YYYY-MM-DD여야 합니다.") from exc
+
+    if start > end:
+        raise HTTPException(status_code=400, detail="date_from은 date_to보다 이전이어야 합니다.")
+
+    return get_nexon_dashboard(date_from=date_from, date_to=date_to)
 
 
 @app.post("/api/analyze")

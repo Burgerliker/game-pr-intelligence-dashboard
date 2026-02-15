@@ -13,6 +13,14 @@ import pandas as pd
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DB_DIR = ROOT_DIR / "backend" / "data"
 DB_PATH = DB_DIR / "articles.db"
+RISK_THEME_RULES: dict[str, list[str]] = {
+    "확률형/BM": ["확률", "확률형", "가챠", "과금", "bm", "뽑기"],
+    "운영/장애": ["점검", "장애", "오류", "버그", "접속", "서버", "롤백"],
+    "보상/환불": ["보상", "환불", "배상", "보상안", "환급"],
+    "규제/법적": ["공정위", "소송", "제재", "법원", "과징금", "규제"],
+    "여론/논란": ["논란", "비판", "불만", "시위", "잡음"],
+    "신작/성과": ["신작", "출시", "흥행", "매출", "사전예약", "수상"],
+}
 
 
 def _connect() -> sqlite3.Connection:
@@ -34,6 +42,7 @@ def init_db() -> None:
                 description_clean TEXT,
                 originallink TEXT,
                 link TEXT,
+                outlet TEXT,
                 pub_date TEXT,
                 date TEXT,
                 sentiment TEXT,
@@ -42,9 +51,13 @@ def init_db() -> None:
             )
             """
         )
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(articles)").fetchall()}
+        if "outlet" not in cols:
+            conn.execute("ALTER TABLE articles ADD COLUMN outlet TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_company ON articles(company)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_sentiment ON articles(sentiment)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_pub_date ON articles(pub_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_outlet ON articles(outlet)")
         conn.commit()
     finally:
         conn.close()
@@ -88,6 +101,19 @@ def _to_hash(company: str, originallink: str, link: str, title: str, date: str) 
     else:
         key = "|".join([company or "", normalized_title, date or ""])
     return hashlib.sha1(key.encode("utf-8")).hexdigest()
+
+
+def _extract_outlet(originallink: str, link: str) -> str:
+    chosen = _normalize_url(originallink) or _normalize_url(link)
+    if not chosen:
+        return "unknown"
+    try:
+        host = (urlparse(chosen).netloc or "").lower()
+    except Exception:
+        return "unknown"
+    if host.startswith("www."):
+        host = host[4:]
+    return host or "unknown"
 
 
 def _is_near_duplicate(conn: sqlite3.Connection, company: str, title: str, date: str) -> bool:
@@ -140,6 +166,7 @@ def save_articles(df: pd.DataFrame) -> int:
                     pub_date = ""
             date = str(row.get("date", "") or "")
             sentiment = str(row.get("sentiment", "") or "")
+            outlet = _extract_outlet(originallink, link)
             content_hash = _to_hash(company, originallink, link, title, date)
 
             if content_hash in seen_hashes:
@@ -152,10 +179,10 @@ def save_articles(df: pd.DataFrame) -> int:
             conn.execute(
                 """
                 INSERT OR IGNORE INTO articles (
-                    company, title_clean, description_clean, originallink, link, pub_date, date, sentiment, content_hash, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    company, title_clean, description_clean, originallink, link, outlet, pub_date, date, sentiment, content_hash, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (company, title, desc, originallink, link, pub_date, date, sentiment, content_hash, now),
+                (company, title, desc, originallink, link, outlet, pub_date, date, sentiment, content_hash, now),
             )
         conn.commit()
         after = conn.execute("SELECT COUNT(1) AS cnt FROM articles").fetchone()["cnt"]
@@ -193,6 +220,7 @@ def get_articles(
         rows = conn.execute(
             f"""
             SELECT company, title_clean AS title, sentiment, date,
+                   outlet,
                    CASE WHEN originallink IS NOT NULL AND originallink != '' THEN originallink ELSE link END AS url
             FROM articles
             {where_sql}
@@ -212,3 +240,123 @@ def get_articles(
         }
     finally:
         conn.close()
+
+
+def clear_articles(company: str | None = None) -> int:
+    conn = _connect()
+    try:
+        if company:
+            before = conn.execute("SELECT COUNT(1) AS cnt FROM articles WHERE company = ?", (company,)).fetchone()["cnt"]
+            conn.execute("DELETE FROM articles WHERE company = ?", (company,))
+            conn.commit()
+            after = conn.execute("SELECT COUNT(1) AS cnt FROM articles WHERE company = ?", (company,)).fetchone()["cnt"]
+            return int(before) - int(after)
+        before = conn.execute("SELECT COUNT(1) AS cnt FROM articles").fetchone()["cnt"]
+        conn.execute("DELETE FROM articles")
+        conn.commit()
+        return int(before)
+    finally:
+        conn.close()
+
+
+def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31") -> dict[str, Any]:
+    params = ["넥슨", date_from, date_to]
+    conn = _connect()
+    try:
+        total = conn.execute(
+            """
+            SELECT COUNT(1) AS cnt
+            FROM articles
+            WHERE company = ? AND date BETWEEN ? AND ?
+            """,
+            params,
+        ).fetchone()["cnt"]
+
+        daily_rows = conn.execute(
+            """
+            SELECT date,
+                   COUNT(1) AS article_count,
+                   ROUND(100.0 * SUM(CASE WHEN sentiment = '부정' THEN 1 ELSE 0 END) / COUNT(1), 1) AS negative_ratio
+            FROM articles
+            WHERE company = ? AND date BETWEEN ? AND ?
+            GROUP BY date
+            ORDER BY date
+            """,
+            params,
+        ).fetchall()
+
+        outlet_rows = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet,
+                   COUNT(1) AS article_count,
+                   ROUND(100.0 * SUM(CASE WHEN sentiment = '긍정' THEN 1 ELSE 0 END) / COUNT(1), 1) AS positive_ratio,
+                   ROUND(100.0 * SUM(CASE WHEN sentiment = '중립' THEN 1 ELSE 0 END) / COUNT(1), 1) AS neutral_ratio,
+                   ROUND(100.0 * SUM(CASE WHEN sentiment = '부정' THEN 1 ELSE 0 END) / COUNT(1), 1) AS negative_ratio
+            FROM articles
+            WHERE company = ? AND date BETWEEN ? AND ?
+            GROUP BY outlet
+            HAVING COUNT(1) >= 2
+            ORDER BY article_count DESC
+            LIMIT 40
+            """,
+            params,
+        ).fetchall()
+
+        theme_source = conn.execute(
+            """
+            SELECT title_clean, description_clean, sentiment
+            FROM articles
+            WHERE company = ? AND date BETWEEN ? AND ?
+            """,
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    daily = [dict(r) for r in daily_rows]
+    outlets = [dict(r) for r in outlet_rows]
+
+    theme_counts: dict[str, dict[str, float]] = {
+        k: {"article_count": 0, "negative_count": 0, "negative_ratio": 0.0, "risk_score": 0.0}
+        for k in RISK_THEME_RULES
+    }
+    for r in theme_source:
+        text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}".lower()
+        sentiment = str(r["sentiment"] or "")
+        for theme, kws in RISK_THEME_RULES.items():
+            if any(k.lower() in text for k in kws):
+                theme_counts[theme]["article_count"] += 1
+                if sentiment == "부정":
+                    theme_counts[theme]["negative_count"] += 1
+
+    max_count = max([v["article_count"] for v in theme_counts.values()] + [1])
+    themed = []
+    for theme, row in theme_counts.items():
+        count = int(row["article_count"])
+        if count == 0:
+            continue
+        neg = int(row["negative_count"])
+        neg_ratio = round(100.0 * neg / count, 1)
+        volume_norm = count / max_count
+        risk_score = round(0.6 * volume_norm + 0.4 * (neg_ratio / 100.0), 3)
+        themed.append(
+            {
+                "theme": theme,
+                "article_count": count,
+                "negative_ratio": neg_ratio,
+                "risk_score": risk_score,
+            }
+        )
+    themed.sort(key=lambda x: (x["risk_score"], x["article_count"]), reverse=True)
+
+    return {
+        "meta": {
+            "company": "넥슨",
+            "date_from": date_from,
+            "date_to": date_to,
+            "total_articles": int(total),
+        },
+        "daily": daily,
+        "outlets": outlets,
+        "risk_themes": themed,
+    }
