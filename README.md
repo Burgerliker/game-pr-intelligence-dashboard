@@ -73,3 +73,19 @@ npm run dev
 ```bash
 NEXT_PUBLIC_API_BASE=http://localhost:8000
 ```
+
+## 3) Jenkins 자동 배포
+
+레포 루트에 `Jenkinsfile`이 포함되어 있으며, 기본 흐름은 아래와 같습니다.
+
+1. 코드 체크아웃
+2. `docker compose build backend frontend`
+3. (`main` 브랜치만) `docker compose up -d backend frontend`
+4. 헬스체크
+   - `GET http://localhost:8000/health`
+   - `HEAD http://localhost:3000`
+
+설정 전제:
+- Jenkins 에이전트에 Docker / Docker Compose 설치
+- Jenkins 실행 계정이 Docker 명령 실행 권한 보유
+- 이 프로젝트 경로에 `.env` 파일 존재
