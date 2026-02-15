@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import sqlite3
+from collections import Counter
 from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
@@ -294,6 +296,148 @@ def _detect_ip(text: str) -> str:
         if any(k.lower() in low for k in meta["keywords"]):
             return name
     return "기타"
+
+
+def _extract_cluster_tokens(text: str, ip_name: str) -> list[str]:
+    words = re.findall(r"[가-힣a-zA-Z0-9]{2,12}", text or "")
+    stop = {
+        "넥슨",
+        "nexon",
+        "관련",
+        "기자",
+        "보도",
+        "뉴스",
+        "이번",
+        "대한",
+        "위해",
+        "했다",
+        "한다",
+        "있는",
+        "없는",
+        "에서",
+        "으로",
+        "까지",
+        "그리고",
+        "통해",
+        "the",
+        "and",
+    }
+    if ip_name in IP_RULES:
+        stop.update({k.lower() for k in IP_RULES[ip_name]["keywords"]})
+    out = []
+    for w in words:
+        lw = w.lower()
+        if lw in stop:
+            continue
+        if len(lw) < 2:
+            continue
+        out.append(lw)
+    return out
+
+
+def get_ip_clusters(
+    *,
+    date_from: str = "2024-01-01",
+    date_to: str = "2026-12-31",
+    ip: str = "maplestory",
+    limit: int = 6,
+) -> dict[str, Any]:
+    ip_name = _resolve_ip_name(ip)
+    if not ip_name:
+        raise ValueError("지원하지 않는 IP입니다.")
+
+    params = ["넥슨", date_from, date_to]
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT date, title_clean, description_clean, sentiment,
+                   COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet
+            FROM articles
+            WHERE company = ? AND date BETWEEN ? AND ?
+            ORDER BY date DESC, id DESC
+            """,
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    buckets: dict[str, dict[str, Any]] = {}
+    total = 0
+    outlets = Counter()
+
+    for r in rows:
+        text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
+        detected_ip = _detect_ip(text)
+        if ip_name != "전체" and detected_ip != ip_name:
+            continue
+
+        total += 1
+        sentiment = str(r["sentiment"] or "")
+        outlets[str(r["outlet"] or "unknown")] += 1
+
+        cluster_label = "기타 이슈"
+        for theme, kws in RISK_THEME_RULES.items():
+            if any(k.lower() in text.lower() for k in kws):
+                cluster_label = theme
+                break
+
+        if cluster_label not in buckets:
+            buckets[cluster_label] = {
+                "cluster": cluster_label,
+                "article_count": 0,
+                "negative_count": 0,
+                "sentiments": {"긍정": 0, "중립": 0, "부정": 0},
+                "keywords": Counter(),
+                "samples": [],
+            }
+
+        bucket = buckets[cluster_label]
+        bucket["article_count"] += 1
+        if sentiment == "부정":
+            bucket["negative_count"] += 1
+        if sentiment in bucket["sentiments"]:
+            bucket["sentiments"][sentiment] += 1
+        bucket["keywords"].update(_extract_cluster_tokens(text, ip_name))
+        if len(bucket["samples"]) < 3 and r["title_clean"]:
+            bucket["samples"].append(str(r["title_clean"]))
+
+    clusters = []
+    for bucket in buckets.values():
+        cnt = int(bucket["article_count"])
+        neg_ratio = round(100.0 * int(bucket["negative_count"]) / max(cnt, 1), 1)
+        clusters.append(
+            {
+                "cluster": bucket["cluster"],
+                "article_count": cnt,
+                "negative_ratio": neg_ratio,
+                "sentiment": {
+                    "positive": round(100.0 * bucket["sentiments"]["긍정"] / max(cnt, 1), 1),
+                    "neutral": round(100.0 * bucket["sentiments"]["중립"] / max(cnt, 1), 1),
+                    "negative": round(100.0 * bucket["sentiments"]["부정"] / max(cnt, 1), 1),
+                },
+                "keywords": [k for k, _ in bucket["keywords"].most_common(6)],
+                "samples": bucket["samples"],
+            }
+        )
+
+    clusters.sort(key=lambda x: (x["article_count"], x["negative_ratio"]), reverse=True)
+    clusters = clusters[: max(1, min(int(limit), 12))]
+
+    return {
+        "meta": {
+            "company": "넥슨",
+            "ip": ip_name,
+            "ip_id": (ip or "").strip().lower(),
+            "date_from": date_from,
+            "date_to": date_to,
+            "total_articles": int(total),
+            "cluster_count": int(len(clusters)),
+        },
+        "ip_catalog": get_risk_ip_catalog(),
+        "top_outlets": [{"outlet": k, "article_count": int(v)} for k, v in outlets.most_common(5)],
+        "clusters": clusters,
+    }
 
 
 def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31", ip: str = "all") -> dict[str, Any]:

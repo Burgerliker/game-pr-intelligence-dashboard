@@ -17,6 +17,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from backend.storage import (
     get_articles,
+    get_ip_clusters,
     get_nexon_dashboard,
     get_risk_dashboard,
     get_risk_ip_catalog,
@@ -366,6 +367,28 @@ def risk_dashboard(
 
     try:
         return get_risk_dashboard(date_from=date_from, date_to=date_to, ip=ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/ip-clusters")
+def ip_clusters(
+    ip: str = Query(default="maplestory"),
+    date_from: str = Query(default="2024-01-01"),
+    date_to: str = Query(default="2026-12-31"),
+    limit: int = Query(default=6, ge=3, le=12),
+) -> dict:
+    try:
+        start = datetime.strptime(date_from, "%Y-%m-%d")
+        end = datetime.strptime(date_to, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="date_from/date_to 형식은 YYYY-MM-DD여야 합니다.") from exc
+
+    if start > end:
+        raise HTTPException(status_code=400, detail="date_from은 date_to보다 이전이어야 합니다.")
+
+    try:
+        return get_ip_clusters(ip=ip, date_from=date_from, date_to=date_to, limit=limit)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
