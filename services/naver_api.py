@@ -245,6 +245,81 @@ def fetch_nexon_cluster_news(total: int = 300) -> pd.DataFrame:
     return merged.head(total).reset_index(drop=True)
 
 
+def fetch_nexon_bulk_news(
+    *,
+    target_articles: int = 20000,
+    max_calls: int = 1200,
+    date_from: str = "2024-01-01",
+    date_to: str = "2026-12-31",
+) -> tuple[pd.DataFrame, dict]:
+    """넥슨 분석 프로젝트용 대량 수집 로직.
+
+    - 비교/군집 실시간 호출과 분리된 배치 수집 전용 경로
+    - 다중 쿼리 + date/sim 조합을 순환하며 수집
+    - 최종 단계에서 날짜 필터 및 중복 제거 수행
+    """
+    start_date = pd.to_datetime(date_from, errors="coerce")
+    end_date = pd.to_datetime(date_to, errors="coerce")
+    if pd.isna(start_date) or pd.isna(end_date):
+        raise ValueError("date_from/date_to 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+    if start_date > end_date:
+        raise ValueError("date_from은 date_to보다 이전이어야 합니다.")
+
+    streams: list[dict] = []
+    for query in NEXON_CLUSTER_QUERIES:
+        streams.append({"query": query, "sort": "date", "start": 1, "exhausted": False})
+        streams.append({"query": query, "sort": "sim", "start": 1, "exhausted": False})
+
+    all_frames: list[pd.DataFrame] = []
+    calls = 0
+    empty_rounds = 0
+    stream_idx = 0
+    raw_items = 0
+
+    while calls < max_calls and any(not s["exhausted"] for s in streams):
+        stream = streams[stream_idx % len(streams)]
+        stream_idx += 1
+        if stream["exhausted"]:
+            continue
+
+        items = search_news(stream["query"], display=100, start=stream["start"], sort=stream["sort"])
+        calls += 1
+        if not items:
+            stream["exhausted"] = True
+            empty_rounds += 1
+            if empty_rounds >= len(streams):
+                break
+            continue
+        empty_rounds = 0
+
+        raw_items += len(items)
+        stream["start"] += len(items)
+        if len(items) < 100 or stream["start"] > 1000:
+            stream["exhausted"] = True
+
+        frame = _to_company_dataframe(items, company="넥슨")
+        if not frame.empty:
+            all_frames.append(frame)
+
+        # 중복을 고려해 목표치의 3배 원천 데이터까지 수집 후 정리
+        if raw_items >= target_articles * 3:
+            break
+
+    if not all_frames:
+        return pd.DataFrame(), {"calls": calls, "raw_items": 0, "filtered_items": 0}
+
+    merged = pd.concat(all_frames, ignore_index=True)
+    merged["pubDate_parsed"] = pd.to_datetime(merged["pubDate_parsed"], errors="coerce", utc=True).dt.tz_convert(None)
+    merged = merged.dropna(subset=["pubDate_parsed"]).reset_index(drop=True)
+    merged = merged[
+        (merged["pubDate_parsed"] >= start_date.to_pydatetime())
+        & (merged["pubDate_parsed"] <= (end_date + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)).to_pydatetime())
+    ].reset_index(drop=True)
+    merged = _dedupe_news(merged).head(target_articles).reset_index(drop=True)
+
+    return merged, {"calls": calls, "raw_items": raw_items, "filtered_items": int(len(merged))}
+
+
 def fetch_all_companies(total_per_company: int = 100) -> pd.DataFrame:
     """모든 회사의 뉴스를 수집하여 통합 DataFrame 반환"""
     frames = []
