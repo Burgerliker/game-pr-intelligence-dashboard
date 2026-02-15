@@ -585,3 +585,204 @@ td {
     grid-template-columns: 1fr;
   }
 }
+
+.nexonPage {
+  max-width: 1180px;
+  padding-top: 20px;
+  padding-bottom: 26px;
+}
+
+.nexonHeaderActions {
+  display: flex;
+  gap: 8px;
+}
+
+.nexonFilter label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.nexonFilter input[type="date"] {
+  border: 1px solid #c7d5ec;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: #fff;
+}
+
+.nexonMockTag {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7a4f08;
+  background: #fff4dc;
+  border: 1px solid #f1d298;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.nexonKpiGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.nexonTimeline {
+  min-height: 210px;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  align-items: end;
+  gap: 4px;
+}
+
+.nexonBarWrap {
+  min-height: 180px;
+  display: grid;
+  gap: 4px;
+}
+
+.nexonBarTrack {
+  height: 160px;
+  border: 1px solid #d6e1f4;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6f9ff 0%, #edf3ff 100%);
+  display: flex;
+  align-items: end;
+  padding: 2px;
+}
+
+.nexonBar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 6px;
+}
+
+.nexonBarWrap span {
+  font-size: 10px;
+  color: #6a7690;
+  text-align: center;
+}
+
+.nexonDualGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 10px;
+}
+
+.nexonOutletList {
+  display: grid;
+  gap: 8px;
+}
+
+.nexonOutletItem {
+  border: 1px solid #e2eaf8;
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fbfdff;
+}
+
+.nexonOutletHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.nexonOutletHead strong {
+  font-size: 13px;
+}
+
+.nexonOutletHead span {
+  font-size: 12px;
+  color: #5f6b81;
+  font-weight: 700;
+}
+
+.nexonStackedBar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  margin-top: 7px;
+}
+
+.nexonStackedBar .pos {
+  background: #11a36a;
+  height: 100%;
+}
+
+.nexonStackedBar .neu {
+  background: #e7af13;
+  height: 100%;
+}
+
+.nexonStackedBar .neg {
+  background: #dc3c4a;
+  height: 100%;
+}
+
+.nexonOutletItem p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #5f6b81;
+}
+
+.nexonThemeGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.nexonThemeCard {
+  border: 1px solid #e2eaf8;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.nexonThemeCard h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.nexonThemeCard p {
+  margin: 5px 0 8px;
+  font-size: 12px;
+  color: #5f6b81;
+}
+
+.nexonRiskTrack {
+  width: 100%;
+  height: 9px;
+  border-radius: 999px;
+  background: #ebeff8;
+  overflow: hidden;
+}
+
+.nexonRiskFill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd56a 0%, #ff8e4e 55%, #df3c4e 100%);
+}
+
+.nexonThemeCard span {
+  display: inline-block;
+  margin-top: 7px;
+  font-size: 12px;
+  color: #334160;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .nexonKpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexonDualGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .nexonTimeline {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}

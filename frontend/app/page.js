@@ -33,9 +33,9 @@ export default function HomePage() {
             <li>군집별 대표 기사</li>
             <li>군집별 핵심 요약</li>
           </ul>
-          <button className="landingBtn ghost" type="button" disabled>
-            준비 중
-          </button>
+          <Link className="landingBtn ghost" href="/nexon">
+            열기
+          </Link>
         </article>
       </section>
     </main>
