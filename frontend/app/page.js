@@ -27,25 +27,13 @@ export default function HomePage() {
         </article>
 
         <article className="landingCard sub">
-          <h3>넥슨 이슈 군집</h3>
-          <p>넥슨 기사 전용 군집 분류 + AI 요약</p>
+          <h3>넥슨 IP 군집 분석</h3>
+          <p>IP별 기사 군집 + 언론사/테마 대시보드</p>
           <ul>
-            <li>군집별 대표 기사</li>
-            <li>군집별 핵심 요약</li>
+            <li>군집별 대표 기사/키워드</li>
+            <li>언론사 감성 분포 + 날짜 추이</li>
           </ul>
           <Link className="landingBtn ghost" href="/nexon">
-            열기
-          </Link>
-        </article>
-
-        <article className="landingCard sub">
-          <h3>IP 위험 대시보드</h3>
-          <p>메이플/던파/FC온라인 IP 단위 위험 모니터링</p>
-          <ul>
-            <li>IP별 부정 추이와 테마 우선순위</li>
-            <li>언론사별 감성 분포</li>
-          </ul>
-          <Link className="landingBtn ghost" href="/risk">
             열기
           </Link>
         </article>
