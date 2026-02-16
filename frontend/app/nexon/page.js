@@ -50,7 +50,7 @@ const MOCK_RISK = {
     { id: "all", name: "전체" },
     { id: "maplestory", name: "메이플스토리" },
     { id: "dnf", name: "던전앤파이터" },
-    { id: "kartrider", name: "카트라이더" },
+    { id: "arcraiders", name: "아크레이더스" },
     { id: "fconline", name: "FC온라인" },
     { id: "bluearchive", name: "블루아카이브" },
   ],

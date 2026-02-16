@@ -1,43 +1,21 @@
-# NEXON PR 인사이트 센터 (분리형)
+# Game PR Intelligence Dashboard
 
-프론트엔드(Next.js)와 분석 엔진 API(FastAPI)를 분리한 구조입니다.
+넥슨 PR 실무 관점의 데이터 분석 포트폴리오 프로젝트입니다.
 
-## 폴더 구조
+핵심 목표는 `데이터 추출 -> 정제/중복제거 -> 위험 테마/군집 분석 -> 대시보드 시각화`를 end-to-end로 보여주는 것입니다.
 
-- `backend/` : FastAPI 서버
-- `frontend/` : Next.js 대시보드
-- `services/`, `utils/` : 뉴스 수집/감성분석/키워드 로직
-- `app.py` : 기존 Streamlit 버전 (비교용)
+## 범위
+- 기간: `2024-01-01 ~ 2026-12-31`
+- 대상 회사: 넥슨 중심 (+ 경쟁사 비교 모듈)
+- 핵심 IP: `메이플스토리`, `던전앤파이터`, `아크레이더스`, `블루아카이브`, `FC온라인`
 
-## 1) Docker로 실행 (권장)
+## 기술 스택
+- Backend: FastAPI, Pandas, SQLite
+- Frontend: Next.js(App Router), React, MUI
+- Data Source: Naver Search API(뉴스)
 
-사전 준비:
-
-```bash
-cp .env.example .env
-```
-
-`.env`에 네이버 API 키를 채운 뒤 실행:
-
-```bash
-docker compose up --build
-```
-
-접속:
-
-- 프론트엔드: `http://localhost:3000`
-- 백엔드: `http://localhost:8000`
-
-중지:
-
-```bash
-docker compose down
-```
-
-## 2) 로컬 개발 실행
-
-### 백엔드
-
+## 실행
+### 1) 백엔드
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -45,47 +23,46 @@ pip install -r requirements.txt
 uvicorn backend.main:app --reload --port 8000
 ```
 
-주요 엔드포인트:
-
-- `GET /health`
-- `GET /api/config`
-- `POST /api/analyze`
-- `POST /api/nexon-cluster-source`
-- `POST /api/demo`
-
-수집 전략:
-- `POST /api/analyze`: 회사 비교용(회사명 중심, 최신순 안정 수집)
-- `POST /api/nexon-cluster-source`: 넥슨 군집분석용(이슈 확장 쿼리 + `date/sim` 혼합 수집)
-
-### 프론트엔드
-
+### 2) 프론트엔드
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-브라우저: `http://localhost:3000`
+접속:
+- 메인: `http://localhost:3000`
+- 경쟁사 비교: `http://localhost:3000/compare`
+- 넥슨 군집/리스크: `http://localhost:3000/nexon`
 
-기본 API 주소: `http://localhost:8000`  
-변경 시 `frontend/.env.local` 생성:
+## 주요 API
+- `POST /api/analyze`: 경쟁사 비교 수집/분석
+- `POST /api/nexon-cluster-source`: 넥슨 군집용 수집/분석
+- `GET /api/risk-dashboard`: 날짜/IP 기반 리스크 지표
+- `GET /api/ip-clusters`: 날짜/IP 기반 군집 요약
+- `GET /api/project-snapshot`: 외부 API 호출 없이 DB 데이터만으로 분석 스냅샷 생성
+
+## DB 기반 분석 산출물(외부 API 미호출)
+이미 DB에 적재된 데이터로 포트폴리오용 JSON/CSV를 생성합니다.
 
 ```bash
-NEXT_PUBLIC_API_BASE=http://localhost:8000
+python scripts/export_analysis_snapshot.py \
+  --date-from 2024-01-01 \
+  --date-to 2026-12-31
 ```
 
-## 3) Jenkins 자동 배포
+생성 파일(`backend/data/exports`):
+- `nexon_project_snapshot.json`
+- `nexon_ip_summary.csv`
+- `nexon_top_risk_themes.csv`
+- `nexon_top_outlets.csv`
 
-레포 루트에 `Jenkinsfile`이 포함되어 있으며, 기본 흐름은 아래와 같습니다.
+## 기사 수 가이드(분석 신뢰도 기준)
+실무에서 의미 있는 위험/군집 분석을 위해 권장하는 최소 데이터량:
+- MVP: `3,000 ~ 5,000건`
+- 권장: `8,000 ~ 15,000건`
+- 고도화(이벤트/연도/언론사 세부 분석): `20,000건+`
 
-1. 코드 체크아웃
-2. `docker compose build backend frontend`
-3. (`main` 브랜치만) `docker compose up -d backend frontend`
-4. 헬스체크
-   - `GET http://localhost:8000/health`
-   - `HEAD http://localhost:3000`
-
-설정 전제:
-- Jenkins 에이전트에 Docker / Docker Compose 설치
-- Jenkins 실행 계정이 Docker 명령 실행 권한 보유
-- 이 프로젝트 경로에 `.env` 파일 존재
+## Jenkins(선택)
+Jenkinsfile과 Docker 구성 파일이 포함되어 있어 로컬 CI 실습이 가능합니다.
+다만 이 프로젝트의 1순위는 배포보다 `분석 파이프라인 재현성`입니다.

@@ -37,7 +37,7 @@ IP_RULES: dict[str, dict[str, Any]] = {
     "전체": {"slug": "all", "keywords": []},
     "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "메이플", "maplestory"]},
     "던전앤파이터": {"slug": "dnf", "keywords": ["던전앤파이터", "던파", "dnf"]},
-    "카트라이더": {"slug": "kartrider", "keywords": ["카트라이더", "카트", "kartrider", "아크라이더"]},
+    "아크레이더스": {"slug": "arcraiders", "keywords": ["아크레이더스", "아크 레이더스", "arc raiders", "arcraiders"]},
     "FC온라인": {
         "slug": "fconline",
         "keywords": ["fc온라인", "fc online", "fconline", "피파온라인", "fifa온라인", "ea sports fc online"],
