@@ -31,6 +31,7 @@ from backend.storage import (
     get_latest_scheduler_log,
     get_ip_clusters,
     get_live_risk_with_options,
+    get_nexon_articles,
     get_nexon_dashboard,
     get_recent_burst_events,
     get_recent_risk_scores,
@@ -40,6 +41,7 @@ from backend.storage import (
     force_burst_test_articles,
     record_burst_event,
     record_scheduler_log,
+    repair_article_outlets,
     save_articles,
 )
 from backend.analysis_project import CORE_IPS, build_project_snapshot
@@ -72,16 +74,21 @@ MONITOR_IPS = list(CORE_IPS)
 BASE_INTERVAL_SECONDS = 600
 BURST_INTERVAL_SECONDS = 120
 MAX_BURST_SECONDS = 7200
+LIVE_COLLECT_INTERVAL_SECONDS = int(os.getenv("LIVE_COLLECT_INTERVAL_SECONDS", "600"))
+LIVE_COLLECT_DISPLAY = int(os.getenv("LIVE_COLLECT_DISPLAY", "100"))
+LIVE_COLLECT_PAGES = int(os.getenv("LIVE_COLLECT_PAGES", "3"))
+LIVE_COLLECT_QUERIES_PER_IP = int(os.getenv("LIVE_COLLECT_QUERIES_PER_IP", "2"))
+LIVE_COLLECT_INCLUDE_SIM = os.getenv("LIVE_COLLECT_INCLUDE_SIM", "1") == "1"
 BACKFILL_INTERVAL_SECONDS = int(os.getenv("BACKFILL_INTERVAL_SECONDS", "1800"))
 BACKFILL_LOW_COUNT_THRESHOLD = int(os.getenv("BACKFILL_LOW_COUNT_THRESHOLD", "8"))
 BACKFILL_MAX_IPS_PER_RUN = int(os.getenv("BACKFILL_MAX_IPS_PER_RUN", "2"))
 BACKFILL_DISPLAY = int(os.getenv("BACKFILL_DISPLAY", "40"))
 BACKFILL_QUERIES: dict[str, list[str]] = {
-    "maplestory": ["메이플스토리 넥슨", "메이플 확률 넥슨", "메이플 환불"],
-    "dnf": ["던전앤파이터 넥슨", "던파 업데이트", "던파 점검"],
+    "maplestory": ["메이플스토리 넥슨", "메이플 확률 넥슨", "메이플 환불", "메이플스토리 업데이트"],
+    "dnf": ["던전앤파이터 넥슨", "던파 업데이트", "던파 점검", "네오플 던전앤파이터"],
     "arcraiders": ["아크레이더스 넥슨", "arc raiders nexon", "아크 레이더스 출시"],
-    "bluearchive": ["블루아카이브 넥슨", "블루 아카이브 업데이트", "블루아카 이벤트"],
-    "fconline": ["FC온라인 넥슨", "피파온라인 넥슨", "EA SPORTS FC ONLINE 넥슨"],
+    "bluearchive": ["블루아카이브 넥슨", "블루 아카이브 업데이트", "블루아카 이벤트", "블루아카이브 일본"],
+    "fconline": ["FC온라인 넥슨", "피파온라인 넥슨", "EA SPORTS FC ONLINE 넥슨", "FC온라인 이벤트"],
 }
 SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
@@ -112,6 +119,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    repair_article_outlets(remove_placeholder=True)
     _start_monitoring_scheduler()
 
 
@@ -123,6 +131,10 @@ def on_shutdown() -> None:
 
 def _job_id(ip_id: str) -> str:
     return f"risk-monitor-{ip_id}"
+
+
+def _collect_job_id(ip_id: str) -> str:
+    return f"collect-news-{ip_id}"
 
 
 def _run_monitor_tick(ip_id: str) -> None:
@@ -175,6 +187,125 @@ def _run_monitor_tick(ip_id: str) -> None:
                 "last_collect_duration_ms": int((time.time() - started) * 1000),
             }
             record_scheduler_log(job_id=job_id, status="success", run_time=run_ts)
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i < attempts - 1:
+                time.sleep(0.5 * (i + 1))
+                continue
+    scheduler_job_state[job_id] = {
+        "last_run_time": run_ts,
+        "last_status": "error",
+        "last_error": str(last_exc or "unknown error"),
+        "last_collect_count": 0,
+        "last_group_count": 0,
+        "last_collect_duration_ms": int((time.time() - started) * 1000),
+    }
+    record_scheduler_log(job_id=job_id, status="error", error_message=str(last_exc or "unknown error"), run_time=run_ts)
+
+
+def _collect_live_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
+    queries = (BACKFILL_QUERIES.get(ip_id, []) or [])[: max(1, LIVE_COLLECT_QUERIES_PER_IP)]
+    if not queries:
+        return pd.DataFrame(), 0
+
+    calls = 0
+    frames: list[pd.DataFrame] = []
+    for q in queries:
+        for page in range(max(1, LIVE_COLLECT_PAGES)):
+            start = 1 + page * 100
+            if start > 1000:
+                break
+            date_items = search_news(q, display=max(10, min(LIVE_COLLECT_DISPLAY, 100)), start=start, sort="date")
+            calls += 1
+            if not date_items:
+                break
+            date_frame = _to_nexon_df(date_items)
+            if date_frame.empty:
+                continue
+            date_filtered = date_frame[
+                (date_frame["title_clean"].fillna("") + " " + date_frame["description_clean"].fillna(""))
+                .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
+            ]
+            # 검색어 자체가 IP 전용인 경우가 많아 필터가 과도하게 비우면 원본 프레임을 사용한다.
+            frames.append(date_filtered if not date_filtered.empty else date_frame)
+
+        if LIVE_COLLECT_INCLUDE_SIM:
+            for page in range(max(1, LIVE_COLLECT_PAGES)):
+                start = 1 + page * 100
+                if start > 1000:
+                    break
+                sim_items = search_news(
+                    q,
+                    display=max(10, min(max(10, LIVE_COLLECT_DISPLAY // 2), 100)),
+                    start=start,
+                    sort="sim",
+                )
+                calls += 1
+                if not sim_items:
+                    break
+                sim_frame = _to_nexon_df(sim_items)
+                if sim_frame.empty:
+                    continue
+                sim_filtered = sim_frame[
+                    (sim_frame["title_clean"].fillna("") + " " + sim_frame["description_clean"].fillna(""))
+                    .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
+                ]
+                frames.append(sim_filtered if not sim_filtered.empty else sim_frame)
+
+    if not frames:
+        return pd.DataFrame(), calls
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["originallink", "title_clean", "date"], keep="first").reset_index(drop=True)
+    return merged, calls
+
+
+def _run_collect_ip_tick(ip_id: str) -> None:
+    job_id = _collect_job_id(ip_id)
+    run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    started = time.time()
+    attempts = 2
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            df, calls = _collect_live_for_ip(ip_id)
+            if df.empty:
+                scheduler_job_state[job_id] = {
+                    "last_run_time": run_ts,
+                    "last_status": "success",
+                    "last_error": "",
+                    "last_collect_count": 0,
+                    "last_group_count": 0,
+                    "last_collect_duration_ms": int((time.time() - started) * 1000),
+                }
+                record_scheduler_log(
+                    job_id=job_id,
+                    status="success",
+                    run_time=run_ts,
+                    error_message=f"calls={calls};inserted=0",
+                )
+                return
+
+            try:
+                df = add_sentiment_column(df)
+            except Exception:
+                pass
+
+            inserted = int(save_articles(df))
+            scheduler_job_state[job_id] = {
+                "last_run_time": run_ts,
+                "last_status": "success",
+                "last_error": "",
+                "last_collect_count": inserted,
+                "last_group_count": int(len(df)),
+                "last_collect_duration_ms": int((time.time() - started) * 1000),
+            }
+            record_scheduler_log(
+                job_id=job_id,
+                status="success",
+                run_time=run_ts,
+                error_message=f"calls={calls};rows={len(df)};inserted={inserted}",
+            )
             return
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
@@ -354,6 +485,16 @@ def _start_monitoring_scheduler() -> None:
         return
     for ip_id in MONITOR_IPS:
         scheduler.add_job(
+            _run_collect_ip_tick,
+            trigger=IntervalTrigger(seconds=LIVE_COLLECT_INTERVAL_SECONDS),
+            id=_collect_job_id(ip_id),
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+            kwargs={"ip_id": ip_id},
+        )
+    for ip_id in MONITOR_IPS:
+        scheduler.add_job(
             _run_monitor_tick,
             trigger=IntervalTrigger(seconds=BASE_INTERVAL_SECONDS),
             id=_job_id(ip_id),
@@ -379,6 +520,8 @@ def _start_monitoring_scheduler() -> None:
         replace_existing=True,
     )
     scheduler.start()
+    for ip_id in MONITOR_IPS:
+        _run_collect_ip_tick(ip_id)
     for ip_id in MONITOR_IPS:
         _run_monitor_tick(ip_id)
     _run_backfill_tick()
@@ -681,6 +824,18 @@ def articles(
     return get_articles(company=company, sentiment=sentiment, limit=limit, offset=offset)
 
 
+@app.get("/api/nexon-articles")
+def nexon_articles(
+    ip: str = Query(default="all"),
+    limit: int = Query(default=20, ge=10, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    try:
+        return get_nexon_articles(ip=ip, limit=limit, offset=offset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/nexon-dashboard")
 def nexon_dashboard(
     date_from: str = Query(default="2024-01-01"),
@@ -799,9 +954,13 @@ def burst_events(ip: str = Query(default=""), limit: int = Query(default=30, ge=
 def scheduler_status() -> dict:
     jobs = []
     aps_jobs = {job.id: job for job in scheduler.get_jobs()} if scheduler.running else {}
-    job_ids = [_job_id(ip_id) for ip_id in MONITOR_IPS] + ["backfill-collector", "maintenance-cleanup"]
+    job_ids = (
+        [_collect_job_id(ip_id) for ip_id in MONITOR_IPS]
+        + [_job_id(ip_id) for ip_id in MONITOR_IPS]
+        + ["backfill-collector", "maintenance-cleanup"]
+    )
     for job_id in job_ids:
-        ip_id = job_id.replace("risk-monitor-", "")
+        ip_id = job_id.replace("risk-monitor-", "").replace("collect-news-", "")
         state = scheduler_job_state.get(job_id, {})
         if not state:
             latest = get_latest_scheduler_log(job_id)
@@ -815,7 +974,7 @@ def scheduler_status() -> dict:
         jobs.append(
             {
                 "id": job_id,
-                "ip_id": ip_id if job_id.startswith("risk-monitor-") else "system",
+                "ip_id": ip_id if (job_id.startswith("risk-monitor-") or job_id.startswith("collect-news-")) else "system",
                 "next_run_time": (
                     job.next_run_time.astimezone().strftime("%Y-%m-%d %H:%M:%S")
                     if job and job.next_run_time

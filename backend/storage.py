@@ -25,6 +25,7 @@ RISK_THEME_RULES: dict[str, list[str]] = {
     "여론/논란": ["논란", "비판", "불만", "시위", "잡음"],
     "신작/성과": ["신작", "출시", "흥행", "매출", "사전예약", "수상"],
 }
+RISK_THEME_KEYWORD_SET = {kw.lower() for kws in RISK_THEME_RULES.values() for kw in kws}
 THEME_WEIGHTS: dict[str, float] = {
     "확률형/BM": 1.0,
     "규제/법적": 0.9,
@@ -61,6 +62,92 @@ OUTLET_GAME_MEDIA = {
     "thisisgame.com",
     "gamemeca.com",
 }
+CLUSTER_TOKEN_STOPWORDS = {
+    "넥슨",
+    "nexon",
+    "관련",
+    "기자",
+    "보도",
+    "뉴스",
+    "기사",
+    "이번",
+    "대한",
+    "위해",
+    "했다",
+    "한다",
+    "있는",
+    "없는",
+    "에서",
+    "으로",
+    "까지",
+    "그리고",
+    "통해",
+    "the",
+    "and",
+    "game",
+    "games",
+    "게임",
+    "업계",
+    "국내",
+    "온라인",
+    "모바일",
+    "출시",
+    "업데이트",
+    "서비스",
+    "콘텐츠",
+    "진행",
+    "제공",
+    "공개",
+    "유저",
+    "이용자",
+    "플레이어",
+    "대표",
+    "기준",
+    "예정",
+    "이벤트",
+    "신규",
+    "공식",
+    "최신",
+    "오늘",
+    "최근",
+    "ip",
+    "온라인게임",
+    "모바일게임",
+    "게임업계",
+}
+
+KOREAN_PARTICLE_SUFFIXES = (
+    "으로",
+    "에서",
+    "에게",
+    "께서",
+    "하고",
+    "이라",
+    "이다",
+    "였다",
+    "했다",
+    "하는",
+    "한다",
+    "된다",
+    "하면",
+    "했다",
+    "보다",
+    "까지",
+    "부터",
+    "처럼",
+    "으로",
+    "은",
+    "는",
+    "이",
+    "가",
+    "을",
+    "를",
+    "와",
+    "과",
+    "도",
+    "만",
+    "의",
+)
 
 
 def _resolve_db_path() -> Path:
@@ -280,6 +367,13 @@ def _extract_outlet(originallink: str, link: str) -> str:
     if host.startswith("www."):
         host = host[4:]
     return host or "unknown"
+
+
+def _resolve_outlet_value(outlet: str, originallink: str, link: str) -> str:
+    val = (outlet or "").strip().lower()
+    if val and val != "unknown":
+        return val
+    return _extract_outlet(originallink, link)
 
 
 def _is_near_duplicate(conn: sqlite3.Connection, company: str, title: str, date: str, source_group_id: str) -> bool:
@@ -570,6 +664,67 @@ def get_articles(
         conn.close()
 
 
+def get_nexon_articles(
+    *,
+    ip: str = "all",
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    ip_name = _resolve_ip_name(ip)
+    if not ip_name:
+        raise ValueError("지원하지 않는 IP입니다.")
+
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, company, title_clean, description_clean, sentiment, date,
+                   COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet,
+                   COALESCE(originallink, '') AS originallink,
+                   COALESCE(link, '') AS link,
+                   CASE WHEN originallink IS NOT NULL AND originallink != '' THEN originallink ELSE link END AS url
+            FROM articles
+            WHERE company = ?
+            ORDER BY COALESCE(pub_date, date, created_at) DESC, id DESC
+            """,
+            ("넥슨",),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    filtered: list[dict[str, Any]] = []
+    for r in rows:
+        text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
+        detected_ip = _detect_ip(text)
+        if ip_name != "전체" and detected_ip != ip_name:
+            continue
+        filtered.append(
+            {
+                "id": int(r["id"]),
+                "company": str(r["company"] or ""),
+                "title": str(r["title_clean"] or ""),
+                "description": str(r["description_clean"] or ""),
+                "sentiment": str(r["sentiment"] or "중립"),
+                "date": str(r["date"] or ""),
+                "outlet": _resolve_outlet_value(str(r["outlet"] or ""), str(r["originallink"] or ""), str(r["link"] or "")),
+                "url": str(r["url"] or ""),
+                "ip": detected_ip,
+            }
+        )
+
+    total = len(filtered)
+    start = max(0, int(offset))
+    end = start + max(1, int(limit))
+    items = filtered[start:end]
+    return {
+        "items": items,
+        "total": int(total),
+        "offset": int(start),
+        "limit": int(limit),
+        "has_more": end < total,
+    }
+
+
 def clear_articles(company: str | None = None) -> int:
     conn = _connect()
     try:
@@ -611,36 +766,23 @@ def _detect_ip(text: str) -> str:
 
 def _extract_cluster_tokens(text: str, ip_name: str) -> list[str]:
     words = re.findall(r"[가-힣a-zA-Z0-9]{2,12}", text or "")
-    stop = {
-        "넥슨",
-        "nexon",
-        "관련",
-        "기자",
-        "보도",
-        "뉴스",
-        "이번",
-        "대한",
-        "위해",
-        "했다",
-        "한다",
-        "있는",
-        "없는",
-        "에서",
-        "으로",
-        "까지",
-        "그리고",
-        "통해",
-        "the",
-        "and",
-    }
+    stop = set(CLUSTER_TOKEN_STOPWORDS)
     if ip_name in IP_RULES:
         stop.update({k.lower() for k in IP_RULES[ip_name]["keywords"]})
     out = []
     for w in words:
         lw = w.lower()
+        for suf in KOREAN_PARTICLE_SUFFIXES:
+            if len(lw) > len(suf) + 1 and lw.endswith(suf):
+                lw = lw[: -len(suf)]
+                break
         if lw in stop:
             continue
+        if lw.startswith("넥슨"):
+            continue
         if len(lw) < 2:
+            continue
+        if lw.isdigit():
             continue
         out.append(lw)
     return out
@@ -676,9 +818,12 @@ def get_ip_clusters(
 
     buckets: dict[str, dict[str, Any]] = {}
     overall_keywords = Counter()
+    overall_doc_freq = Counter()
+    overall_negative = Counter()
     total = 0
     outlets = Counter()
     group_ids: set[str] = set()
+    doc_total = 0
 
     for r in rows:
         text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
@@ -717,6 +862,11 @@ def get_ip_clusters(
         tokens = _extract_cluster_tokens(text, ip_name)
         bucket["keywords"].update(tokens)
         overall_keywords.update(tokens)
+        uniq_tokens = set(tokens)
+        overall_doc_freq.update(uniq_tokens)
+        if sentiment == "부정":
+            overall_negative.update(uniq_tokens)
+        doc_total += 1
         if len(bucket["samples"]) < 3 and r["title_clean"]:
             bucket["samples"].append(str(r["title_clean"]))
 
@@ -741,15 +891,34 @@ def get_ip_clusters(
 
     clusters.sort(key=lambda x: (x["article_count"], x["negative_ratio"]), reverse=True)
     clusters = clusters[: max(1, min(int(limit), 12))]
-    top_keyword_counts = overall_keywords.most_common(40)
-    max_keyword_count = max([count for _, count in top_keyword_counts] + [1])
+    def _keyword_rank(token: str, tf: int) -> float:
+        # 빈도 + 희소도(idf 유사) + 부정 기사 관여도 보정으로
+        # 일반어보다 이슈어를 우선 노출한다.
+        df = int(overall_doc_freq.get(token, 0))
+        neg_df = int(overall_negative.get(token, 0))
+        idf = math.log((1.0 + float(doc_total)) / (1.0 + float(df))) + 1.0
+        neg_ratio = float(neg_df) / max(1.0, float(df))
+        # 부정 기사 관여가 낮은 일반어는 감점, 이슈 키워드는 가점
+        neg_boost = 0.5 + 1.5 * neg_ratio
+        risk_kw = token in RISK_THEME_KEYWORD_SET
+        risk_boost = 1.25 if risk_kw else 1.0
+        return float(tf) * idf * neg_boost * risk_boost
+
+    ranked_keywords = []
+    for token, tf in overall_keywords.items():
+        score = _keyword_rank(token, int(tf))
+        ranked_keywords.append((token, int(tf), score))
+    ranked_keywords.sort(key=lambda x: (x[2], x[1]), reverse=True)
+    top_keyword_counts = ranked_keywords[:40]
+    max_keyword_score = max([score for _, _, score in top_keyword_counts] + [1.0])
     keyword_cloud = [
         {
             "word": word,
-            "count": int(count),
-            "weight": round(float(count) / float(max_keyword_count), 3),
+            "count": int(round(score)),
+            "raw_count": int(tf),
+            "weight": round(float(score) / float(max_keyword_score), 3),
         }
-        for word, count in top_keyword_counts
+        for word, tf, score in top_keyword_counts
     ]
 
     conn = _connect()
@@ -1086,6 +1255,16 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
 
         spread_ratio = float(len(recent) / max(len(recent_groups), 1))
 
+        if not scoped:
+            S_t = 0.0
+            V_t = 0.0
+            T_t = 0.0
+            M_t = 0.0
+            uncertain_ratio = 0.0
+            spread_ratio = 0.0
+            z_score = 0.0
+            count_1h = 0
+
         raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
         ip_id = (ip or "all").strip().lower()
         prev = conn.execute(
@@ -1100,10 +1279,15 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         ).fetchone()
         prev_risk = float(prev["risk_score"]) if prev else None
         ema_alpha = 0.3
-        smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
-        if prev_risk is not None and count_1h < 10:
-            ema_alpha = 0.1
-            smoothed = 0.9 * prev_risk + 0.1 * raw_risk
+        if not scoped:
+            smoothed = 0.0
+            ema_alpha = 1.0
+            prev_risk = None
+        else:
+            smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
+            if prev_risk is not None and count_1h < 10:
+                ema_alpha = 0.1
+                smoothed = 0.9 * prev_risk + 0.1 * raw_risk
 
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
         alert = _alert_level(score)
@@ -1291,6 +1475,16 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
 
         spread_ratio = float(len(recent) / max(len(recent_groups), 1))
 
+        if not scoped:
+            S_t = 0.0
+            V_t = 0.0
+            T_t = 0.0
+            M_t = 0.0
+            uncertain_ratio = 0.0
+            spread_ratio = 0.0
+            z_score = 0.0
+            count_1h = 0
+
         raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
         ip_id = (ip or "all").strip().lower()
         prev = conn.execute(
@@ -1305,10 +1499,15 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
         ).fetchone()
         prev_risk = float(prev["risk_score"]) if prev else None
         ema_alpha = 0.3
-        smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
-        if prev_risk is not None and count_1h < 10:
-            ema_alpha = 0.1
-            smoothed = 0.9 * prev_risk + 0.1 * raw_risk
+        if not scoped:
+            smoothed = 0.0
+            ema_alpha = 1.0
+            prev_risk = None
+        else:
+            smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
+            if prev_risk is not None and count_1h < 10:
+                ema_alpha = 0.1
+                smoothed = 0.9 * prev_risk + 0.1 * raw_risk
 
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
         alert = _alert_level(score)
@@ -1580,6 +1779,43 @@ def cleanup_test_articles(retain_hours: int = 24) -> int:
             return int(cur.rowcount or 0)
         except sqlite3.OperationalError:
             return 0
+    finally:
+        conn.close()
+
+
+def repair_article_outlets(remove_placeholder: bool = True) -> dict[str, int]:
+    conn = _connect()
+    try:
+        repaired = 0
+        removed_placeholder = 0
+
+        rows = conn.execute(
+            """
+            SELECT id, COALESCE(outlet, '') AS outlet, COALESCE(originallink, '') AS originallink, COALESCE(link, '') AS link
+            FROM articles
+            WHERE COALESCE(outlet, '') = '' OR LOWER(COALESCE(outlet, '')) = 'unknown'
+            """
+        ).fetchall()
+        for r in rows:
+            outlet = _extract_outlet(str(r["originallink"] or ""), str(r["link"] or ""))
+            if not outlet or outlet == "unknown":
+                continue
+            conn.execute("UPDATE articles SET outlet = ? WHERE id = ?", (outlet, int(r["id"])))
+            repaired += 1
+
+        if remove_placeholder:
+            cur = conn.execute(
+                """
+                DELETE FROM articles
+                WHERE LOWER(COALESCE(originallink, '')) LIKE '%example.com%'
+                   OR LOWER(COALESCE(link, '')) LIKE '%example.com%'
+                   OR LOWER(COALESCE(outlet, '')) LIKE '%example.com%'
+                """
+            )
+            removed_placeholder = int(cur.rowcount or 0)
+
+        conn.commit()
+        return {"repaired_outlets": int(repaired), "removed_placeholder_rows": int(removed_placeholder)}
     finally:
         conn.close()
 

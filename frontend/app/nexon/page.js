@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -33,19 +32,18 @@ import {
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const NEXON_LOGO = "/nexon-logo.png";
-const D3WordCloud = dynamic(() => import("react-d3-cloud"), { ssr: false });
 const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
-    accent: "#8ba2ff",
-    bg: "linear-gradient(150deg,#101934 0%,#1b3f98 48%,#4d74e2 100%)",
-    glow: "radial-gradient(circle at 82% 18%, rgba(154,188,255,.36) 0%, rgba(154,188,255,0) 52%)",
+    accent: "#7db0ff",
+    bg: "linear-gradient(135deg,#0b1220 0%,#102445 48%,#16396b 100%)",
+    glow: "radial-gradient(circle at 82% 18%, rgba(125,176,255,.28) 0%, rgba(125,176,255,0) 56%)",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#ffb347", bg: "linear-gradient(145deg,#2f1c10 0%,#6f3f12 52%,#f09a42 100%)" },
-  dnf: { kicker: "DNF", accent: "#ff7a7a", bg: "linear-gradient(145deg,#2a0d12 0%,#5f1823 52%,#c63d48 100%)" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#88f0d3", bg: "linear-gradient(145deg,#0d2432 0%,#1f5668 52%,#42a5a8 100%)" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#9ec6ff", bg: "linear-gradient(145deg,#121f47 0%,#1f4f99 55%,#4d8ddf 100%)" },
-  fconline: { kicker: "FC ONLINE", accent: "#9ff58a", bg: "linear-gradient(145deg,#092315 0%,#0d5733 52%,#2cae63 100%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#ffcb7d", bg: "linear-gradient(135deg,#1a1205 0%,#3d2506 45%,#7f4a0a 100%)" },
+  dnf: { kicker: "DNF", accent: "#ff9aa8", bg: "linear-gradient(135deg,#1b0b10 0%,#41111f 45%,#7d1934 100%)" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#7de5ff", bg: "linear-gradient(135deg,#071419 0%,#0e2d36 45%,#1c5461 100%)" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#98b9ff", bg: "linear-gradient(135deg,#0a1122 0%,#132b5a 45%,#214f9b 100%)" },
+  fconline: { kicker: "FC ONLINE", accent: "#93e7b2", bg: "linear-gradient(135deg,#08160f 0%,#123724 45%,#1c6f45 100%)" },
 };
 
 const MOCK_RISK = {
@@ -111,62 +109,6 @@ const MOCK_CLUSTER = {
   ],
 };
 
-function WordCloudChart({ items }) {
-  const wrapRef = useRef(null);
-  const [size, setSize] = useState({ width: 980, height: 320 });
-  const words = useMemo(
-    () => (items || []).slice(0, 120).map((w) => ({ text: w.word, value: Math.max(8, Number(w.count || 0)) })),
-    [items]
-  );
-
-  useEffect(() => {
-    if (!wrapRef.current) return;
-    const update = () => {
-      if (!wrapRef.current) return;
-      const nextWidth = Math.max(320, Math.floor(wrapRef.current.clientWidth - 2));
-      setSize({ width: nextWidth, height: 320 });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(wrapRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  return (
-    <Box
-      ref={wrapRef}
-      sx={{
-        width: "100%",
-        minHeight: 320,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        bgcolor: "#f8fbff",
-        overflow: "hidden",
-        p: 1,
-      }}
-    >
-      {words.length === 0 ? (
-        <Typography color="text.secondary">표시할 키워드가 없습니다.</Typography>
-      ) : (
-        <D3WordCloud
-          data={words}
-          width={size.width}
-          height={size.height}
-          font="'Noto Sans KR'"
-          fontWeight="700"
-          fontStyle="normal"
-          spiral="archimedean"
-          rotate={(word) => (word.value % 3 === 0 ? 90 : 0)}
-          fontSize={(word) => Math.max(14, Math.min(56, 10 + word.value * 1.7))}
-          random={() => 0.5}
-          padding={2}
-        />
-      )}
-    </Box>
-  );
-}
-
 export default function NexonPage() {
   const [ip, setIp] = useState("maplestory");
   const [riskData, setRiskData] = useState(() => createEmptyRisk("maplestory"));
@@ -180,9 +122,25 @@ export default function NexonPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
+  const [articleItems, setArticleItems] = useState([]);
+  const [articleTotal, setArticleTotal] = useState(0);
+  const [articleOffset, setArticleOffset] = useState(0);
+  const [articleHasMore, setArticleHasMore] = useState(false);
+  const [articleLoading, setArticleLoading] = useState(false);
+  const articleReqSeqRef = useRef(0);
+  const articleSentinelRef = useRef(null);
+  const ARTICLE_PAGE_SIZE = 20;
   const swipeStartXRef = useRef(null);
   const ipCacheRef = useRef(new Map());
   const requestSeqRef = useRef(0);
+  const trendChartRef = useRef(null);
+  const outletChartRef = useRef(null);
+  const themeChartRef = useRef(null);
+  const keywordChartRef = useRef(null);
+  const trendChartInstRef = useRef(null);
+  const outletChartInstRef = useRef(null);
+  const themeChartInstRef = useRef(null);
+  const keywordChartInstRef = useRef(null);
   const formatUpdatedAt = (date = new Date()) => {
     const d = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(d.getTime())) return "-";
@@ -289,6 +247,61 @@ export default function NexonPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip]);
 
+  const loadMoreArticles = async (targetIp = ip, reset = false) => {
+    if (!reset && (articleLoading || !articleHasMore)) return;
+    const reqSeq = ++articleReqSeqRef.current;
+    const nextOffset = reset ? 0 : articleOffset;
+    setArticleLoading(true);
+    try {
+      const payload = await apiGet(
+        `/api/nexon-articles?ip=${encodeURIComponent(targetIp)}&limit=${ARTICLE_PAGE_SIZE}&offset=${nextOffset}`
+      );
+      if (reqSeq !== articleReqSeqRef.current) return;
+      const nextItems = Array.isArray(payload?.items) ? payload.items : [];
+      setArticleItems((prev) => (reset ? nextItems : [...prev, ...nextItems]));
+      setArticleTotal(Number(payload?.total || 0));
+      setArticleOffset(nextOffset + nextItems.length);
+      setArticleHasMore(Boolean(payload?.has_more));
+    } catch {
+      if (reqSeq !== articleReqSeqRef.current) return;
+      if (reset) {
+        setArticleItems([]);
+        setArticleTotal(0);
+        setArticleOffset(0);
+        setArticleHasMore(false);
+      }
+    } finally {
+      if (reqSeq === articleReqSeqRef.current) setArticleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    articleReqSeqRef.current += 1;
+    setArticleItems([]);
+    setArticleTotal(0);
+    setArticleOffset(0);
+    setArticleHasMore(true);
+    setArticleLoading(false);
+    loadMoreArticles(ip, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ip]);
+
+  useEffect(() => {
+    const target = articleSentinelRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (!first?.isIntersecting) return;
+        loadMoreArticles(ip, false);
+      },
+      { rootMargin: "280px 0px 280px 0px", threshold: 0 }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ip, articleHasMore, articleLoading, articleOffset]);
+
   const bannerItems = useMemo(
     () =>
       (riskData?.ip_catalog || MOCK_RISK.ip_catalog).map((item) => ({
@@ -350,7 +363,6 @@ export default function NexonPage() {
   const themes = riskData?.risk_themes || [];
   const clusters = clusterData?.clusters || [];
   const keywordCloud = clusterData?.keyword_cloud || [];
-  const maxDaily = useMemo(() => Math.max(...dailyRows.map((r) => Number(r.article_count || 0)), 1), [dailyRows]);
   const topRisk = themes[0];
   const selectedBurstStatus = useMemo(() => {
     const items = burstStatus?.items || [];
@@ -367,43 +379,14 @@ export default function NexonPage() {
     () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
     [burstEvents, ip]
   );
-  const burstPeriods = useMemo(() => {
-    if (!burstEvents.length) return [];
-    const sorted = [...burstEvents]
-      .filter((e) => (ip === "all" ? true : e.ip_name === ip))
-      .sort((a, b) => String(a.occurred_at).localeCompare(String(b.occurred_at)));
-    const periods = [];
-    let opened = null;
-    for (const evt of sorted) {
-      if (evt.event_type === "enter") {
-        opened = { start: evt.occurred_at, ip: evt.ip_name };
-      } else if (evt.event_type === "exit" && opened) {
-        periods.push({ ...opened, end: evt.occurred_at });
-        opened = null;
-      }
-    }
-    if (opened) periods.push({ ...opened, end: null });
-    return periods;
-  }, [burstEvents, ip]);
-  const isBurstDate = (day) => {
-    if (!day) return false;
-    const base = new Date(`${day}T00:00:00`);
-    const dayStart = base.getTime();
-    const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1;
-    return burstPeriods.some((p) => {
-      const s = new Date(String(p.start).replace(" ", "T")).getTime();
-      const e = p.end ? new Date(String(p.end).replace(" ", "T")).getTime() : Date.now();
-      return !(e < dayStart || s > dayEnd);
-    });
-  };
   const riskValue = Number(riskScore?.risk_score || 0);
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const riskGaugeColor = riskValue >= 70 ? "#dc3c4a" : riskValue >= 45 ? "#e89c1c" : "#11a36a";
   const riskMeaning = useMemo(() => {
-    if (riskValue >= 70) return { label: "Critical", color: "error" };
-    if (riskValue >= 45) return { label: "High", color: "warning" };
-    if (riskValue >= 20) return { label: "Elevated", color: "info" };
-    return { label: "Low", color: "success" };
+    if (riskValue >= 70) return { label: "심각", color: "error" };
+    if (riskValue >= 45) return { label: "높음", color: "warning" };
+    if (riskValue >= 20) return { label: "주의", color: "info" };
+    return { label: "낮음", color: "success" };
   }, [riskValue]);
   const recent24hArticles = Number(riskScore?.article_count_window || 0);
   const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
@@ -423,11 +406,11 @@ export default function NexonPage() {
   const spreadValue = Number(riskScore?.spread_ratio || 0);
   const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
   const liveInterpretation = useMemo(() => {
-    if (recent24hArticles < 5) return "Low article volume. Risk may be less reliable.";
-    if (riskValue >= 70) return "Risk is critical due to high volume spike and concentrated high-risk themes.";
-    if (riskValue >= 45) return "Risk is high with elevated issue concentration. Monitor spread and sentiment shifts closely.";
-    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "Risk is currently low-to-elevated. Volume or spread is rising above baseline.";
-    return "Risk is currently low due to stable volume and limited spread.";
+    if (recent24hArticles < 5) return "기사량이 매우 적어 위험도 신뢰도가 낮을 수 있습니다.";
+    if (riskValue >= 70) return "기사량 급증과 고위험 테마 집중으로 위험도가 심각 단계입니다.";
+    if (riskValue >= 45) return "위험도가 높은 상태입니다. 확산도와 감성 변화를 밀착 모니터링하세요.";
+    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위험도는 낮지만 기사량 또는 확산도가 기준선보다 상승 중입니다.";
+    return "기사량과 확산도가 안정적이라 현재 위험도는 낮은 상태입니다.";
   }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
   const outletRisk = useMemo(() => {
     if (!outletRows.length) return null;
@@ -444,18 +427,240 @@ export default function NexonPage() {
     "신작/성과": "성과 메시지와 리스크 메시지를 분리해 혼선 방지",
   };
   const recommendedAction = themeActionMap[topRisk?.theme] || "핵심 팩트와 대응 일정을 짧고 명확하게 공지";
-  const modeMismatchWarning = health?.mode === "backtest" ? "Live dashboard is using backtest DB" : "";
+  const modeMismatchWarning = health?.mode === "backtest" ? "현재 운영 페이지가 백테스트 DB를 참조 중입니다." : "";
+  const sectionCardSx = {
+    borderRadius: 3,
+    borderColor: "rgba(15,23,42,0.10)",
+    boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
+    bgcolor: "#fff",
+  };
+
+  useEffect(() => {
+    let active = true;
+    const cleanups = [];
+
+    const mount = async () => {
+      const echarts = await import("echarts");
+      if (!active) return;
+
+      const trendEl = trendChartRef.current;
+      if (trendEl) {
+        const chart = echarts.init(trendEl);
+        trendChartInstRef.current = chart;
+        const x = dailyRows.map((r) => r.date);
+        chart.setOption(
+          {
+            animation: false,
+            grid: { left: 38, right: 20, top: 26, bottom: 38 },
+            tooltip: { trigger: "axis" },
+            xAxis: {
+              type: "category",
+              data: x,
+              axisLabel: {
+                formatter: (v) => String(v || "").slice(5),
+                color: "#64748b",
+              },
+            },
+            yAxis: { type: "value", axisLabel: { color: "#64748b" } },
+            series: [
+              {
+                name: "기사 수",
+                type: "bar",
+                data: dailyRows.map((r) => Number(r.article_count || 0)),
+                itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
+                barMaxWidth: 18,
+              },
+              {
+                name: "부정 비율(%)",
+                type: "line",
+                yAxisIndex: 0,
+                smooth: true,
+                symbol: "none",
+                data: dailyRows.map((r) => Number(r.negative_ratio || 0)),
+                lineStyle: { color: "#dc3c4a", width: 2 },
+              },
+            ],
+          },
+          true
+        );
+      }
+
+      const displayedOutlets = outletRows.slice(0, 12);
+      const outletEl = outletChartRef.current;
+      if (outletEl) {
+        const chart = echarts.init(outletEl);
+        outletChartInstRef.current = chart;
+        chart.setOption(
+          {
+            animation: false,
+            grid: { left: 90, right: 20, top: 26, bottom: 24 },
+            tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+            xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+            yAxis: {
+              type: "category",
+              data: displayedOutlets.map((r) => r.outlet),
+              axisLabel: {
+                color: "#64748b",
+                width: 120,
+                interval: 0,
+                formatter: (value) => {
+                  const v = String(value || "");
+                  if (v.length <= 10) return v;
+                  const dot = v.indexOf(".");
+                  if (dot > 3 && dot < v.length - 3) return `${v.slice(0, dot)}\n${v.slice(dot + 1)}`;
+                  return `${v.slice(0, 10)}\n${v.slice(10)}`;
+                },
+              },
+            },
+            series: [
+              {
+                name: "긍정",
+                type: "bar",
+                stack: "sent",
+                data: displayedOutlets.map((r) => Number(r.positive_ratio || 0)),
+                itemStyle: { color: "#11a36a" },
+              },
+              {
+                name: "중립",
+                type: "bar",
+                stack: "sent",
+                data: displayedOutlets.map((r) => Number(r.neutral_ratio || 0)),
+                itemStyle: { color: "#f2b248" },
+              },
+              {
+                name: "부정",
+                type: "bar",
+                stack: "sent",
+                data: displayedOutlets.map((r) => Number(r.negative_ratio || 0)),
+                itemStyle: { color: "#dc3c4a" },
+              },
+            ],
+          },
+          true
+        );
+      }
+
+      const themeEl = themeChartRef.current;
+      if (themeEl) {
+        const chart = echarts.init(themeEl);
+        themeChartInstRef.current = chart;
+        chart.setOption(
+          {
+            animation: false,
+            grid: { left: 90, right: 20, top: 26, bottom: 24 },
+            tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+            xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+            yAxis: {
+              type: "category",
+              data: themes.map((t) => t.theme),
+              axisLabel: {
+                color: "#64748b",
+                width: 96,
+                interval: 0,
+                formatter: (value) => {
+                  const v = String(value || "");
+                  if (v.length <= 6) return v;
+                  return `${v.slice(0, 6)}\n${v.slice(6)}`;
+                },
+              },
+            },
+            series: [
+              {
+                name: "위험 점수(%)",
+                type: "bar",
+                data: themes.map((t) => Math.round(Number(t.risk_score || 0) * 100)),
+                itemStyle: { color: "#7b61ff", borderRadius: [0, 4, 4, 0] },
+                barMaxWidth: 20,
+              },
+            ],
+          },
+          true
+        );
+      }
+
+      const keywordEl = keywordChartRef.current;
+      if (keywordEl) {
+        const chart = echarts.init(keywordEl);
+        keywordChartInstRef.current = chart;
+        const words = (keywordCloud || []).slice(0, 50).map((w) => ({
+          name: String(w.word || ""),
+          value: Math.max(1, Number(w.count || 0)),
+        }));
+        chart.setOption(
+          {
+            animation: false,
+            tooltip: {
+              show: true,
+              formatter: (params) => `${params?.name || "-"}: ${Number(params?.value || 0).toLocaleString()}`,
+            },
+            series: [
+              {
+                type: "treemap",
+                roam: false,
+                nodeClick: false,
+                breadcrumb: { show: false },
+                label: {
+                  show: true,
+                  formatter: "{b}",
+                  fontSize: 12,
+                  color: "#fff",
+                },
+                upperLabel: { show: false },
+                itemStyle: {
+                  borderColor: "#fff",
+                  borderWidth: 1,
+                  gapWidth: 1,
+                },
+                levels: [
+                  {
+                    color: ["#2f67d8", "#11a36a", "#e89c1c", "#dc3c4a", "#4a63d9", "#00a5c4"],
+                    colorMappingBy: "value",
+                  },
+                ],
+                data: words,
+              },
+            ],
+          },
+          true
+        );
+      }
+
+      const onResize = () => {
+        trendChartInstRef.current?.resize();
+        outletChartInstRef.current?.resize();
+        themeChartInstRef.current?.resize();
+        keywordChartInstRef.current?.resize();
+      };
+      window.addEventListener("resize", onResize);
+      cleanups.push(() => window.removeEventListener("resize", onResize));
+    };
+
+    mount();
+
+    return () => {
+      active = false;
+      cleanups.forEach((fn) => fn());
+      trendChartInstRef.current?.dispose();
+      outletChartInstRef.current?.dispose();
+      themeChartInstRef.current?.dispose();
+      keywordChartInstRef.current?.dispose();
+      trendChartInstRef.current = null;
+      outletChartInstRef.current = null;
+      themeChartInstRef.current = null;
+      keywordChartInstRef.current = null;
+    };
+  }, [dailyRows, outletRows, themes, keywordCloud]);
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
       <Stack spacing={2}>
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+        <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, borderColor: "rgba(15,23,42,0.08)", bgcolor: "#f8fbff" }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box component="img" src={NEXON_LOGO} alt="NEXON" sx={{ height: 28, width: "auto" }} />
               <Box>
-                <Typography variant="caption" color="text.secondary">넥슨 군집 분석</Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>IP Cluster Dashboard</Typography>
+                <Typography variant="caption" color="text.secondary">넥슨 PR 분석 센터</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 900 }}>넥슨 IP 리스크 대시보드</Typography>
               </Box>
             </Stack>
             <Stack direction="row" spacing={1}>
@@ -466,7 +671,7 @@ export default function NexonPage() {
           </Stack>
         </Paper>
 
-        <Card variant="outlined">
+        <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
             <Stack spacing={1.2}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -490,9 +695,9 @@ export default function NexonPage() {
                     color: "#eef4ff",
                     position: "relative",
                     overflow: "hidden",
-                    border: "2px solid #8ab4ff",
+                    border: "1px solid rgba(255,255,255,0.2)",
                     background: currentBanner.visual.bg,
-                    boxShadow: "0 14px 30px rgba(20,52,122,0.34)",
+                    boxShadow: "0 20px 34px rgba(15,23,42,0.30)",
                     transition: "all .2s ease",
                   }}
                 >
@@ -504,10 +709,10 @@ export default function NexonPage() {
                       left: 10,
                       top: "50%",
                       transform: "translateY(-50%)",
-                      bgcolor: "rgba(5,12,31,.4)",
+                      bgcolor: "rgba(5,12,31,.46)",
                       color: "#fff",
                       border: "1px solid rgba(255,255,255,.28)",
-                      "&:hover": { bgcolor: "rgba(5,12,31,.62)" },
+                      "&:hover": { bgcolor: "rgba(5,12,31,.64)" },
                       "&.Mui-disabled": { color: "rgba(255,255,255,.35)" },
                     }}
                   >
@@ -521,10 +726,10 @@ export default function NexonPage() {
                       right: 10,
                       top: "50%",
                       transform: "translateY(-50%)",
-                      bgcolor: "rgba(5,12,31,.4)",
+                      bgcolor: "rgba(5,12,31,.46)",
                       color: "#fff",
                       border: "1px solid rgba(255,255,255,.28)",
-                      "&:hover": { bgcolor: "rgba(5,12,31,.62)" },
+                      "&:hover": { bgcolor: "rgba(5,12,31,.64)" },
                       "&.Mui-disabled": { color: "rgba(255,255,255,.35)" },
                     }}
                   >
@@ -547,8 +752,8 @@ export default function NexonPage() {
                       right: 18,
                       top: 16,
                       width: 64,
-                      opacity: 0.9,
-                      filter: "grayscale(100%) brightness(2.1)",
+                      opacity: 0.75,
+                      filter: "grayscale(100%) brightness(2.6)",
                     }}
                   />
                   <Typography
@@ -573,7 +778,7 @@ export default function NexonPage() {
                   <Typography sx={{ mt: 1, pr: 8, fontSize: { xs: 30, md: 38 }, fontWeight: 900, lineHeight: 1.04 }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 1, pr: 8, fontSize: 13, color: "rgba(237,245,255,.84)" }}>
+                  <Typography sx={{ mt: 1, pr: 8, fontSize: 13, color: "rgba(237,245,255,.82)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 군집 · 버스트 모니터"}
                   </Typography>
                   <Chip
@@ -581,9 +786,9 @@ export default function NexonPage() {
                     size="small"
                     sx={{
                       mt: 2,
-                      bgcolor: "rgba(255,255,255,.15)",
+                      bgcolor: "rgba(255,255,255,.16)",
                       color: "#fff",
-                      border: "1px solid rgba(255,255,255,.28)",
+                      border: "1px solid rgba(255,255,255,.26)",
                     }}
                   />
                 </Paper>
@@ -592,7 +797,7 @@ export default function NexonPage() {
               <Stack direction="row" spacing={1}>
                 <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
-                <Chip variant="outlined" label={`Last updated: ${lastUpdatedAt || "-"}`} />
+                <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} />
                 <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" />
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
@@ -620,7 +825,7 @@ export default function NexonPage() {
             { k: "군집 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "상위 6개" },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={3} key={item.k}>
-              <Card variant="outlined"><CardContent>
+              <Card variant="outlined" sx={sectionCardSx}><CardContent>
                 <Typography variant="body2" color="text.secondary">{item.k}</Typography>
                 <Typography variant="h5" sx={{ mt: 0.8, fontWeight: 800 }}>{item.v}</Typography>
                 <Typography variant="caption" color="text.secondary">{item.s}</Typography>
@@ -629,7 +834,7 @@ export default function NexonPage() {
           ))}
         </Grid>
 
-        <Card variant="outlined">
+        <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
               실시간 위험도 모니터
@@ -639,7 +844,7 @@ export default function NexonPage() {
                 <Grid container spacing={1.2}>
                   <Grid item xs={12} md={3}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk 점수</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
                         label={riskMeaning.label}
@@ -659,21 +864,21 @@ export default function NexonPage() {
                           "& .MuiLinearProgress-bar": { bgcolor: riskGaugeColor },
                         }}
                       />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                        Based on rolling {Number(riskScore?.meta?.window_hours || 24)}-hour window
-                      </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                      최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
+                    </Typography>
                     </Paper>
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Alert</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
                         label={alertLevel}
                         color={alertLevel === "P1" ? "error" : alertLevel === "P2" ? "warning" : "success"}
                         sx={{ mt: 0.7, fontWeight: 700 }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                        uncertain {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
+                        불확실 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
                   </Grid>
@@ -704,7 +909,7 @@ export default function NexonPage() {
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>컴포넌트</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
                         S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
                       </Typography>
@@ -717,13 +922,13 @@ export default function NexonPage() {
 
                 <Paper variant="outlined" sx={{ p: 1.2, mt: 1.2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    Recent 24h articles: {recent24hArticles.toLocaleString()}
+                    최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    Avg daily baseline: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()} for this IP
+                    최근 7일 기준선: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    {recent24hArticles.toLocaleString()} articles ({baselineRatio > 0 ? `${baselineRatio.toFixed(1)}x` : "0.0x"} weekly baseline)
+                    기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                   </Typography>
                 </Paper>
 
@@ -734,7 +939,9 @@ export default function NexonPage() {
                       <Grid item xs={12} md={6} key={k}>
                         <Paper variant="outlined" sx={{ p: 1 }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700 }}>{k}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                              {k === "S" ? "감성(S)" : k === "V" ? "볼륨(V)" : k === "T" ? "테마(T)" : "매체(M)"}
+                            </Typography>
                             <Typography variant="caption" color="text.secondary">{value.toFixed(2)}</Typography>
                           </Stack>
                           <LinearProgress
@@ -749,15 +956,15 @@ export default function NexonPage() {
                 </Grid>
 
                 <Paper variant="outlined" sx={{ p: 1.2, mt: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Live interpretation</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                    Volume: {recent24hArticles.toLocaleString()} articles
+                    볼륨(Volume): {recent24hArticles.toLocaleString()}건
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    Spread: {spreadValue.toFixed(2)}
+                    확산도(Spread): {spreadValue.toFixed(2)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    Uncertainty: {uncertaintyValue.toFixed(2)}
+                    불확실도(Uncertainty): {uncertaintyValue.toFixed(2)}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 0.8 }}>
                     {liveInterpretation}
@@ -777,7 +984,7 @@ export default function NexonPage() {
                       ))
                     ) : (
                       <ListItem>
-                        <ListItemText primary="No burst events yet (waiting for live signals)" />
+                        <ListItemText primary="아직 버스트 이벤트가 없습니다. (실시간 신호 대기 중)" />
                       </ListItem>
                     )}
                   </List>
@@ -790,7 +997,7 @@ export default function NexonPage() {
                 </Typography>
                 {!filteredBurstEvents.length ? (
                   <Typography variant="caption" color="text.secondary">
-                    No burst events yet (waiting for live signals)
+                    아직 버스트 이벤트가 없습니다. (실시간 신호 대기 중)
                   </Typography>
                 ) : null}
               </Stack>
@@ -798,81 +1005,50 @@ export default function NexonPage() {
           </CardContent>
         </Card>
 
-        <Card variant="outlined">
+        <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>날짜별 기사 흐름</Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(dailyRows.length, 1)}, minmax(14px, 1fr))`, gap: 0.5, alignItems: "end", minHeight: 180 }}>
-              {dailyRows.map((row) => (
-                <Box key={row.date} title={`${row.date} | ${row.article_count}건 | 부정 ${row.negative_ratio}%`}>
-                  <Box
-                    sx={{
-                      height: 150,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      borderRadius: 1,
-                      p: "2px",
-                      display: "flex",
-                      alignItems: "flex-end",
-                      bgcolor: isBurstDate(row.date) ? "rgba(220,60,74,0.12)" : "#f7faff",
-                    }}
-                  >
-                    <Box sx={{ width: "100%", height: `${(Number(row.article_count || 0) / maxDaily) * 100}%`, minHeight: 2, borderRadius: 1, bgcolor: "primary.main", opacity: Math.max(0.35, Number(row.negative_ratio || 0) / 100) }} />
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", textAlign: "center", mt: 0.4 }}>{row.date.slice(5)}</Typography>
-                </Box>
-              ))}
-            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 기사/부정 추이 (ECharts)</Typography>
+            <Box ref={trendChartRef} sx={{ width: "100%", height: 290 }} />
           </CardContent>
         </Card>
 
-        <Grid container spacing={1.5}>
-          <Grid item xs={12} lg={7}>
-            <Card variant="outlined"><CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>언론사별 기사 수/감성 분포</Typography>
-              <Stack spacing={1}>
-                {outletRows.map((r) => (
-                  <Box key={r.outlet} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.5, p: 1 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography sx={{ fontWeight: 700 }}>{r.outlet}</Typography>
-                      <Typography variant="caption" color="text.secondary">{r.article_count}건</Typography>
-                    </Stack>
-                    <Stack direction="row" sx={{ mt: 1, height: 10, borderRadius: 999, overflow: "hidden", bgcolor: "#edf2fb" }}>
-                      <Box sx={{ width: `${r.positive_ratio}%`, bgcolor: "success.main" }} />
-                      <Box sx={{ width: `${r.neutral_ratio}%`, bgcolor: "warning.main" }} />
-                      <Box sx={{ width: `${r.negative_ratio}%`, bgcolor: "error.main" }} />
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary">긍정 {r.positive_ratio}% · 중립 {r.neutral_ratio}% · 부정 {r.negative_ratio}%</Typography>
-                  </Box>
-                ))}
-              </Stack>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "1.4fr 1fr" },
+            gap: 1.5,
+          }}
+        >
+          <Card variant="outlined" sx={sectionCardSx}><CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
+                언론사별<br />감성 분포 (ECharts)
+              </Typography>
+              <Box ref={outletChartRef} sx={{ width: "100%", height: 420 }} />
             </CardContent></Card>
-          </Grid>
-          <Grid item xs={12} lg={5}>
-            <Card variant="outlined"><CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>위험 기사 테마</Typography>
-              <Stack spacing={1}>
-                {themes.map((t) => (
-                  <Box key={t.theme} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.5, p: 1 }}>
-                    <Typography sx={{ fontWeight: 700 }}>{t.theme}</Typography>
-                    <Typography variant="caption" color="text.secondary">기사 {t.article_count}건 · 부정 {t.negative_ratio}%</Typography>
-                    <LinearProgress
-                      variant="determinate"
-                      value={Math.round(Number(t.risk_score || 0) * 100)}
-                      sx={{ mt: 1, height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
-                    />
-                  </Box>
-                ))}
-              </Stack>
+          <Card variant="outlined" sx={sectionCardSx}><CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
+                위험 테마<br />점수 (ECharts)
+              </Typography>
+              <Box ref={themeChartRef} sx={{ width: "100%", height: 420 }} />
             </CardContent></Card>
-          </Grid>
-        </Grid>
+        </Box>
 
-        <Card variant="outlined"><CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>키워드 워드클라우드</Typography>
-          <WordCloudChart items={keywordCloud} />
+        <Card variant="outlined" sx={sectionCardSx}><CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>키워드 중요도 맵 (ECharts)</Typography>
+          <Box
+            ref={keywordChartRef}
+            sx={{
+              width: "100%",
+              minHeight: 320,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              bgcolor: "#f8fbff",
+            }}
+          />
         </CardContent></Card>
 
-        <Card variant="outlined"><CardContent>
+        <Card variant="outlined" sx={sectionCardSx}><CardContent>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>실행 인사이트</Typography>
           <Grid container spacing={1.2}>
             <Grid item xs={12} md={4}>
@@ -904,7 +1080,7 @@ export default function NexonPage() {
           </Grid>
         </CardContent></Card>
 
-        <Card variant="outlined"><CardContent>
+        <Card variant="outlined" sx={sectionCardSx}><CardContent>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>IP 군집 결과</Typography>
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>
             {(clusterData?.top_outlets || []).map((o) => (
@@ -934,6 +1110,69 @@ export default function NexonPage() {
             ))}
           </Grid>
         </CardContent></Card>
+
+        <Card variant="outlined" sx={sectionCardSx}>
+          <CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>수집 기사 목록</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {articleItems.length.toLocaleString()} / {articleTotal.toLocaleString()}
+              </Typography>
+            </Stack>
+            <Stack spacing={1}>
+              {articleItems.map((a) => (
+                <Paper key={`${a.id}-${a.url}`} variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" spacing={1}>
+                    <Typography
+                      component={a.url ? "a" : "span"}
+                      href={a.url || undefined}
+                      target={a.url ? "_blank" : undefined}
+                      rel={a.url ? "noreferrer" : undefined}
+                      sx={{
+                        fontWeight: 700,
+                        color: "#10284a",
+                        textDecoration: "none",
+                        "&:hover": { textDecoration: a.url ? "underline" : "none" },
+                      }}
+                    >
+                      {a.title || "(제목 없음)"}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={a.sentiment || "중립"}
+                      color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
+                      variant="outlined"
+                    />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
+                    {a.date || "-"} · {a.outlet || "unknown"}
+                  </Typography>
+                  {a.description ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                      {a.description}
+                    </Typography>
+                  ) : null}
+                </Paper>
+              ))}
+            </Stack>
+            <Box ref={articleSentinelRef} sx={{ height: 1 }} />
+            {articleLoading ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
+                기사 목록을 불러오는 중...
+              </Typography>
+            ) : null}
+            {!articleLoading && !articleHasMore && articleItems.length > 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
+                마지막 기사까지 모두 불러왔습니다.
+              </Typography>
+            ) : null}
+            {!articleLoading && articleItems.length === 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
+                아직 표시할 수집 기사가 없습니다.
+              </Typography>
+            ) : null}
+          </CardContent>
+        </Card>
       </Stack>
     </Container>
   );

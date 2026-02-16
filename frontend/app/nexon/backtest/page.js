@@ -54,7 +54,7 @@ export default function NexonBacktestPage() {
   const normalized = useMemo(() => normalizeBacktestPayload(payload), [payload]);
   const hasSeries = normalized.timestamps.length > 0;
   const dbLabel = health?.db_file_name || health?.db_path || "-";
-  const modeMismatchWarning = health?.mode === "live" ? "Backtest page is using live DB" : "";
+  const modeMismatchWarning = health?.mode === "live" ? "현재 백테스트 페이지가 운영 DB를 참조 중입니다." : "";
   const detailsByTs = useMemo(() => {
     const out = new Map();
     for (const row of payload?.timeseries || []) {
@@ -126,19 +126,19 @@ export default function NexonBacktestPage() {
             const d = detailsByTs.get(String(ts));
             const lines = [`<strong>${ts}</strong>`];
             if (d) {
-              lines.push(`Risk: ${Number(d.risk_score || 0).toFixed(1)}`);
-              lines.push(`Raw: ${Number(d.raw_risk || 0).toFixed(1)}`);
-              lines.push(`EMA: ${Number(d.risk_score_ema || d.risk_score || 0).toFixed(1)}`);
-              lines.push(`Articles: ${Number(d.article_count_window || d.article_count || 0).toLocaleString()}`);
-              lines.push(`Spread: ${Number(d.spread_ratio || 0).toFixed(2)}`);
-              lines.push(`Uncertainty: ${Number(d.uncertain_ratio || 0).toFixed(2)}`);
+              lines.push(`위험도: ${Number(d.risk_score || 0).toFixed(1)}`);
+              lines.push(`원시 점수(raw): ${Number(d.raw_risk || 0).toFixed(1)}`);
+              lines.push(`EMA 적용값: ${Number(d.risk_score_ema || d.risk_score || 0).toFixed(1)}`);
+              lines.push(`기사 수: ${Number(d.article_count_window || d.article_count || 0).toLocaleString()}건`);
+              lines.push(`확산도: ${Number(d.spread_ratio || 0).toFixed(2)}`);
+              lines.push(`불확실도: ${Number(d.uncertain_ratio || 0).toFixed(2)}`);
             }
             params
               .filter((p) => p.seriesName === "Events")
               .forEach((p) => {
                 const name = p.data?.name || "EVENT";
                 const evType = p.data?.eventType || "event";
-                lines.push(`${p.marker} ${name} (${evType})`);
+              lines.push(`${p.marker} 이벤트: ${name} (${evType})`);
               });
             return lines.join("<br/>");
           },
@@ -354,7 +354,7 @@ export default function NexonBacktestPage() {
             </Alert>
           ) : null}
           <Alert severity="info" sx={{ mt: 1.5 }}>
-            Backtest uses threshold-based events (no hysteresis). Live mode uses burst hysteresis logic.
+            백테스트는 임계치 기반 이벤트(히스테리시스 없음)로 계산합니다. 실시간 모드는 버스트 히스테리시스 로직을 사용합니다.
           </Alert>
 
           {loading ? <Box sx={{ mt: 2 }}><LoadingState title="백테스트 로딩 중" subtitle="리스크 타임라인을 계산하고 있습니다." /></Box> : null}
@@ -393,26 +393,26 @@ export default function NexonBacktestPage() {
               <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: 740 }} />
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.2} sx={{ mt: 1.5 }}>
                 <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Volume driver</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>볼륨 드라이버</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    latest {driverStats.volume.latest.toLocaleString()} · peak {driverStats.volume.peak.toLocaleString()}
+                    최근 {driverStats.volume.latest.toLocaleString()} · 최고 {driverStats.volume.peak.toLocaleString()}
                   </Typography>
                 </Paper>
                 <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Spread driver</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>확산 드라이버</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    latest {driverStats.spread.latest.toFixed(3)} · peak {driverStats.spread.peak.toFixed(3)}
+                    최근 {driverStats.spread.latest.toFixed(3)} · 최고 {driverStats.spread.peak.toFixed(3)}
                   </Typography>
                 </Paper>
                 <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Uncertainty driver</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>불확실 드라이버</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    latest {driverStats.uncertain.latest.toFixed(3)} · peak {driverStats.uncertain.peak.toFixed(3)}
+                    최근 {driverStats.uncertain.latest.toFixed(3)} · 최고 {driverStats.uncertain.peak.toFixed(3)}
                   </Typography>
                 </Paper>
               </Stack>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                Spike is driven by volume + high-risk themes; spread is secondary.
+                급등 구간은 기사량 증가와 고위험 테마 비중이 주도했고, 확산도는 보조적으로 영향을 줍니다.
               </Typography>
             </>
           ) : null}
