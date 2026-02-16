@@ -14,38 +14,34 @@
 - Frontend: Next.js(App Router), React, MUI
 - Data Source: Naver Search API(뉴스)
 
-## 실행
-환경변수:
-- 기본 DB: `backend/data/articles.db`
-- 다른 DB를 쓰려면 `PR_DB_PATH` 설정 (예: `backend/data/articles_backtest.db`)
-- 프론트 API 베이스: `NEXT_PUBLIC_API_BASE_URL` (예: `http://127.0.0.1:8000`)
-
-### 1) 백엔드
+## 실행 (Runbook)
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.main:app --reload --port 8000
+# LIVE (frontend:3000, backend:8000, DB: articles.db)
+docker compose --profile live up --build
+
+# BACKTEST (frontend:3001, backend:8001, DB: articles_backtest.db)
+docker compose --profile backtest up --build
+
+# BOTH
+docker compose --profile live --profile backtest up --build
 ```
 
-백테스트 DB로 실행 예시:
+검증:
 ```bash
-PR_DB_PATH=backend/data/articles_backtest.db uvicorn backend.main:app --reload --port 8000
-```
-
-### 2) 프론트엔드
-```bash
-cd frontend
-npm install
-export NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
-npm run dev
+bash scripts/smoke_test.sh --mode live --base http://localhost:8000
+bash scripts/smoke_test.sh --mode backtest --base http://localhost:8001
 ```
 
 접속:
-- 메인: `http://localhost:3000`
-- 경쟁사 비교: `http://localhost:3000/compare`
-- 넥슨 군집/리스크: `http://localhost:3000/nexon`
-- 백테스트: `http://localhost:3000/nexon/backtest`
+- Live UI: `http://localhost:3000/nexon`
+- Backtest UI: `http://localhost:3001/nexon/backtest`
+- Health (live): `http://localhost:8000/api/health`
+- Health (backtest): `http://localhost:8001/api/health`
+
+환경파일:
+- `.env.live`: live profile 기본값
+- `.env.backtest`: backtest profile 기본값
+- `.env.example`: 템플릿
 
 ## 주요 API
 - `GET /health`: 서버 상태 + 현재 DB 경로/파일명
