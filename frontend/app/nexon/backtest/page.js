@@ -387,7 +387,7 @@ export default function NexonBacktestPage() {
                 </Paper>
               </Stack>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                This spike is primarily driven by volume + high-risk themes; spread is secondary.
+                Spike is driven by volume + high-risk themes; spread is secondary.
               </Typography>
             </>
           ) : null}
