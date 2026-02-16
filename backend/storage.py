@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import sqlite3
 from collections import Counter
 from difflib import SequenceMatcher
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -24,6 +25,14 @@ RISK_THEME_RULES: dict[str, list[str]] = {
     "여론/논란": ["논란", "비판", "불만", "시위", "잡음"],
     "신작/성과": ["신작", "출시", "흥행", "매출", "사전예약", "수상"],
 }
+THEME_WEIGHTS: dict[str, float] = {
+    "확률형/BM": 1.0,
+    "규제/법적": 0.9,
+    "보상/환불": 0.8,
+    "운영/장애": 0.7,
+    "여론/논란": 0.7,
+    "신작/성과": 0.4,
+}
 IP_RULES: dict[str, dict[str, Any]] = {
     "전체": {"slug": "all", "keywords": []},
     "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "메이플", "maplestory"]},
@@ -34,6 +43,23 @@ IP_RULES: dict[str, dict[str, Any]] = {
         "keywords": ["fc온라인", "fc online", "fconline", "피파온라인", "fifa온라인", "ea sports fc online"],
     },
     "블루아카이브": {"slug": "bluearchive", "keywords": ["블루아카이브", "블루 아카이브", "블루아카", "blue archive"]},
+}
+OUTLET_TIER1 = {
+    "chosun.com",
+    "joins.com",
+    "donga.com",
+    "hani.co.kr",
+    "khan.co.kr",
+    "yna.co.kr",
+    "yonhapnews.co.kr",
+    "kbs.co.kr",
+    "imbc.com",
+    "sbs.co.kr",
+}
+OUTLET_GAME_MEDIA = {
+    "inven.co.kr",
+    "thisisgame.com",
+    "gamemeca.com",
 }
 
 
@@ -101,6 +127,24 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS risk_timeseries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_id TEXT NOT NULL,
+                ts TEXT NOT NULL,
+                risk_raw REAL NOT NULL,
+                risk_score REAL NOT NULL,
+                s_comp REAL NOT NULL,
+                v_comp REAL NOT NULL,
+                t_comp REAL NOT NULL,
+                m_comp REAL NOT NULL,
+                alert_level TEXT NOT NULL,
+                sample_size INTEGER NOT NULL,
+                uncertain_ratio REAL NOT NULL
+            )
+            """
+        )
 
         sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
         if "source_group_id" not in sentiment_cols:
@@ -117,6 +161,7 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_group ON sentiment_results(source_group_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_method ON sentiment_results(method)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_analyzed_at ON sentiment_results(analyzed_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_ip_ts ON risk_timeseries(ip_id, ts)")
         conn.commit()
     finally:
         conn.close()
@@ -680,3 +725,218 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
 
 def get_nexon_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31") -> dict[str, Any]:
     return get_risk_dashboard(date_from=date_from, date_to=date_to, ip="all")
+
+
+def _sigmoid(x: float) -> float:
+    x = max(-12.0, min(12.0, float(x)))
+    return 1.0 / (1.0 + math.exp(-x))
+
+
+def _outlet_weight(outlet: str) -> float:
+    host = str(outlet or "unknown").strip().lower()
+    if host in OUTLET_TIER1:
+        return 1.0
+    if host in OUTLET_GAME_MEDIA:
+        return 0.7
+    return 0.4
+
+
+def _alert_level(score: float) -> str:
+    if score >= 70:
+        return "P1"
+    if score >= 45:
+        return "P2"
+    return "P3"
+
+
+def _parse_article_dt(pub_date: str, date_only: str) -> datetime | None:
+    dt = pd.to_datetime(pub_date or "", errors="coerce")
+    if pd.isna(dt):
+        dt = pd.to_datetime(date_only or "", errors="coerce")
+    if pd.isna(dt):
+        return None
+    return dt.to_pydatetime().replace(tzinfo=None)
+
+
+def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
+    ip_name = _resolve_ip_name(ip)
+    if not ip_name:
+        raise ValueError("지원하지 않는 IP입니다.")
+
+    now = datetime.now()
+    start_window = now - timedelta(hours=max(1, int(window_hours)))
+    start_baseline = now - timedelta(days=7)
+    baseline_date = start_baseline.strftime("%Y-%m-%d")
+
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, title_clean, description_clean,
+                   COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet,
+                   COALESCE(pub_date, '') AS pub_date,
+                   COALESCE(date, '') AS date,
+                   COALESCE(source_group_id, '') AS source_group_id
+            FROM articles
+            WHERE company = ? AND date >= ?
+            """,
+            ("넥슨", baseline_date),
+        ).fetchall()
+
+        scoped = []
+        for r in rows:
+            text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
+            if ip_name != "전체" and _detect_ip(text) != ip_name:
+                continue
+            dt = _parse_article_dt(str(r["pub_date"] or ""), str(r["date"] or ""))
+            if not dt:
+                continue
+            scoped.append(
+                {
+                    "id": int(r["id"]),
+                    "dt": dt,
+                    "text": text.lower(),
+                    "outlet": str(r["outlet"] or "unknown"),
+                    "source_group_id": str(r["source_group_id"] or ""),
+                }
+            )
+
+        recent = [r for r in scoped if r["dt"] >= start_window]
+        recent_groups = sorted({r["source_group_id"] for r in recent if r["source_group_id"]})
+
+        sentiment_by_group: dict[str, dict[str, float | str]] = {}
+        if recent_groups:
+            placeholders = ",".join(["?"] * len(recent_groups))
+            srows = conn.execute(
+                f"""
+                SELECT source_group_id, sentiment_score, sentiment_label, confidence, analyzed_at
+                FROM sentiment_results
+                WHERE source_group_id IN ({placeholders})
+                ORDER BY analyzed_at DESC, id DESC
+                """,
+                recent_groups,
+            ).fetchall()
+            for sr in srows:
+                gid = str(sr["source_group_id"] or "")
+                if gid in sentiment_by_group:
+                    continue
+                sentiment_by_group[gid] = {
+                    "score": float(sr["sentiment_score"] or 0.0),
+                    "label": str(sr["sentiment_label"] or "uncertain"),
+                    "confidence": float(sr["confidence"] or 0.0),
+                }
+
+        weighted_scores = []
+        uncertain_count = 0
+        for gid in recent_groups:
+            entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "uncertain", "confidence": 0.0})
+            label = str(entry["label"])
+            confidence = float(entry["confidence"])
+            weight = confidence if label != "uncertain" else 0.3
+            negative_value = max(0.0, -float(entry["score"]))
+            weighted_scores.append(negative_value * weight)
+            if label == "uncertain":
+                uncertain_count += 1
+        S_t = float(sum(weighted_scores) / max(len(weighted_scores), 1))
+        uncertain_ratio = float(uncertain_count / max(len(recent_groups), 1))
+
+        hour_start = now - timedelta(hours=1)
+        count_1h = sum(1 for r in scoped if r["dt"] >= hour_start)
+        hourly_counter: Counter[str] = Counter()
+        for r in scoped:
+            if r["dt"] >= now:
+                continue
+            bucket = r["dt"].strftime("%Y-%m-%d %H")
+            hourly_counter[bucket] += 1
+        same_hour_values = []
+        current_hour = now.hour
+        for key, value in hourly_counter.items():
+            dt_key = datetime.strptime(key, "%Y-%m-%d %H")
+            if dt_key.hour == current_hour:
+                same_hour_values.append(value)
+        baseline_values = same_hour_values if len(same_hour_values) >= 3 else list(hourly_counter.values())
+        baseline_mean = float(sum(baseline_values) / max(len(baseline_values), 1))
+        baseline_std = float(pd.Series(baseline_values).std(ddof=0)) if baseline_values else 0.0
+        z_score = (float(count_1h) - baseline_mean) / max(baseline_std, 1.0)
+        V_t = float(_sigmoid(z_score))
+
+        theme_counter: Counter[str] = Counter()
+        for r in recent:
+            for theme, keywords in RISK_THEME_RULES.items():
+                if any(k.lower() in r["text"] for k in keywords):
+                    theme_counter[theme] += 1
+                    break
+        T_t = 0.0
+        if recent:
+            total_recent = float(len(recent))
+            for theme, cnt in theme_counter.items():
+                share = float(cnt) / total_recent
+                T_t += share * float(THEME_WEIGHTS.get(theme, 0.4))
+
+        outlet_counter: Counter[str] = Counter(r["outlet"] for r in recent)
+        M_t = 0.0
+        if recent:
+            total_recent = float(len(recent))
+            for outlet, cnt in outlet_counter.items():
+                share = float(cnt) / total_recent
+                M_t += share * _outlet_weight(outlet)
+
+        raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
+        ip_id = (ip or "all").strip().lower()
+        prev = conn.execute(
+            """
+            SELECT risk_score
+            FROM risk_timeseries
+            WHERE ip_id = ?
+            ORDER BY ts DESC, id DESC
+            LIMIT 1
+            """,
+            (ip_id,),
+        ).fetchone()
+        prev_risk = float(prev["risk_score"]) if prev else None
+        smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
+        if prev_risk is not None and count_1h < 10:
+            smoothed = 0.9 * prev_risk + 0.1 * raw_risk
+
+        score = round(float(max(0.0, min(100.0, smoothed))), 1)
+        alert = _alert_level(score)
+        ts = now.strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            """
+            INSERT INTO risk_timeseries (
+                ip_id, ts, risk_raw, risk_score, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ip_id,
+                ts,
+                float(raw_risk),
+                float(score),
+                float(S_t),
+                float(V_t),
+                float(T_t),
+                float(M_t),
+                alert,
+                int(len(recent)),
+                float(uncertain_ratio),
+            ),
+        )
+        conn.commit()
+
+        return {
+            "meta": {"ip": ip_name, "ip_id": ip_id, "window_hours": int(window_hours), "ts": ts},
+            "risk_score": score,
+            "components": {
+                "S": round(float(S_t), 3),
+                "V": round(float(V_t), 3),
+                "T": round(float(T_t), 3),
+                "M": round(float(M_t), 3),
+            },
+            "alert_level": alert,
+            "sample_size": int(len(recent)),
+            "count_1h": int(count_1h),
+            "z_score": round(float(z_score), 3),
+            "uncertain_ratio": round(float(uncertain_ratio), 3),
+        }
+    finally:
+        conn.close()

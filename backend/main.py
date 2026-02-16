@@ -18,12 +18,14 @@ if str(ROOT_DIR) not in sys.path:
 from backend.storage import (
     get_articles,
     get_ip_clusters,
+    get_live_risk,
     get_nexon_dashboard,
     get_risk_dashboard,
     get_risk_ip_catalog,
     init_db,
     save_articles,
 )
+from backend.analysis_project import CORE_IPS, build_project_snapshot
 from services.naver_api import (
     COMPANIES,
     fetch_company_news_compare,
@@ -345,6 +347,28 @@ def nexon_dashboard(
     return get_nexon_dashboard(date_from=date_from, date_to=date_to)
 
 
+@app.get("/api/project-snapshot")
+def project_snapshot(
+    date_from: str = Query(default="2024-01-01"),
+    date_to: str = Query(default="2026-12-31"),
+    ips: str = Query(default=",".join(CORE_IPS)),
+) -> dict:
+    try:
+        start = datetime.strptime(date_from, "%Y-%m-%d")
+        end = datetime.strptime(date_to, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="date_from/date_to 형식은 YYYY-MM-DD여야 합니다.") from exc
+
+    if start > end:
+        raise HTTPException(status_code=400, detail="date_from은 date_to보다 이전이어야 합니다.")
+
+    ip_list = [x.strip().lower() for x in ips.split(",") if x.strip()]
+    try:
+        return build_project_snapshot(date_from=date_from, date_to=date_to, ips=ip_list or CORE_IPS)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/risk-ips")
 def risk_ips() -> dict:
     return {"items": get_risk_ip_catalog()}
@@ -367,6 +391,17 @@ def risk_dashboard(
 
     try:
         return get_risk_dashboard(date_from=date_from, date_to=date_to, ip=ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/risk-score")
+def risk_score(
+    ip: str = Query(default="all"),
+    window_hours: int = Query(default=24, ge=1, le=72),
+) -> dict:
+    try:
+        return get_live_risk(ip=ip, window_hours=window_hours)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
