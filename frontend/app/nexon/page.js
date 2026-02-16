@@ -20,7 +20,6 @@ import {
   Paper,
   Select,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 
@@ -155,8 +154,6 @@ function WordCloudChart({ items }) {
 
 export default function NexonPage() {
   const [ip, setIp] = useState("maplestory");
-  const [dateFrom, setDateFrom] = useState("2024-01-01");
-  const [dateTo, setDateTo] = useState("2026-12-31");
   const [riskData, setRiskData] = useState(MOCK_RISK);
   const [clusterData, setClusterData] = useState(MOCK_CLUSTER);
   const [riskScore, setRiskScore] = useState(null);
@@ -170,7 +167,7 @@ export default function NexonPage() {
     setLoading(true);
     setError("");
     try {
-      const base = new URLSearchParams({ ip: targetIp, date_from: dateFrom, date_to: dateTo });
+      const base = new URLSearchParams({ ip: targetIp });
       const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload] = await Promise.all([
         apiGet(`/api/risk-dashboard?${base.toString()}`),
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
@@ -181,14 +178,16 @@ export default function NexonPage() {
 
       const okRisk = Number(riskPayload?.meta?.total_articles || 0) > 0;
       const okCluster = Number(clusterPayload?.meta?.cluster_count || 0) > 0;
-      setRiskData(okRisk ? riskPayload : { ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, date_from: dateFrom, date_to: dateTo } });
+      const ipName = (riskPayload?.ip_catalog || MOCK_RISK.ip_catalog).find((x) => x.id === targetIp)?.name || targetIp;
+      setRiskData(okRisk ? riskPayload : { ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, ip: ipName, total_articles: 0 } });
       setClusterData(okCluster ? clusterPayload : MOCK_CLUSTER);
       setUsingMock(!(okRisk && okCluster));
       setRiskScore(riskScorePayload || null);
       setBurstStatus(burstStatusPayload || null);
       setBurstEvents((burstEventsPayload?.items || []).slice(0, 10));
     } catch (e) {
-      setRiskData({ ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, date_from: dateFrom, date_to: dateTo } });
+      const ipName = MOCK_RISK.ip_catalog.find((x) => x.id === targetIp)?.name || targetIp;
+      setRiskData({ ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, ip: ipName, total_articles: 0 } });
       setClusterData(MOCK_CLUSTER);
       setUsingMock(true);
       setError(String(e));
@@ -198,9 +197,9 @@ export default function NexonPage() {
   };
 
   useEffect(() => {
-    loadDashboard();
+    loadDashboard(ip);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ip]);
 
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -307,9 +306,7 @@ export default function NexonPage() {
                   ))}
                 </Select>
               </FormControl>
-              <TextField size="small" label="시작일" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-              <TextField size="small" label="종료일" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
-              <Button variant="contained" onClick={() => loadDashboard(ip)} disabled={loading}>{loading ? "불러오는 중" : "분석 갱신"}</Button>
+              <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
             {loading ? <LinearProgress sx={{ mt: 1.5 }} /> : null}
