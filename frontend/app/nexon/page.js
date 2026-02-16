@@ -396,6 +396,36 @@ export default function NexonPage() {
   const riskValue = Number(riskScore?.risk_score || 0);
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const riskGaugeColor = riskValue >= 70 ? "#dc3c4a" : riskValue >= 45 ? "#e89c1c" : "#11a36a";
+  const riskMeaning = useMemo(() => {
+    if (riskValue >= 70) return { label: "Critical", color: "error" };
+    if (riskValue >= 45) return { label: "High", color: "warning" };
+    if (riskValue >= 20) return { label: "Elevated", color: "info" };
+    return { label: "Low", color: "success" };
+  }, [riskValue]);
+  const recent24hArticles = Number(riskScore?.article_count_window || 0);
+  const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
+  const weeklyBaselineAvg = useMemo(() => {
+    if (!recentWeekRows.length) return 0;
+    return recentWeekRows.reduce((acc, row) => acc + Number(row.article_count || 0), 0) / recentWeekRows.length;
+  }, [recentWeekRows]);
+  const weeklyBaselineMin = useMemo(() => {
+    if (!recentWeekRows.length) return 0;
+    return Math.min(...recentWeekRows.map((row) => Number(row.article_count || 0)));
+  }, [recentWeekRows]);
+  const weeklyBaselineMax = useMemo(() => {
+    if (!recentWeekRows.length) return 0;
+    return Math.max(...recentWeekRows.map((row) => Number(row.article_count || 0)));
+  }, [recentWeekRows]);
+  const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
+  const spreadValue = Number(riskScore?.spread_ratio || 0);
+  const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
+  const liveInterpretation = useMemo(() => {
+    if (recent24hArticles < 5) return "Low article volume. Risk may be less reliable.";
+    if (riskValue >= 70) return "Risk is critical due to high volume spike and concentrated high-risk themes.";
+    if (riskValue >= 45) return "Risk is high with elevated issue concentration. Monitor spread and sentiment shifts closely.";
+    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "Risk is currently low-to-elevated. Volume or spread is rising above baseline.";
+    return "Risk is currently low due to stable volume and limited spread.";
+  }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
   const outletRisk = useMemo(() => {
     if (!outletRows.length) return null;
     return [...outletRows]
@@ -607,9 +637,19 @@ export default function NexonPage() {
                   <Paper variant="outlined" sx={{ p: 1.2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk 점수</Typography>
                     <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
+                    <Chip
+                      label={riskMeaning.label}
+                      size="small"
+                      color={riskMeaning.color}
+                      variant="outlined"
+                      sx={{ mt: 0.7 }}
+                    />
                     <div className="riskGauge">
                       <div className="riskGaugeFill" style={{ width: `${Math.max(0, Math.min(100, riskValue))}%`, background: riskGaugeColor }} />
                     </div>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                      Based on rolling {Number(riskScore?.meta?.window_hours || 24)}-hour window
+                    </Typography>
                   </Paper>
                   <Paper variant="outlined" sx={{ p: 1.2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>Alert</Typography>
@@ -643,6 +683,18 @@ export default function NexonPage() {
                   </Paper>
                 </div>
 
+                <Paper variant="outlined" sx={{ p: 1.2, mb: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    Recent 24h articles: {recent24hArticles.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    Avg daily baseline: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()} for this IP
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    {recent24hArticles.toLocaleString()} articles ({baselineRatio > 0 ? `${baselineRatio.toFixed(1)}x` : "0.0x"} weekly baseline)
+                  </Typography>
+                </Paper>
+
                 <div className="componentBars">
                   {["S", "V", "T", "M"].map((k) => {
                     const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
@@ -659,6 +711,22 @@ export default function NexonPage() {
                     );
                   })}
                 </div>
+
+                <Paper variant="outlined" sx={{ p: 1.2, mt: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Live interpretation</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                    Volume: {recent24hArticles.toLocaleString()} articles
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    Spread: {spreadValue.toFixed(2)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    Uncertainty: {uncertaintyValue.toFixed(2)}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.8 }}>
+                    {liveInterpretation}
+                  </Typography>
+                </Paper>
 
                 <ul className="burstLog">
                   {filteredBurstEvents.length ? (

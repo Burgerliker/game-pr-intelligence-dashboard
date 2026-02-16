@@ -55,6 +55,15 @@ export default function NexonBacktestPage() {
   const hasSeries = normalized.timestamps.length > 0;
   const dbLabel = health?.db_file_name || health?.db_path || "-";
   const modeMismatchWarning = health?.mode === "live" ? "Backtest page is using live DB" : "";
+  const detailsByTs = useMemo(() => {
+    const out = new Map();
+    for (const row of payload?.timeseries || []) {
+      const ts = String(row.ts || row.timestamp || "");
+      if (!ts) continue;
+      out.set(ts, row);
+    }
+    return out;
+  }, [payload?.timeseries]);
   const driverStats = useMemo(() => {
     const rows = payload?.timeseries || [];
     if (!rows.length) {
@@ -114,16 +123,23 @@ export default function NexonBacktestPage() {
           formatter: (params) => {
             if (!Array.isArray(params) || !params.length) return "";
             const ts = params[0].axisValue;
+            const d = detailsByTs.get(String(ts));
             const lines = [`<strong>${ts}</strong>`];
-            params.forEach((p) => {
-              if (p.seriesName === "Events") {
+            if (d) {
+              lines.push(`Risk: ${Number(d.risk_score || 0).toFixed(1)}`);
+              lines.push(`Raw: ${Number(d.raw_risk || 0).toFixed(1)}`);
+              lines.push(`EMA: ${Number(d.risk_score_ema || d.risk_score || 0).toFixed(1)}`);
+              lines.push(`Articles: ${Number(d.article_count_window || d.article_count || 0).toLocaleString()}`);
+              lines.push(`Spread: ${Number(d.spread_ratio || 0).toFixed(2)}`);
+              lines.push(`Uncertainty: ${Number(d.uncertain_ratio || 0).toFixed(2)}`);
+            }
+            params
+              .filter((p) => p.seriesName === "Events")
+              .forEach((p) => {
                 const name = p.data?.name || "EVENT";
                 const evType = p.data?.eventType || "event";
                 lines.push(`${p.marker} ${name} (${evType})`);
-              } else {
-                lines.push(`${p.marker} ${p.seriesName}: ${Number(p.data ?? 0).toFixed(2)}`);
-              }
-            });
+              });
             return lines.join("<br/>");
           },
         },
@@ -337,6 +353,9 @@ export default function NexonBacktestPage() {
               {modeMismatchWarning}
             </Alert>
           ) : null}
+          <Alert severity="info" sx={{ mt: 1.5 }}>
+            Backtest uses threshold-based events (no hysteresis). Live mode uses burst hysteresis logic.
+          </Alert>
 
           {loading ? <Box sx={{ mt: 2 }}><LoadingState title="백테스트 로딩 중" subtitle="리스크 타임라인을 계산하고 있습니다." /></Box> : null}
           {error ? (
