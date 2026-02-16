@@ -33,6 +33,7 @@ from backend.storage import (
 )
 from backend.analysis_project import CORE_IPS, build_project_snapshot
 from backend.burst_manager import BurstManager
+from backend.backtest import run_backtest
 from services.naver_api import (
     COMPANIES,
     fetch_company_news_compare,
@@ -550,6 +551,41 @@ def ip_clusters(
 
     try:
         return get_ip_clusters(ip=ip, date_from=date_from, date_to=date_to, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/backtest")
+def backtest(
+    ip: str = Query(default="maplestory"),
+    date_from: str = Query(default="2025-11-01"),
+    date_to: str = Query(default="2026-02-10"),
+    window_hours: int = Query(default=24, ge=1, le=72),
+    step_hours: int = Query(default=1, ge=1, le=24),
+    weight_s: float = Query(default=0.45, ge=0.0, le=1.0),
+    weight_v: float = Query(default=0.25, ge=0.0, le=1.0),
+    weight_t: float = Query(default=0.20, ge=0.0, le=1.0),
+    weight_m: float = Query(default=0.10, ge=0.0, le=1.0),
+) -> dict:
+    try:
+        datetime.strptime(date_from, "%Y-%m-%d")
+        datetime.strptime(date_to, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="date_from/date_to 형식은 YYYY-MM-DD여야 합니다.") from exc
+
+    weights = {"S": float(weight_s), "V": float(weight_v), "T": float(weight_t), "M": float(weight_m)}
+    if sum(weights.values()) <= 0:
+        raise HTTPException(status_code=400, detail="가중치 합은 0보다 커야 합니다.")
+
+    try:
+        return run_backtest(
+            ip_name=ip,
+            date_from=date_from,
+            date_to=date_to,
+            window_hours=window_hours,
+            step_hours=step_hours,
+            weights=weights,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
