@@ -523,6 +523,7 @@ def run_backtest(
             "total_steps": int(len(timeseries)),
             "weights": {k: round(float(v), 4) for k, v in norm_w.items()},
             "db_path": str(db_path),
+            "db_file_name": db_path.name,
         },
         "thresholds": {"p1": 70, "p2": 45},
         "timeseries": timeseries,
