@@ -15,12 +15,21 @@
 - Data Source: Naver Search API(뉴스)
 
 ## 실행
+환경변수:
+- 기본 DB: `backend/data/articles.db`
+- 다른 DB를 쓰려면 `PR_DB_PATH` 설정 (예: `backend/data/articles_backtest.db`)
+
 ### 1) 백엔드
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn backend.main:app --reload --port 8000
+```
+
+백테스트 DB로 실행 예시:
+```bash
+PR_DB_PATH=backend/data/articles_backtest.db uvicorn backend.main:app --reload --port 8000
 ```
 
 ### 2) 프론트엔드
@@ -56,6 +65,26 @@ python scripts/export_analysis_snapshot.py \
 - `nexon_ip_summary.csv`
 - `nexon_top_risk_themes.csv`
 - `nexon_top_outlets.csv`
+
+## 백테스트용 과거 기사 수집(메이플키우기)
+네이버 API `sort=date/sim` 혼합으로 과거 관련 기사를 최대한 확보한 뒤,
+최종적으로 날짜 필터(`2025-11-01~2026-02-10` 기본값)를 적용합니다.
+
+```bash
+# 백테스트 전용 DB로 저장
+PR_DB_PATH=backend/data/articles_backtest.db \
+python scripts/collect_backtest_maple_idle.py \
+  --date-from 2025-11-01 \
+  --date-to 2026-02-10 \
+  --date-pages 10 \
+  --sim-pages 5 \
+  --max-calls 1000
+```
+
+드라이런(저장 없이 호출 통계/필터 결과만 확인):
+```bash
+python scripts/collect_backtest_maple_idle.py --dry-run
+```
 
 ## 기사 수 가이드(분석 신뢰도 기준)
 실무에서 의미 있는 위험/군집 분석을 위해 권장하는 최소 데이터량:

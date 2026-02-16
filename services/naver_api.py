@@ -40,6 +40,30 @@ NEXON_CLUSTER_QUERIES = [
     "넥슨 AND 보상",
 ]
 
+BACKTEST_MAPLE_IDLE_QUERIES = [
+    "메이플키우기",
+    "메이플 키우기",
+    "AFK 메이플",
+    "메이플키우기 확률",
+    "메이플키우기 환불",
+    "메이플키우기 조작",
+    "메이플키우기 공정위",
+    "메이플키우기 논란",
+    "메이플키우기 버그",
+    "메이플키우기 넥슨",
+    "넥슨 확률 조작",
+    "넥슨 전액환불",
+    "넥슨 공정위 현장조사",
+]
+
+BACKTEST_PERIOD_HINTS = [
+    ("2025-11-01", "2025-11-30", "2025년 11월"),
+    ("2025-12-01", "2025-12-31", "2025년 12월"),
+    ("2026-01-01", "2026-01-15", "2026년 1월 초"),
+    ("2026-01-16", "2026-01-31", "2026년 1월 하순"),
+    ("2026-02-01", "2026-02-10", "2026년 2월"),
+]
+
 
 def _clean_html(text: str) -> str:
     """HTML 태그 및 특수문자 제거"""
@@ -318,6 +342,107 @@ def fetch_nexon_bulk_news(
     merged = _dedupe_news(merged).head(target_articles).reset_index(drop=True)
 
     return merged, {"calls": calls, "raw_items": raw_items, "filtered_items": int(len(merged))}
+
+
+def fetch_maple_idle_backtest_news(
+    *,
+    date_from: str = "2025-11-01",
+    date_to: str = "2026-02-10",
+    date_pages: int = 10,
+    sim_pages: int = 5,
+    page_size: int = 100,
+    max_calls: int = 1000,
+) -> tuple[pd.DataFrame, dict]:
+    """메이플키우기 백테스트용 과거 기사 수집.
+
+    네이버 API 날짜 필터 부재를 보완하기 위해:
+    - sort=date: 기본 쿼리 확장 수집
+    - sort=sim: 기간 힌트 쿼리 병행 수집
+    - 최종적으로 pubDate 기준 기간 필터 적용
+    """
+    start_date = pd.to_datetime(date_from, errors="coerce")
+    end_date = pd.to_datetime(date_to, errors="coerce")
+    if pd.isna(start_date) or pd.isna(end_date):
+        raise ValueError("date_from/date_to 형식이 올바르지 않습니다. (YYYY-MM-DD)")
+    if start_date > end_date:
+        raise ValueError("date_from은 date_to보다 이전이어야 합니다.")
+
+    period_hints = [hint for s, e, hint in BACKTEST_PERIOD_HINTS if not (pd.Timestamp(e) < start_date or pd.Timestamp(s) > end_date)]
+    if not period_hints:
+        period_hints = [f"{start_date.year}년", f"{end_date.year}년"]
+
+    frames: list[pd.DataFrame] = []
+    calls = 0
+    raw_items = 0
+    exhausted_streams = 0
+    total_streams = len(BACKTEST_MAPLE_IDLE_QUERIES) * 2
+
+    for base_query in BACKTEST_MAPLE_IDLE_QUERIES:
+        if calls >= max_calls:
+            break
+
+        # 최신순 수집 (최근 기사 우선)
+        start = 1
+        for _ in range(max(1, int(date_pages))):
+            if calls >= max_calls or start > 1000:
+                break
+            items = search_news(base_query, display=min(max(10, int(page_size)), 100), start=start, sort="date")
+            calls += 1
+            if not items:
+                break
+            raw_items += len(items)
+            frame = _to_company_dataframe(items, company="넥슨")
+            if not frame.empty:
+                frames.append(frame)
+            if len(items) < min(max(10, int(page_size)), 100):
+                break
+            start += len(items)
+        else:
+            exhausted_streams += 1
+
+        # 정확도순 수집 (기간 힌트 포함)
+        sim_query_cycle = [base_query] + [f"{base_query} {hint}" for hint in period_hints]
+        start = 1
+        for idx in range(max(1, int(sim_pages))):
+            if calls >= max_calls or start > 1000:
+                break
+            sim_query = sim_query_cycle[idx % len(sim_query_cycle)]
+            items = search_news(sim_query, display=min(max(10, int(page_size)), 100), start=start, sort="sim")
+            calls += 1
+            if not items:
+                break
+            raw_items += len(items)
+            frame = _to_company_dataframe(items, company="넥슨")
+            if not frame.empty:
+                frames.append(frame)
+            if len(items) < min(max(10, int(page_size)), 100):
+                break
+            start += len(items)
+        else:
+            exhausted_streams += 1
+
+    if not frames:
+        return pd.DataFrame(), {"calls": calls, "raw_items": 0, "filtered_items": 0, "queries": len(BACKTEST_MAPLE_IDLE_QUERIES)}
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged["pubDate_parsed"] = pd.to_datetime(merged["pubDate_parsed"], errors="coerce", utc=True).dt.tz_convert(None)
+    merged = merged.dropna(subset=["pubDate_parsed"]).reset_index(drop=True)
+
+    start_dt = start_date.to_pydatetime()
+    end_dt = (end_date + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)).to_pydatetime()
+    merged = merged[(merged["pubDate_parsed"] >= start_dt) & (merged["pubDate_parsed"] <= end_dt)].reset_index(drop=True)
+    merged = _dedupe_news(merged)
+
+    stats = {
+        "calls": int(calls),
+        "raw_items": int(raw_items),
+        "filtered_items": int(len(merged)),
+        "queries": int(len(BACKTEST_MAPLE_IDLE_QUERIES)),
+        "period_hints": period_hints,
+        "exhausted_streams": int(exhausted_streams),
+        "max_calls": int(max_calls),
+    }
+    return merged, stats
 
 
 def fetch_all_companies(total_per_company: int = 100) -> pd.DataFrame:
