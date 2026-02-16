@@ -664,9 +664,16 @@ export default function NexonPage() {
                 </ul>
               </>
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                위험도 데이터가 아직 없습니다.
-              </Typography>
+              <Stack spacing={0.5}>
+                <Typography variant="body2" color="text.secondary">
+                  위험도 데이터가 아직 없습니다.
+                </Typography>
+                {!filteredBurstEvents.length ? (
+                  <Typography variant="caption" color="text.secondary">
+                    No burst events yet (waiting for live signals)
+                  </Typography>
+                ) : null}
+              </Stack>
             )}
           </CardContent>
         </Card>
