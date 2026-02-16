@@ -93,6 +93,7 @@ BACKFILL_QUERIES: dict[str, list[str]] = {
 SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
 ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
+DISABLE_COMPETITOR_COMPARE = os.getenv("DISABLE_COMPETITOR_COMPARE", "1") == "1"
 
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 burst_managers: dict[str, BurstManager] = {
@@ -1106,6 +1107,9 @@ def backtest(
 
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest) -> dict:
+    if DISABLE_COMPETITOR_COMPARE:
+        raise HTTPException(status_code=403, detail="경쟁사 비교 수집 기능은 현재 비활성화되어 있습니다.")
+
     selected = [c for c in req.companies if c in COMPANIES]
     if not selected:
         raise HTTPException(status_code=400, detail="최소 1개 이상의 회사를 선택해 주세요.")

@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "../../lib/api";
 
 const NEXON_LOGO = "/nexon-logo.png";
 const PAGE_SIZE = 40;
+const COMPARE_COLLECTION_DISABLED = true;
 
 const SENTIMENTS = ["긍정", "중립", "부정"];
 
@@ -64,6 +65,10 @@ export default function Page() {
   };
 
   const runAnalyze = async () => {
+    if (COMPARE_COLLECTION_DISABLED) {
+      setError("경쟁사 비교 수집 기능은 현재 비활성화되어 있습니다.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -191,6 +196,9 @@ export default function Page() {
       </header>
 
       <section className="controls compareControls">
+        {COMPARE_COLLECTION_DISABLED ? (
+          <p className="error">보호 모드: 경쟁사 비교 API 수집은 현재 잠금 상태입니다.</p>
+        ) : null}
         <div className="row">
           {["넥슨", "NC소프트", "넷마블", "크래프톤"].map((name) => (
             <button key={name} className={companies.includes(name) ? "chip active" : "chip"} onClick={() => toggleCompany(name)}>
@@ -211,8 +219,8 @@ export default function Page() {
             />
             <strong>{articleCount}</strong>
           </label>
-          <button className="primary" onClick={runAnalyze} disabled={loading || companies.length === 0}>
-            {loading ? "분석 중..." : "수집 시작"}
+          <button className="primary" onClick={runAnalyze} disabled={COMPARE_COLLECTION_DISABLED || loading || companies.length === 0}>
+            {COMPARE_COLLECTION_DISABLED ? "수집 잠금" : loading ? "분석 중..." : "수집 시작"}
           </button>
           <button className="ghost" onClick={loadDemo} disabled={loading}>
             데모 데이터
