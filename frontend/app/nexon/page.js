@@ -171,6 +171,7 @@ export default function NexonPage() {
   const [riskScore, setRiskScore] = useState(null);
   const [burstStatus, setBurstStatus] = useState(null);
   const [burstEvents, setBurstEvents] = useState([]);
+  const [health, setHealth] = useState(null);
   const [usingMock, setUsingMock] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -202,6 +203,7 @@ export default function NexonPage() {
       setRiskScore(cache.riskScore);
       setBurstStatus(cache.burstStatus);
       setBurstEvents(cache.burstEvents);
+      setHealth(cache.health || null);
       setUsingMock(Boolean(cache.usingMock));
       setNotice(cache.notice || "");
       setLastUpdatedAt(cache.lastUpdatedAt || formatUpdatedAt());
@@ -211,12 +213,13 @@ export default function NexonPage() {
 
     try {
       const base = new URLSearchParams({ ip: targetIp });
-      const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload] = await Promise.all([
+      const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload, healthPayload] = await Promise.all([
         apiGet(`/api/risk-dashboard?${base.toString()}`),
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
         apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
         apiGet("/api/burst-status").catch(() => null),
         apiGet("/api/burst-events?limit=50").catch(() => null),
+        apiGet("/api/health").catch(() => null),
       ]);
 
       const normalized = normalizeNexonDashboard({
@@ -241,6 +244,7 @@ export default function NexonPage() {
       setRiskScore(riskScorePayload || null);
       setBurstStatus(burstStatusPayload || null);
       setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
+      setHealth(healthPayload || null);
       setNotice(resolvedNotice);
       setLastUpdatedAt(refreshedAt);
 
@@ -250,6 +254,7 @@ export default function NexonPage() {
         riskScore: riskScorePayload || null,
         burstStatus: burstStatusPayload || null,
         burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
+        health: healthPayload || null,
         usingMock: resolvedUsingMock,
         notice: resolvedNotice,
         lastUpdatedAt: refreshedAt,
@@ -321,13 +326,15 @@ export default function NexonPage() {
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
-        const [rs, bs] = await Promise.all([
+        const [rs, bs, hs] = await Promise.all([
           apiGet(`/api/risk-score?ip=${ip}`).catch(() => null),
           apiGet("/api/burst-status").catch(() => null),
+          apiGet("/api/health").catch(() => null),
         ]);
         if (rs) setRiskScore(rs);
         if (bs) setBurstStatus(bs);
-        if (rs || bs) setLastUpdatedAt(formatUpdatedAt());
+        if (hs) setHealth(hs);
+        if (rs || bs || hs) setLastUpdatedAt(formatUpdatedAt());
       } catch {
         // noop
       }
@@ -404,6 +411,7 @@ export default function NexonPage() {
     "신작/성과": "성과 메시지와 리스크 메시지를 분리해 혼선 방지",
   };
   const recommendedAction = themeActionMap[topRisk?.theme] || "핵심 팩트와 대응 일정을 짧고 명확하게 공지";
+  const modeMismatchWarning = health?.mode === "backtest" ? "Live dashboard is using backtest DB" : "";
 
   return (
     <Container maxWidth="xl" sx={{ py: 2 }}>
@@ -562,6 +570,7 @@ export default function NexonPage() {
               </Box>
             ) : null}
             {notice ? <Alert severity={usingMock ? "warning" : "info"} sx={{ mt: 1.5 }}>{notice}</Alert> : null}
+            {modeMismatchWarning ? <Alert severity="warning" sx={{ mt: 1.5 }}>{modeMismatchWarning}</Alert> : null}
             {error ? (
               <Box sx={{ mt: 1.5 }}>
                 <ErrorState title="대시보드 데이터를 불러오지 못했습니다." details={error} actionLabel="재시도" onAction={() => loadDashboard(ip)} />

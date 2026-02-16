@@ -965,7 +965,7 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                    COALESCE(date, '') AS date,
                    COALESCE(source_group_id, '') AS source_group_id
             FROM articles
-            WHERE company = ? AND date >= ?
+            WHERE company = ? AND date >= ? AND is_test = 0
             """,
             ("넥슨", baseline_date),
         ).fetchall()
@@ -1147,6 +1147,217 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         conn.close()
 
 
+def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_test: bool = False) -> dict[str, Any]:
+    if not include_test:
+        return get_live_risk(ip=ip, window_hours=window_hours)
+
+    ip_name = _resolve_ip_name(ip)
+    if not ip_name:
+        raise ValueError("지원하지 않는 IP입니다.")
+
+    now = datetime.now()
+    start_window = now - timedelta(hours=max(1, int(window_hours)))
+    start_baseline = now - timedelta(days=7)
+    baseline_date = start_baseline.strftime("%Y-%m-%d")
+
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, title_clean, description_clean,
+                   COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet,
+                   COALESCE(pub_date, '') AS pub_date,
+                   COALESCE(date, '') AS date,
+                   COALESCE(source_group_id, '') AS source_group_id
+            FROM articles
+            WHERE company = ? AND date >= ?
+            """,
+            ("넥슨", baseline_date),
+        ).fetchall()
+
+        scoped = []
+        for r in rows:
+            text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
+            if ip_name != "전체" and _detect_ip(text) != ip_name:
+                continue
+            dt = _parse_article_dt(str(r["pub_date"] or ""), str(r["date"] or ""))
+            if not dt:
+                continue
+            scoped.append(
+                {
+                    "id": int(r["id"]),
+                    "dt": dt,
+                    "text": text.lower(),
+                    "outlet": str(r["outlet"] or "unknown"),
+                    "source_group_id": str(r["source_group_id"] or ""),
+                }
+            )
+
+        recent = [r for r in scoped if r["dt"] >= start_window]
+        recent_group_items: dict[str, dict[str, Any]] = {}
+        for r in recent:
+            gid = str(r["source_group_id"] or "") or f"legacy:{int(r['id'])}"
+            if gid not in recent_group_items:
+                recent_group_items[gid] = r
+        recent_groups = sorted(recent_group_items.keys())
+        recent_real_group_ids = sorted(g for g in recent_groups if not g.startswith("legacy:"))
+
+        sentiment_by_group: dict[str, dict[str, float | str]] = {}
+        if recent_real_group_ids:
+            placeholders = ",".join(["?"] * len(recent_real_group_ids))
+            srows = conn.execute(
+                f"""
+                SELECT source_group_id, sentiment_score, sentiment_label, confidence, analyzed_at
+                FROM sentiment_results
+                WHERE source_group_id IN ({placeholders})
+                ORDER BY analyzed_at DESC, id DESC
+                """,
+                recent_real_group_ids,
+            ).fetchall()
+            for sr in srows:
+                gid = str(sr["source_group_id"] or "")
+                if gid in sentiment_by_group:
+                    continue
+                sentiment_by_group[gid] = {
+                    "score": float(sr["sentiment_score"] or 0.0),
+                    "label": str(sr["sentiment_label"] or "uncertain"),
+                    "confidence": float(sr["confidence"] or 0.0),
+                }
+
+        weighted_scores = []
+        uncertain_count = 0
+        for gid in recent_groups:
+            entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "uncertain", "confidence": 0.0})
+            label = str(entry["label"])
+            confidence = float(entry["confidence"])
+            weight = confidence if label != "uncertain" else 0.3
+            negative_value = max(0.0, -float(entry["score"]))
+            weighted_scores.append(negative_value * weight)
+            if label == "uncertain":
+                uncertain_count += 1
+        S_t = float(sum(weighted_scores) / max(len(weighted_scores), 1))
+        uncertain_ratio = float(uncertain_count / max(len(recent_groups), 1))
+
+        hour_start = now - timedelta(hours=1)
+        count_1h = sum(1 for r in scoped if r["dt"] >= hour_start)
+        hourly_counter: Counter[str] = Counter()
+        for r in scoped:
+            if r["dt"] >= now:
+                continue
+            bucket = r["dt"].strftime("%Y-%m-%d %H")
+            hourly_counter[bucket] += 1
+        same_hour_values = []
+        current_hour = now.hour
+        for key, value in hourly_counter.items():
+            dt_key = datetime.strptime(key, "%Y-%m-%d %H")
+            if dt_key.hour == current_hour:
+                same_hour_values.append(value)
+        baseline_values = same_hour_values if len(same_hour_values) >= 3 else list(hourly_counter.values())
+        baseline_mean = float(sum(baseline_values) / max(len(baseline_values), 1))
+        baseline_std = float(pd.Series(baseline_values).std(ddof=0)) if baseline_values else 0.0
+        z_score = (float(count_1h) - baseline_mean) / max(baseline_std, 1.0)
+        V_t = float(_sigmoid(z_score))
+
+        theme_counter: Counter[str] = Counter()
+        for r in recent_group_items.values():
+            for theme, keywords in RISK_THEME_RULES.items():
+                if any(k.lower() in r["text"] for k in keywords):
+                    theme_counter[theme] += 1
+                    break
+        T_t = 0.0
+        if recent_group_items:
+            total_recent = float(len(recent_group_items))
+            for theme, cnt in theme_counter.items():
+                share = float(cnt) / total_recent
+                T_t += share * float(THEME_WEIGHTS.get(theme, 0.4))
+
+        outlet_counter: Counter[str] = Counter(r["outlet"] for r in recent)
+        M_t = 0.0
+        if recent:
+            total_recent = float(len(recent))
+            for outlet, cnt in outlet_counter.items():
+                share = float(cnt) / total_recent
+                M_t += share * _outlet_weight(outlet)
+
+        spread_ratio = float(len(recent) / max(len(recent_groups), 1))
+
+        raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
+        ip_id = (ip or "all").strip().lower()
+        prev = conn.execute(
+            """
+            SELECT risk_score
+            FROM risk_timeseries
+            WHERE ip_id = ?
+            ORDER BY ts DESC, id DESC
+            LIMIT 1
+            """,
+            (ip_id,),
+        ).fetchone()
+        prev_risk = float(prev["risk_score"]) if prev else None
+        ema_alpha = 0.3
+        smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
+        if prev_risk is not None and count_1h < 10:
+            ema_alpha = 0.1
+            smoothed = 0.9 * prev_risk + 0.1 * raw_risk
+
+        score = round(float(max(0.0, min(100.0, smoothed))), 1)
+        alert = _alert_level(score)
+        ts = now.strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            """
+            INSERT INTO risk_timeseries (
+                ip_id, ts, risk_raw, risk_score, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ip_id,
+                ts,
+                float(raw_risk),
+                float(score),
+                float(S_t),
+                float(V_t),
+                float(T_t),
+                float(M_t),
+                alert,
+                int(len(recent)),
+                float(uncertain_ratio),
+            ),
+        )
+        conn.commit()
+
+        return {
+            "meta": {
+                "ip": ip_name,
+                "ip_id": ip_id,
+                "window_hours": int(window_hours),
+                "ts": ts,
+                "include_test": True,
+            },
+            "risk_score": score,
+            "raw_risk": round(float(raw_risk), 3),
+            "ema_prev": round(float(prev_risk), 3) if prev_risk is not None else None,
+            "ema_alpha": float(ema_alpha) if prev_risk is not None else 1.0,
+            "components": {
+                "S": round(float(S_t), 3),
+                "V": round(float(V_t), 3),
+                "T": round(float(T_t), 3),
+                "M": round(float(M_t), 3),
+            },
+            "alert_level": alert,
+            "alert": alert,
+            "sample_size": int(len(recent_groups)),
+            "article_count_window": int(len(recent)),
+            "group_count_window": int(len(recent_groups)),
+            "mention_count_window": int(len(recent)),
+            "count_1h": int(count_1h),
+            "z_score": round(float(z_score), 3),
+            "uncertain_ratio": round(float(uncertain_ratio), 3),
+            "spread_ratio": round(float(spread_ratio), 3),
+        }
+    finally:
+        conn.close()
+
+
 def get_recent_risk_scores(ip_id: str, minutes: int = 30) -> list[float]:
     ip_val = (ip_id or "all").strip().lower()
     since = (datetime.now() - timedelta(minutes=max(1, int(minutes)))).strftime("%Y-%m-%d %H:%M:%S")
@@ -1216,14 +1427,17 @@ def record_scheduler_log(job_id: str, status: str, error_message: str = "", run_
     ts = run_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = _connect()
     try:
-        conn.execute(
-            """
-            INSERT INTO scheduler_logs (job_id, run_time, status, error_message)
-            VALUES (?, ?, ?, ?)
-            """,
-            (str(job_id), ts, str(status), str(error_message or "")),
-        )
-        conn.commit()
+        try:
+            conn.execute(
+                """
+                INSERT INTO scheduler_logs (job_id, run_time, status, error_message)
+                VALUES (?, ?, ?, ?)
+                """,
+                (str(job_id), ts, str(status), str(error_message or "")),
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            return
     finally:
         conn.close()
 
@@ -1231,17 +1445,20 @@ def record_scheduler_log(job_id: str, status: str, error_message: str = "", run_
 def get_latest_scheduler_log(job_id: str) -> dict[str, Any] | None:
     conn = _connect()
     try:
-        row = conn.execute(
-            """
-            SELECT job_id, run_time, status, error_message
-            FROM scheduler_logs
-            WHERE job_id = ?
-            ORDER BY run_time DESC, id DESC
-            LIMIT 1
-            """,
-            (str(job_id),),
-        ).fetchone()
-        return dict(row) if row else None
+        try:
+            row = conn.execute(
+                """
+                SELECT job_id, run_time, status, error_message
+                FROM scheduler_logs
+                WHERE job_id = ?
+                ORDER BY run_time DESC, id DESC
+                LIMIT 1
+                """,
+                (str(job_id),),
+            ).fetchone()
+            return dict(row) if row else None
+        except sqlite3.OperationalError:
+            return None
     finally:
         conn.close()
 
@@ -1318,3 +1535,68 @@ def force_burst_test_articles(ip: str, multiplier: int = 5, seed_limit: int = 50
         "generated": int(len(records)),
         "inserted": int(inserted),
     }
+
+
+def cleanup_scheduler_logs(retain_days: int = 7) -> int:
+    days = max(1, int(retain_days))
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        try:
+            cur = conn.execute("DELETE FROM scheduler_logs WHERE run_time < ?", (cutoff,))
+            conn.commit()
+            return int(cur.rowcount or 0)
+        except sqlite3.OperationalError:
+            return 0
+    finally:
+        conn.close()
+
+
+def cleanup_test_articles(retain_hours: int = 24) -> int:
+    hours = max(1, int(retain_hours))
+    cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        try:
+            cur = conn.execute(
+                """
+                DELETE FROM articles
+                WHERE is_test = 1
+                  AND datetime(COALESCE(NULLIF(created_at, ''), NULLIF(pub_date, ''), date || ' 00:00:00')) < datetime(?)
+                """,
+                (cutoff,),
+            )
+            conn.commit()
+            return int(cur.rowcount or 0)
+        except sqlite3.OperationalError:
+            return 0
+    finally:
+        conn.close()
+
+
+def get_observability_counts() -> dict[str, int]:
+    since_24h = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        total_articles = int(conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0])
+        total_live_articles = int(conn.execute("SELECT COUNT(*) FROM articles WHERE is_test = 0").fetchone()[0])
+        total_test_articles = int(conn.execute("SELECT COUNT(*) FROM articles WHERE is_test = 1").fetchone()[0])
+        recent_articles_24h = int(
+            conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM articles
+                WHERE is_test = 0
+                  AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) >= datetime(?)
+                """,
+                (since_24h,),
+            ).fetchone()[0]
+        )
+        return {
+            "articles_count": total_live_articles,
+            "recent_articles_24h": recent_articles_24h,
+            "total_articles_including_test": total_articles,
+            "test_articles_count": total_test_articles,
+        }
+    finally:
+        conn.close()

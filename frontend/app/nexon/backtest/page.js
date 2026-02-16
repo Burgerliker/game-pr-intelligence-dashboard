@@ -54,6 +54,7 @@ export default function NexonBacktestPage() {
   const normalized = useMemo(() => normalizeBacktestPayload(payload), [payload]);
   const hasSeries = normalized.timestamps.length > 0;
   const dbLabel = health?.db_file_name || health?.db_path || "-";
+  const modeMismatchWarning = health?.mode === "live" ? "Backtest page is using live DB" : "";
   const driverStats = useMemo(() => {
     const rows = payload?.timeseries || [];
     if (!rows.length) {
@@ -331,6 +332,11 @@ export default function NexonBacktestPage() {
             <Chip label={`DB: ${dbLabel}`} size="small" variant="outlined" />
             <Chip label={`Backend: ${health?.ok ? "healthy" : "unknown"}`} size="small" variant="outlined" />
           </Stack>
+          {modeMismatchWarning ? (
+            <Alert severity="warning" sx={{ mt: 1.5 }}>
+              {modeMismatchWarning}
+            </Alert>
+          ) : null}
 
           {loading ? <Box sx={{ mt: 2 }}><LoadingState title="백테스트 로딩 중" subtitle="리스크 타임라인을 계산하고 있습니다." /></Box> : null}
           {error ? (

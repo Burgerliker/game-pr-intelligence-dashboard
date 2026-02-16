@@ -4,12 +4,14 @@ import random
 import re
 import sys
 import time
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,11 +22,14 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from backend.storage import (
+    cleanup_scheduler_logs,
+    cleanup_test_articles,
     get_active_db_path,
     get_articles,
+    get_observability_counts,
     get_latest_scheduler_log,
     get_ip_clusters,
-    get_live_risk,
+    get_live_risk_with_options,
     get_nexon_dashboard,
     get_recent_burst_events,
     get_recent_risk_scores,
@@ -65,6 +70,9 @@ MONITOR_IPS = list(CORE_IPS)
 BASE_INTERVAL_SECONDS = 600
 BURST_INTERVAL_SECONDS = 120
 MAX_BURST_SECONDS = 7200
+SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
+TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
+ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
 
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 burst_managers: dict[str, BurstManager] = {
@@ -109,9 +117,10 @@ def _run_monitor_tick(ip_id: str) -> None:
     run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     attempts = 2
     last_exc: Exception | None = None
+    started = time.time()
     for i in range(attempts):
         try:
-            risk = get_live_risk(ip=ip_id, window_hours=24)
+            risk = get_live_risk_with_options(ip=ip_id, window_hours=24, include_test=False)
             risk_score = float(risk.get("risk_score", 0.0))
             z_score = float(risk.get("z_score", 0.0))
             history_30m = get_recent_risk_scores(ip_id=ip_id, minutes=30)
@@ -148,6 +157,9 @@ def _run_monitor_tick(ip_id: str) -> None:
                 "last_run_time": run_ts,
                 "last_status": "success",
                 "last_error": "",
+                "last_collect_count": int(risk.get("article_count_window", 0)),
+                "last_group_count": int(risk.get("group_count_window", 0)),
+                "last_collect_duration_ms": int((time.time() - started) * 1000),
             }
             record_scheduler_log(job_id=job_id, status="success", run_time=run_ts)
             return
@@ -160,8 +172,44 @@ def _run_monitor_tick(ip_id: str) -> None:
         "last_run_time": run_ts,
         "last_status": "error",
         "last_error": str(last_exc or "unknown error"),
+        "last_collect_count": 0,
+        "last_group_count": 0,
+        "last_collect_duration_ms": int((time.time() - started) * 1000),
     }
     record_scheduler_log(job_id=job_id, status="error", error_message=str(last_exc or "unknown error"), run_time=run_ts)
+
+
+def _run_maintenance_cleanup() -> None:
+    job_id = "maintenance-cleanup"
+    run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    started = time.time()
+    try:
+        deleted_logs = cleanup_scheduler_logs(retain_days=SCHEDULER_LOG_TTL_DAYS)
+        deleted_tests = cleanup_test_articles(retain_hours=TEST_ARTICLE_TTL_HOURS)
+        scheduler_job_state[job_id] = {
+            "last_run_time": run_ts,
+            "last_status": "success",
+            "last_error": "",
+            "last_collect_count": int(deleted_logs + deleted_tests),
+            "last_group_count": int(deleted_tests),
+            "last_collect_duration_ms": int((time.time() - started) * 1000),
+        }
+        record_scheduler_log(
+            job_id=job_id,
+            status="success",
+            run_time=run_ts,
+            error_message=f"deleted_logs={deleted_logs},deleted_tests={deleted_tests}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        scheduler_job_state[job_id] = {
+            "last_run_time": run_ts,
+            "last_status": "error",
+            "last_error": str(exc),
+            "last_collect_count": 0,
+            "last_group_count": 0,
+            "last_collect_duration_ms": int((time.time() - started) * 1000),
+        }
+        record_scheduler_log(job_id=job_id, status="error", run_time=run_ts, error_message=str(exc))
 
 
 def _start_monitoring_scheduler() -> None:
@@ -177,6 +225,14 @@ def _start_monitoring_scheduler() -> None:
             replace_existing=True,
             kwargs={"ip_id": ip_id},
         )
+    scheduler.add_job(
+        _run_maintenance_cleanup,
+        trigger=CronTrigger(hour=4, minute=0),
+        id="maintenance-cleanup",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
     scheduler.start()
     for ip_id in MONITOR_IPS:
         _run_monitor_tick(ip_id)
@@ -431,12 +487,14 @@ def health() -> dict:
     db_path = get_active_db_path()
     db_name = db_path.name.lower()
     mode = "backtest" if "backtest" in db_name else "live"
+    counts = get_observability_counts()
     return {
         "ok": True,
         "pr_db_path": str(db_path),
         "db_path": str(db_path),
         "db_file_name": db_path.name,
         "mode": mode,
+        **counts,
     }
 
 
@@ -533,9 +591,10 @@ def risk_dashboard(
 def risk_score(
     ip: str = Query(default="all"),
     window_hours: int = Query(default=24, ge=1, le=72),
+    include_test: bool = Query(default=False),
 ) -> dict:
     try:
-        return get_live_risk(ip=ip, window_hours=window_hours)
+        return get_live_risk_with_options(ip=ip, window_hours=window_hours, include_test=bool(include_test))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -581,8 +640,9 @@ def burst_events(ip: str = Query(default=""), limit: int = Query(default=30, ge=
 def scheduler_status() -> dict:
     jobs = []
     aps_jobs = {job.id: job for job in scheduler.get_jobs()} if scheduler.running else {}
-    for ip_id in MONITOR_IPS:
-        job_id = _job_id(ip_id)
+    job_ids = [_job_id(ip_id) for ip_id in MONITOR_IPS] + ["maintenance-cleanup"]
+    for job_id in job_ids:
+        ip_id = job_id.replace("risk-monitor-", "")
         state = scheduler_job_state.get(job_id, {})
         if not state:
             latest = get_latest_scheduler_log(job_id)
@@ -596,7 +656,7 @@ def scheduler_status() -> dict:
         jobs.append(
             {
                 "id": job_id,
-                "ip_id": ip_id,
+                "ip_id": ip_id if job_id.startswith("risk-monitor-") else "system",
                 "next_run_time": (
                     job.next_run_time.astimezone().strftime("%Y-%m-%d %H:%M:%S")
                     if job and job.next_run_time
@@ -605,6 +665,10 @@ def scheduler_status() -> dict:
                 "last_run_time": state.get("last_run_time"),
                 "last_status": state.get("last_status", "unknown"),
                 "error_message": state.get("last_error", ""),
+                "last_error": state.get("last_error", ""),
+                "last_collect_count": int(state.get("last_collect_count", 0) or 0),
+                "last_group_count": int(state.get("last_group_count", 0) or 0),
+                "last_collect_duration_ms": int(state.get("last_collect_duration_ms", 0) or 0),
             }
         )
     return {"running": bool(scheduler.running), "jobs": jobs}
@@ -615,14 +679,46 @@ def debug_force_burst(
     ip: str = Query(default="maplestory"),
     multiplier: int = Query(default=5, ge=1, le=20),
 ) -> dict:
+    if not ENABLE_DEBUG_ENDPOINTS:
+        raise HTTPException(status_code=403, detail="debug endpoints are disabled")
+
     ip_id = (ip or "").strip().lower()
     if ip_id not in burst_managers:
         raise HTTPException(status_code=400, detail="지원하지 않는 IP입니다.")
 
     try:
         inserted = force_burst_test_articles(ip=ip_id, multiplier=multiplier)
-        _run_monitor_tick(ip_id)
-        risk = get_live_risk(ip=ip_id, window_hours=24)
+        risk = get_live_risk_with_options(ip=ip_id, window_hours=24, include_test=True)
+        risk_score = float(risk.get("risk_score", 0.0))
+        z_score = float(risk.get("z_score", 0.0))
+        history_30m = get_recent_risk_scores(ip_id=ip_id, minutes=30)
+        sustained_low = len(history_30m) >= 6 and all(v < 55.0 for v in history_30m[-6:])
+        manager = burst_managers[ip_id]
+        decision = manager.evaluate(
+            current_risk=risk_score,
+            is_volume_spike=(z_score >= 2.0),
+            sustained_low_30m=sustained_low,
+        )
+        if decision.changed:
+            if scheduler.running:
+                scheduler.reschedule_job(
+                    _job_id(ip_id),
+                    trigger=IntervalTrigger(seconds=int(decision.interval_seconds)),
+                )
+            record_burst_event(
+                ip_name=ip_id,
+                event_type=str(decision.event_type or "unknown"),
+                trigger_reason=str(decision.trigger_reason or "unknown"),
+                risk_at_event=risk_score,
+            )
+        last_burst_state[ip_id] = {
+            "mode": decision.mode,
+            "interval_seconds": int(decision.interval_seconds),
+            "burst_remaining": decision.burst_remaining,
+            "risk_score": risk_score,
+            "z_score": z_score,
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
         burst = last_burst_state.get(
             ip_id,
             {"mode": "base", "interval_seconds": BASE_INTERVAL_SECONDS, "burst_remaining": None},
