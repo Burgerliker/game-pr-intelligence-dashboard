@@ -54,6 +54,31 @@ export default function NexonBacktestPage() {
   const normalized = useMemo(() => normalizeBacktestPayload(payload), [payload]);
   const hasSeries = normalized.timestamps.length > 0;
   const dbLabel = health?.db_file_name || health?.db_path || "-";
+  const driverStats = useMemo(() => {
+    const rows = payload?.timeseries || [];
+    if (!rows.length) {
+      return {
+        volume: { latest: 0, peak: 0 },
+        spread: { latest: 0, peak: 0 },
+        uncertain: { latest: 0, peak: 0 },
+      };
+    }
+    const latest = rows[rows.length - 1];
+    return {
+      volume: {
+        latest: Number(latest.article_count_window ?? latest.article_count ?? 0),
+        peak: Math.max(...rows.map((r) => Number(r.article_count_window ?? r.article_count ?? 0))),
+      },
+      spread: {
+        latest: Number(latest.spread_ratio ?? 0),
+        peak: Math.max(...rows.map((r) => Number(r.spread_ratio ?? 0))),
+      },
+      uncertain: {
+        latest: Number(latest.uncertain_ratio ?? 0),
+        peak: Math.max(...rows.map((r) => Number(r.uncertain_ratio ?? 0))),
+      },
+    };
+  }, [payload?.timeseries]);
 
   useEffect(() => {
     if (!chartRef.current || !hasSeries) return;
@@ -332,6 +357,29 @@ export default function NexonBacktestPage() {
                 <Chip label={`Dominant: ${payload?.summary?.dominant_component || "-"}`} variant="outlined" />
               </Stack>
               <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: 740 }} />
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1.2} sx={{ mt: 1.5 }}>
+                <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Volume driver</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    latest {driverStats.volume.latest.toLocaleString()} · peak {driverStats.volume.peak.toLocaleString()}
+                  </Typography>
+                </Paper>
+                <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Spread driver</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    latest {driverStats.spread.latest.toFixed(3)} · peak {driverStats.spread.peak.toFixed(3)}
+                  </Typography>
+                </Paper>
+                <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Uncertainty driver</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    latest {driverStats.uncertain.latest.toFixed(3)} · peak {driverStats.uncertain.peak.toFixed(3)}
+                  </Typography>
+                </Paper>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                This spike is primarily driven by volume + high-risk themes; spread is secondary.
+              </Typography>
             </>
           ) : null}
         </Paper>
