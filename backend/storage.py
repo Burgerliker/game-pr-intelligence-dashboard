@@ -40,6 +40,7 @@ def _connect() -> sqlite3.Connection:
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -67,10 +68,54 @@ def init_db() -> None:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(articles)").fetchall()}
         if "outlet" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN outlet TEXT")
+        if "source_group_id" not in cols:
+            conn.execute("ALTER TABLE articles ADD COLUMN source_group_id TEXT")
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS source_groups (
+                group_id TEXT PRIMARY KEY,
+                canonical_article_id INTEGER,
+                repost_count INTEGER NOT NULL DEFAULT 1,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                FOREIGN KEY(canonical_article_id) REFERENCES articles(id) ON DELETE SET NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sentiment_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER NOT NULL,
+                source_group_id TEXT,
+                sentiment_score REAL NOT NULL,
+                sentiment_label TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                method TEXT NOT NULL,
+                analyzed_at TEXT NOT NULL,
+                FOREIGN KEY(article_id) REFERENCES articles(id) ON DELETE CASCADE,
+                FOREIGN KEY(source_group_id) REFERENCES source_groups(group_id) ON DELETE SET NULL
+            )
+            """
+        )
+
+        sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
+        if "source_group_id" not in sentiment_cols:
+            conn.execute("ALTER TABLE sentiment_results ADD COLUMN source_group_id TEXT")
+
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_company ON articles(company)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_sentiment ON articles(sentiment)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_pub_date ON articles(pub_date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_outlet ON articles(outlet)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_source_group ON articles(source_group_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_source_groups_canonical ON source_groups(canonical_article_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_source_groups_last_seen ON source_groups(last_seen_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_article ON sentiment_results(article_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_group ON sentiment_results(source_group_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_method ON sentiment_results(method)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_analyzed_at ON sentiment_results(analyzed_at)")
         conn.commit()
     finally:
         conn.close()
