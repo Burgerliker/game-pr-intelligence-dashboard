@@ -10,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1
+from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1, get_active_db_path
 from utils.sentiment import analyze_sentiment_rule_v1
 
 
@@ -182,15 +182,24 @@ def _ensure_group_sentiments(conn: sqlite3.Connection, mentions: list[Mention]) 
     return sentiment_by_group
 
 
-def _calc_summary(timeseries: list[dict[str, Any]], weights: dict[str, float]) -> dict[str, Any]:
+def _calc_summary(
+    timeseries: list[dict[str, Any]],
+    weights: dict[str, float],
+    event_count_by_type: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    event_count_by_type = event_count_by_type or {}
     if not timeseries:
         return {
             "max_risk": 0.0,
             "max_risk_at": None,
             "avg_risk": 0.0,
             "p1_count": 0,
+            "p1_bucket_count": 0,
             "p1_total_hours": 0,
             "p2_count": 0,
+            "p2_bucket_count": 0,
+            "event_count": 0,
+            "event_count_by_type": {},
             "dominant_component": "S",
         }
 
@@ -205,13 +214,19 @@ def _calc_summary(timeseries: list[dict[str, Any]], weights: dict[str, float]) -
             comp_acc[k] += float(comp.get(k, 0.0)) * float(weights[k])
     dominant_component = max(comp_acc.items(), key=lambda kv: kv[1])[0]
 
+    p1_bucket_count = int(sum(1 for x in timeseries if x.get("alert_level") == "P1"))
+    p2_bucket_count = int(sum(1 for x in timeseries if x.get("alert_level") == "P2"))
     return {
         "max_risk": round(float(max_row.get("risk_score", 0.0)), 1),
         "max_risk_at": max_row.get("timestamp"),
         "avg_risk": round(float(avg_risk), 1),
-        "p1_count": int(sum(1 for x in timeseries if x.get("alert_level") == "P1")),
+        "p1_count": p1_bucket_count,
+        "p1_bucket_count": p1_bucket_count,
         "p1_total_hours": int(p1_hours),
-        "p2_count": int(sum(1 for x in timeseries if x.get("alert_level") == "P2")),
+        "p2_count": p2_bucket_count,
+        "p2_bucket_count": p2_bucket_count,
+        "event_count": int(sum(event_count_by_type.values())),
+        "event_count_by_type": event_count_by_type,
         "dominant_component": dominant_component,
     }
 
@@ -225,9 +240,29 @@ def _detect_events(timeseries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         score = float(row.get("risk_score", 0.0))
         if level != prev:
             if level in ("P1", "P2"):
-                events.append({"timestamp": ts, "event": f"{level}_enter", "risk_score": round(score, 1), "trigger": "risk_threshold"})
+                event_type = f"{level}_enter"
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "ts": ts,
+                        "event": event_type,
+                        "type": event_type,
+                        "risk_score": round(score, 1),
+                        "trigger": "risk_threshold",
+                    }
+                )
             if prev in ("P1", "P2") and level not in (prev,):
-                events.append({"timestamp": ts, "event": f"{prev}_exit", "risk_score": round(score, 1), "trigger": "risk_recovery"})
+                event_type = f"{prev}_exit"
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "ts": ts,
+                        "event": event_type,
+                        "type": event_type,
+                        "risk_score": round(score, 1),
+                        "trigger": "risk_recovery",
+                    }
+                )
         prev = level
     return events
 
@@ -469,9 +504,11 @@ def run_backtest(
         current += step
 
     events = _detect_events(timeseries)
-    summary = _calc_summary(timeseries, norm_w)
+    event_count_by_type = dict(Counter(str(e.get("type") or e.get("event") or "") for e in events))
+    summary = _calc_summary(timeseries, norm_w, event_count_by_type=event_count_by_type)
     period_mentions = [m for m in scoped if start <= m.dt <= end]
     unique_groups = {m.group_id for m in period_mentions}
+    db_path = get_active_db_path()
 
     return {
         "meta": {
@@ -485,7 +522,9 @@ def run_backtest(
             "unique_articles": int(len(unique_groups)),
             "total_steps": int(len(timeseries)),
             "weights": {k: round(float(v), 4) for k, v in norm_w.items()},
+            "db_path": str(db_path),
         },
+        "thresholds": {"p1": 70, "p2": 45},
         "timeseries": timeseries,
         "events": events,
         "summary": summary,

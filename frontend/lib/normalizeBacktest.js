@@ -14,9 +14,9 @@ export function normalizeBacktestPayload(payload) {
   const m = series.map((r) => Number(r.components?.M || 0));
 
   const eventRows = events.map((e) => {
-    const ts = String(e.timestamp || "");
+    const ts = String(e.ts || e.timestamp || "");
     const riskAt = Number(e.risk_score || 0);
-    const type = String(e.event || "event");
+    const type = String(e.type || e.event || "event");
     const label = type.replace("_", " ").toUpperCase();
     return { ts, type, label, risk_at_ts: riskAt };
   });

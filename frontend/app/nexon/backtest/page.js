@@ -352,8 +352,17 @@ export default function NexonBacktestPage() {
               <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap", rowGap: 1 }}>
                 <Chip label={`Max Risk: ${Number(payload?.summary?.max_risk || 0).toFixed(1)}`} color="error" variant="outlined" />
                 <Chip label={`Avg Risk: ${Number(payload?.summary?.avg_risk || 0).toFixed(1)}`} variant="outlined" />
-                <Chip label={`P1 Count: ${Number(payload?.summary?.p1_count || 0)}`} color="error" variant="outlined" />
-                <Chip label={`P2 Count: ${Number(payload?.summary?.p2_count || 0)}`} color="warning" variant="outlined" />
+                <Chip
+                  label={`P1 Buckets: ${Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0)}`}
+                  color="error"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`P2 Buckets: ${Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0)}`}
+                  color="warning"
+                  variant="outlined"
+                />
+                <Chip label={`Events: ${Number(payload?.summary?.event_count || 0)}`} variant="outlined" />
                 <Chip label={`Dominant: ${payload?.summary?.dominant_component || "-"}`} variant="outlined" />
               </Stack>
               <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: 740 }} />
