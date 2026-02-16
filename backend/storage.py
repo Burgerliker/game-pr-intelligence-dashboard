@@ -101,6 +101,7 @@ def init_db() -> None:
                 pub_date TEXT,
                 date TEXT,
                 sentiment TEXT,
+                is_test INTEGER NOT NULL DEFAULT 0,
                 content_hash TEXT NOT NULL UNIQUE,
                 created_at TEXT NOT NULL
             )
@@ -111,6 +112,8 @@ def init_db() -> None:
             conn.execute("ALTER TABLE articles ADD COLUMN outlet TEXT")
         if "source_group_id" not in cols:
             conn.execute("ALTER TABLE articles ADD COLUMN source_group_id TEXT")
+        if "is_test" not in cols:
+            conn.execute("ALTER TABLE articles ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0")
 
         conn.execute(
             """
@@ -171,6 +174,17 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduler_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                run_time TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_message TEXT
+            )
+            """
+        )
 
         sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
         if "source_group_id" not in sentiment_cols:
@@ -189,6 +203,7 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_analyzed_at ON sentiment_results(analyzed_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_ip_ts ON risk_timeseries(ip_id, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_burst_ip_time ON burst_events(ip_name, occurred_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_scheduler_job_time ON scheduler_logs(job_id, run_time)")
         conn.commit()
     finally:
         conn.close()
@@ -434,6 +449,7 @@ def save_articles(df: pd.DataFrame) -> int:
             date = str(row.get("date", "") or "")
             analyzed = analyze_sentiment_rule_v1(title, desc)
             sentiment = str(row.get("sentiment", "") or "") or analyzed["sentiment_kr"]
+            is_test = 1 if int(row.get("is_test", 0) or 0) else 0
             outlet = _extract_outlet(originallink, link)
             content_hash = _to_hash(company, originallink, link, title, date)
             source_group_id = _to_source_group_id(originallink, link, title, date)
@@ -446,10 +462,10 @@ def save_articles(df: pd.DataFrame) -> int:
             cur = conn.execute(
                 """
                 INSERT OR IGNORE INTO articles (
-                    company, title_clean, description_clean, originallink, link, outlet, pub_date, date, sentiment, content_hash, created_at, source_group_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    company, title_clean, description_clean, originallink, link, outlet, pub_date, date, sentiment, is_test, content_hash, created_at, source_group_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (company, title, desc, originallink, link, outlet, pub_date, date, sentiment, content_hash, now, source_group_id),
+                (company, title, desc, originallink, link, outlet, pub_date, date, sentiment, is_test, content_hash, now, source_group_id),
             )
 
             if cur.rowcount == 0:
@@ -1073,8 +1089,10 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             (ip_id,),
         ).fetchone()
         prev_risk = float(prev["risk_score"]) if prev else None
+        ema_alpha = 0.3
         smoothed = (0.7 * prev_risk + 0.3 * raw_risk) if prev_risk is not None else raw_risk
         if prev_risk is not None and count_1h < 10:
+            ema_alpha = 0.1
             smoothed = 0.9 * prev_risk + 0.1 * raw_risk
 
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
@@ -1105,6 +1123,9 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         return {
             "meta": {"ip": ip_name, "ip_id": ip_id, "window_hours": int(window_hours), "ts": ts},
             "risk_score": score,
+            "raw_risk": round(float(raw_risk), 3),
+            "ema_prev": round(float(prev_risk), 3) if prev_risk is not None else None,
+            "ema_alpha": float(ema_alpha) if prev_risk is not None else 1.0,
             "components": {
                 "S": round(float(S_t), 3),
                 "V": round(float(V_t), 3),
@@ -1112,7 +1133,10 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                 "M": round(float(M_t), 3),
             },
             "alert_level": alert,
+            "alert": alert,
             "sample_size": int(len(recent_groups)),
+            "article_count_window": int(len(recent)),
+            "group_count_window": int(len(recent_groups)),
             "mention_count_window": int(len(recent)),
             "count_1h": int(count_1h),
             "z_score": round(float(z_score), 3),
@@ -1186,3 +1210,111 @@ def get_recent_burst_events(ip_name: str, limit: int = 30) -> list[dict[str, Any
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def record_scheduler_log(job_id: str, status: str, error_message: str = "", run_time: str | None = None) -> None:
+    ts = run_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO scheduler_logs (job_id, run_time, status, error_message)
+            VALUES (?, ?, ?, ?)
+            """,
+            (str(job_id), ts, str(status), str(error_message or "")),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_latest_scheduler_log(job_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            """
+            SELECT job_id, run_time, status, error_message
+            FROM scheduler_logs
+            WHERE job_id = ?
+            ORDER BY run_time DESC, id DESC
+            LIMIT 1
+            """,
+            (str(job_id),),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def force_burst_test_articles(ip: str, multiplier: int = 5, seed_limit: int = 50) -> dict[str, Any]:
+    ip_name = _resolve_ip_name(ip)
+    if not ip_name:
+        raise ValueError("지원하지 않는 IP입니다.")
+    if ip_name == "전체":
+        raise ValueError("전체 IP에는 강제 버스트를 적용할 수 없습니다.")
+    mult = max(1, min(20, int(multiplier)))
+    seeds_n = max(1, min(200, int(seed_limit)))
+
+    now = datetime.now()
+    since = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT company, title_clean, description_clean, originallink, link, outlet,
+                   COALESCE(pub_date, '') AS pub_date, COALESCE(date, '') AS date
+            FROM articles
+            WHERE company = ? AND date >= ?
+            ORDER BY COALESCE(pub_date, date, created_at) DESC, id DESC
+            """,
+            ("넥슨", since),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    seeds: list[dict[str, Any]] = []
+    for r in rows:
+        title = str(r["title_clean"] or "")
+        desc = str(r["description_clean"] or "")
+        text = f"{title} {desc}"
+        if _detect_ip(text) != ip_name:
+            continue
+        seeds.append(dict(r))
+        if len(seeds) >= seeds_n:
+            break
+
+    if not seeds:
+        raise ValueError(f"{ip_name} 기준 seed 기사가 없습니다.")
+
+    records: list[dict[str, Any]] = []
+    idx = 0
+    for k in range(mult):
+        for seed in seeds:
+            idx += 1
+            src = str(seed.get("originallink") or seed.get("link") or "https://debug.local/news")
+            debug_link = f"{src}{'&' if '?' in src else '?'}debug_force_burst={now.strftime('%Y%m%d%H%M%S')}-{idx}"
+            title = f"{seed.get('title_clean', '')} [DEBUG_BURST {idx}]"
+            pub_dt = now - timedelta(minutes=(idx % 90))
+            records.append(
+                {
+                    "company": "넥슨",
+                    "title_clean": title,
+                    "description_clean": str(seed.get("description_clean") or ""),
+                    "originallink": debug_link,
+                    "link": debug_link,
+                    "outlet": str(seed.get("outlet") or ""),
+                    "pubDate_parsed": pub_dt,
+                    "date": pub_dt.strftime("%Y-%m-%d"),
+                    "is_test": 1,
+                }
+            )
+
+    df = pd.DataFrame(records)
+    inserted = save_articles(df)
+    return {
+        "ip": ip,
+        "ip_name": ip_name,
+        "seed_count": len(seeds),
+        "generated": int(len(records)),
+        "inserted": int(inserted),
+    }

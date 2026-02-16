@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 import re
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ if str(ROOT_DIR) not in sys.path:
 from backend.storage import (
     get_active_db_path,
     get_articles,
+    get_latest_scheduler_log,
     get_ip_clusters,
     get_live_risk,
     get_nexon_dashboard,
@@ -29,7 +31,9 @@ from backend.storage import (
     get_risk_dashboard,
     get_risk_ip_catalog,
     init_db,
+    force_burst_test_articles,
     record_burst_event,
+    record_scheduler_log,
     save_articles,
 )
 from backend.analysis_project import CORE_IPS, build_project_snapshot
@@ -73,6 +77,7 @@ burst_managers: dict[str, BurstManager] = {
     for ip_id in MONITOR_IPS
 }
 last_burst_state: dict[str, dict[str, Any]] = {}
+scheduler_job_state: dict[str, dict[str, Any]] = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,39 +105,63 @@ def _job_id(ip_id: str) -> str:
 
 
 def _run_monitor_tick(ip_id: str) -> None:
-    risk = get_live_risk(ip=ip_id, window_hours=24)
-    risk_score = float(risk.get("risk_score", 0.0))
-    z_score = float(risk.get("z_score", 0.0))
-    history_30m = get_recent_risk_scores(ip_id=ip_id, minutes=30)
-    sustained_low = len(history_30m) >= 6 and all(v < 55.0 for v in history_30m[-6:])
+    job_id = _job_id(ip_id)
+    run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    attempts = 2
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            risk = get_live_risk(ip=ip_id, window_hours=24)
+            risk_score = float(risk.get("risk_score", 0.0))
+            z_score = float(risk.get("z_score", 0.0))
+            history_30m = get_recent_risk_scores(ip_id=ip_id, minutes=30)
+            sustained_low = len(history_30m) >= 6 and all(v < 55.0 for v in history_30m[-6:])
 
-    manager = burst_managers[ip_id]
-    decision = manager.evaluate(
-        current_risk=risk_score,
-        is_volume_spike=(z_score >= 2.0),
-        sustained_low_30m=sustained_low,
-    )
-
-    if decision.changed:
-        if scheduler.running:
-            scheduler.reschedule_job(
-                _job_id(ip_id),
-                trigger=IntervalTrigger(seconds=int(decision.interval_seconds)),
+            manager = burst_managers[ip_id]
+            decision = manager.evaluate(
+                current_risk=risk_score,
+                is_volume_spike=(z_score >= 2.0),
+                sustained_low_30m=sustained_low,
             )
-        record_burst_event(
-            ip_name=ip_id,
-            event_type=str(decision.event_type or "unknown"),
-            trigger_reason=str(decision.trigger_reason or "unknown"),
-            risk_at_event=risk_score,
-        )
-    last_burst_state[ip_id] = {
-        "mode": decision.mode,
-        "interval_seconds": int(decision.interval_seconds),
-        "burst_remaining": decision.burst_remaining,
-        "risk_score": risk_score,
-        "z_score": z_score,
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+
+            if decision.changed:
+                if scheduler.running:
+                    scheduler.reschedule_job(
+                        job_id,
+                        trigger=IntervalTrigger(seconds=int(decision.interval_seconds)),
+                    )
+                record_burst_event(
+                    ip_name=ip_id,
+                    event_type=str(decision.event_type or "unknown"),
+                    trigger_reason=str(decision.trigger_reason or "unknown"),
+                    risk_at_event=risk_score,
+                )
+            last_burst_state[ip_id] = {
+                "mode": decision.mode,
+                "interval_seconds": int(decision.interval_seconds),
+                "burst_remaining": decision.burst_remaining,
+                "risk_score": risk_score,
+                "z_score": z_score,
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            scheduler_job_state[job_id] = {
+                "last_run_time": run_ts,
+                "last_status": "success",
+                "last_error": "",
+            }
+            record_scheduler_log(job_id=job_id, status="success", run_time=run_ts)
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i < attempts - 1:
+                time.sleep(0.5 * (i + 1))
+                continue
+    scheduler_job_state[job_id] = {
+        "last_run_time": run_ts,
+        "last_status": "error",
+        "last_error": str(last_exc or "unknown error"),
     }
+    record_scheduler_log(job_id=job_id, status="error", error_message=str(last_exc or "unknown error"), run_time=run_ts)
 
 
 def _start_monitoring_scheduler() -> None:
@@ -400,11 +429,14 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
 @app.get("/health")
 def health() -> dict:
     db_path = get_active_db_path()
+    db_name = db_path.name.lower()
+    mode = "backtest" if "backtest" in db_name else "live"
     return {
         "ok": True,
         "pr_db_path": str(db_path),
         "db_path": str(db_path),
         "db_file_name": db_path.name,
+        "mode": mode,
     }
 
 
@@ -543,6 +575,62 @@ def burst_events(ip: str = Query(default=""), limit: int = Query(default=30, ge=
     if ip_val and ip_val not in burst_managers:
         raise HTTPException(status_code=400, detail="지원하지 않는 IP입니다.")
     return {"items": get_recent_burst_events(ip_name=ip_val, limit=limit)}
+
+
+@app.get("/api/scheduler-status")
+def scheduler_status() -> dict:
+    jobs = []
+    aps_jobs = {job.id: job for job in scheduler.get_jobs()} if scheduler.running else {}
+    for ip_id in MONITOR_IPS:
+        job_id = _job_id(ip_id)
+        state = scheduler_job_state.get(job_id, {})
+        if not state:
+            latest = get_latest_scheduler_log(job_id)
+            if latest:
+                state = {
+                    "last_run_time": latest.get("run_time"),
+                    "last_status": latest.get("status"),
+                    "last_error": latest.get("error_message", ""),
+                }
+        job = aps_jobs.get(job_id)
+        jobs.append(
+            {
+                "id": job_id,
+                "ip_id": ip_id,
+                "next_run_time": (
+                    job.next_run_time.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+                    if job and job.next_run_time
+                    else None
+                ),
+                "last_run_time": state.get("last_run_time"),
+                "last_status": state.get("last_status", "unknown"),
+                "error_message": state.get("last_error", ""),
+            }
+        )
+    return {"running": bool(scheduler.running), "jobs": jobs}
+
+
+@app.post("/api/debug/force-burst")
+def debug_force_burst(
+    ip: str = Query(default="maplestory"),
+    multiplier: int = Query(default=5, ge=1, le=20),
+) -> dict:
+    ip_id = (ip or "").strip().lower()
+    if ip_id not in burst_managers:
+        raise HTTPException(status_code=400, detail="지원하지 않는 IP입니다.")
+
+    try:
+        inserted = force_burst_test_articles(ip=ip_id, multiplier=multiplier)
+        _run_monitor_tick(ip_id)
+        risk = get_live_risk(ip=ip_id, window_hours=24)
+        burst = last_burst_state.get(
+            ip_id,
+            {"mode": "base", "interval_seconds": BASE_INTERVAL_SECONDS, "burst_remaining": None},
+        )
+        events = get_recent_burst_events(ip_name=ip_id, limit=5)
+        return {"inserted": inserted, "risk": risk, "burst": {"ip_id": ip_id, **burst}, "recent_events": events}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/ip-clusters")
