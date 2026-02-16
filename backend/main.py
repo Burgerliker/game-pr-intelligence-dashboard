@@ -22,6 +22,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from backend.storage import (
+    IP_RULES,
     cleanup_scheduler_logs,
     cleanup_test_articles,
     get_active_db_path,
@@ -50,6 +51,7 @@ from services.naver_api import (
     fetch_nexon_cluster_news,
     get_daily_counts,
     get_last_api_error,
+    search_news,
 )
 from utils.keywords import get_keyword_data
 from utils.sentiment import add_sentiment_column, get_model_id, get_sentiment_summary
@@ -70,6 +72,17 @@ MONITOR_IPS = list(CORE_IPS)
 BASE_INTERVAL_SECONDS = 600
 BURST_INTERVAL_SECONDS = 120
 MAX_BURST_SECONDS = 7200
+BACKFILL_INTERVAL_SECONDS = int(os.getenv("BACKFILL_INTERVAL_SECONDS", "1800"))
+BACKFILL_LOW_COUNT_THRESHOLD = int(os.getenv("BACKFILL_LOW_COUNT_THRESHOLD", "8"))
+BACKFILL_MAX_IPS_PER_RUN = int(os.getenv("BACKFILL_MAX_IPS_PER_RUN", "2"))
+BACKFILL_DISPLAY = int(os.getenv("BACKFILL_DISPLAY", "40"))
+BACKFILL_QUERIES: dict[str, list[str]] = {
+    "maplestory": ["메이플스토리 넥슨", "메이플 확률 넥슨", "메이플 환불"],
+    "dnf": ["던전앤파이터 넥슨", "던파 업데이트", "던파 점검"],
+    "arcraiders": ["아크레이더스 넥슨", "arc raiders nexon", "아크 레이더스 출시"],
+    "bluearchive": ["블루아카이브 넥슨", "블루 아카이브 업데이트", "블루아카 이벤트"],
+    "fconline": ["FC온라인 넥슨", "피파온라인 넥슨", "EA SPORTS FC ONLINE 넥슨"],
+}
 SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
 ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
@@ -212,6 +225,130 @@ def _run_maintenance_cleanup() -> None:
         record_scheduler_log(job_id=job_id, status="error", run_time=run_ts, error_message=str(exc))
 
 
+def _clean_html_local(text: str) -> str:
+    t = re.sub(r"<[^>]+>", "", text or "")
+    t = re.sub(r"&[a-zA-Z]+;", " ", t)
+    return " ".join(t.split())
+
+
+def _detect_ip_slug_local(text: str) -> str:
+    low = (text or "").lower()
+    for _, meta in IP_RULES.items():
+        slug = str(meta.get("slug", ""))
+        if slug in {"", "all"}:
+            continue
+        keywords = meta.get("keywords", []) or []
+        if any(str(k).lower() in low for k in keywords):
+            return slug
+    return "other"
+
+
+def _to_nexon_df(items: list[dict[str, Any]]) -> pd.DataFrame:
+    if not items:
+        return pd.DataFrame()
+    rows = []
+    for it in items:
+        title = _clean_html_local(str(it.get("title", "")))
+        desc = _clean_html_local(str(it.get("description", "")))
+        pub = pd.to_datetime(str(it.get("pubDate", "")), errors="coerce")
+        if pd.isna(pub):
+            continue
+        dt = pub.tz_convert(None) if getattr(pub, "tzinfo", None) is not None else pub
+        rows.append(
+            {
+                "company": "넥슨",
+                "title_clean": title,
+                "description_clean": desc,
+                "originallink": str(it.get("originallink", "")),
+                "link": str(it.get("link", "")),
+                "pubDate_parsed": dt,
+                "date": dt.strftime("%Y-%m-%d"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _collect_backfill_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
+    queries = BACKFILL_QUERIES.get(ip_id, [])
+    if not queries:
+        return pd.DataFrame(), 0
+    calls = 0
+    frames: list[pd.DataFrame] = []
+    for q in queries:
+        for sort in ("date", "sim"):
+            items = search_news(q, display=max(10, min(BACKFILL_DISPLAY, 100)), start=1, sort=sort)
+            calls += 1
+            if not items:
+                continue
+            frame = _to_nexon_df(items)
+            if frame.empty:
+                continue
+            frame = frame[
+                (frame["title_clean"].fillna("") + " " + frame["description_clean"].fillna(""))
+                .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
+            ]
+            if not frame.empty:
+                frames.append(frame)
+    if not frames:
+        return pd.DataFrame(), calls
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["originallink", "title_clean", "date"], keep="first").reset_index(drop=True)
+    return merged, calls
+
+
+def _run_backfill_tick() -> None:
+    job_id = "backfill-collector"
+    run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    started = time.time()
+    try:
+        ip_counts: list[tuple[str, int]] = []
+        for ip_id in MONITOR_IPS:
+            risk = get_live_risk_with_options(ip=ip_id, window_hours=24, include_test=False)
+            ip_counts.append((ip_id, int(risk.get("article_count_window", 0))))
+        ip_counts.sort(key=lambda x: x[1])
+        target_ips = [ip for ip, cnt in ip_counts if cnt < BACKFILL_LOW_COUNT_THRESHOLD][: max(1, BACKFILL_MAX_IPS_PER_RUN)]
+        total_calls = 0
+        total_inserted = 0
+        touched: list[str] = []
+        for ip_id in target_ips:
+            df, calls = _collect_backfill_for_ip(ip_id)
+            total_calls += calls
+            if df.empty:
+                continue
+            try:
+                df = add_sentiment_column(df)
+            except Exception:
+                pass
+            inserted = save_articles(df)
+            total_inserted += int(inserted)
+            if inserted > 0:
+                touched.append(ip_id)
+        scheduler_job_state[job_id] = {
+            "last_run_time": run_ts,
+            "last_status": "success",
+            "last_error": "",
+            "last_collect_count": int(total_inserted),
+            "last_group_count": int(len(touched)),
+            "last_collect_duration_ms": int((time.time() - started) * 1000),
+        }
+        record_scheduler_log(
+            job_id=job_id,
+            status="success",
+            run_time=run_ts,
+            error_message=f"targets={','.join(target_ips) or '-'};calls={total_calls};inserted={total_inserted}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        scheduler_job_state[job_id] = {
+            "last_run_time": run_ts,
+            "last_status": "error",
+            "last_error": str(exc),
+            "last_collect_count": 0,
+            "last_group_count": 0,
+            "last_collect_duration_ms": int((time.time() - started) * 1000),
+        }
+        record_scheduler_log(job_id=job_id, status="error", run_time=run_ts, error_message=str(exc))
+
+
 def _start_monitoring_scheduler() -> None:
     if scheduler.running:
         return
@@ -233,9 +370,18 @@ def _start_monitoring_scheduler() -> None:
         coalesce=True,
         replace_existing=True,
     )
+    scheduler.add_job(
+        _run_backfill_tick,
+        trigger=IntervalTrigger(seconds=BACKFILL_INTERVAL_SECONDS),
+        id="backfill-collector",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
     scheduler.start()
     for ip_id in MONITOR_IPS:
         _run_monitor_tick(ip_id)
+    _run_backfill_tick()
 
 
 def _to_records(df: pd.DataFrame) -> list[dict]:
@@ -653,7 +799,7 @@ def burst_events(ip: str = Query(default=""), limit: int = Query(default=30, ge=
 def scheduler_status() -> dict:
     jobs = []
     aps_jobs = {job.id: job for job in scheduler.get_jobs()} if scheduler.running else {}
-    job_ids = [_job_id(ip_id) for ip_id in MONITOR_IPS] + ["maintenance-cleanup"]
+    job_ids = [_job_id(ip_id) for ip_id in MONITOR_IPS] + ["backfill-collector", "maintenance-cleanup"]
     for job_id in job_ids:
         ip_id = job_id.replace("risk-monitor-", "")
         state = scheduler_job_state.get(job_id, {})

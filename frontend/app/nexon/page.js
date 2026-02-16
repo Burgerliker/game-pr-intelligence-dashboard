@@ -14,6 +14,9 @@ import {
   Divider,
   Grid,
   IconButton,
+  List,
+  ListItem,
+  ListItemText,
   LinearProgress,
   Paper,
   Stack,
@@ -626,64 +629,93 @@ export default function NexonPage() {
           ))}
         </Grid>
 
-        <Card variant="outlined" className="riskLiveSection">
+        <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
               실시간 위험도 모니터
             </Typography>
             {riskScore ? (
               <>
-                <div className="riskScoreCard">
-                  <Paper variant="outlined" sx={{ p: 1.2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk 점수</Typography>
-                    <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
-                    <Chip
-                      label={riskMeaning.label}
-                      size="small"
-                      color={riskMeaning.color}
-                      variant="outlined"
-                      sx={{ mt: 0.7 }}
-                    />
-                    <div className="riskGauge">
-                      <div className="riskGaugeFill" style={{ width: `${Math.max(0, Math.min(100, riskValue))}%`, background: riskGaugeColor }} />
-                    </div>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                      Based on rolling {Number(riskScore?.meta?.window_hours || 24)}-hour window
-                    </Typography>
-                  </Paper>
-                  <Paper variant="outlined" sx={{ p: 1.2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>Alert</Typography>
-                    <div className={`alertBadge ${alertLevel.toLowerCase()}`}>{alertLevel}</div>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                      uncertain {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
-                    </Typography>
-                  </Paper>
-                  <Paper variant="outlined" sx={{ p: 1.2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
-                    <div className="burstIndicator" style={{ marginTop: 8 }}>
-                      <span className={`burstDot ${selectedBurstStatus?.mode === "burst" ? "active" : "idle"}`} />
-                      {selectedBurstStatus?.mode === "burst" ? "BURST 모드" : "정상 수집"}
-                    </div>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                      주기 {selectedBurstStatus?.interval_seconds || 600}s
-                      {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                      최근 30분 이벤트 {recentBurstCount}건
-                    </Typography>
-                  </Paper>
-                  <Paper variant="outlined" sx={{ p: 1.2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>컴포넌트</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                      S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                      T {Number(riskScore?.components?.T || 0).toFixed(2)} · M {Number(riskScore?.components?.M || 0).toFixed(2)}
-                    </Typography>
-                  </Paper>
-                </div>
+                <Grid container spacing={1.2}>
+                  <Grid item xs={12} md={3}>
+                    <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk 점수</Typography>
+                      <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
+                      <Chip
+                        label={riskMeaning.label}
+                        size="small"
+                        color={riskMeaning.color}
+                        variant="outlined"
+                        sx={{ mt: 0.7 }}
+                      />
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.max(0, Math.min(100, riskValue))}
+                        sx={{
+                          mt: 1.2,
+                          height: 10,
+                          borderRadius: 999,
+                          bgcolor: "#edf2fb",
+                          "& .MuiLinearProgress-bar": { bgcolor: riskGaugeColor },
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                        Based on rolling {Number(riskScore?.meta?.window_hours || 24)}-hour window
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Alert</Typography>
+                      <Chip
+                        label={alertLevel}
+                        color={alertLevel === "P1" ? "error" : alertLevel === "P2" ? "warning" : "success"}
+                        sx={{ mt: 0.7, fontWeight: 700 }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                        uncertain {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
+                      <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            bgcolor: selectedBurstStatus?.mode === "burst" ? "error.main" : "success.main",
+                          }}
+                        />
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {selectedBurstStatus?.mode === "burst" ? "BURST 모드" : "정상 수집"}
+                        </Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                        주기 {selectedBurstStatus?.interval_seconds || 600}s
+                        {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        최근 30분 이벤트 {recentBurstCount}건
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>컴포넌트</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                        S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        T {Number(riskScore?.components?.T || 0).toFixed(2)} · M {Number(riskScore?.components?.M || 0).toFixed(2)}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
 
-                <Paper variant="outlined" sx={{ p: 1.2, mb: 1 }}>
+                <Paper variant="outlined" sx={{ p: 1.2, mt: 1.2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     Recent 24h articles: {recent24hArticles.toLocaleString()}
                   </Typography>
@@ -695,22 +727,26 @@ export default function NexonPage() {
                   </Typography>
                 </Paper>
 
-                <div className="componentBars">
+                <Grid container spacing={1} sx={{ mt: 0.1 }}>
                   {["S", "V", "T", "M"].map((k) => {
                     const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
                     return (
-                      <div className="componentBar" key={k}>
-                        <label>
-                          <span>{k}</span>
-                          <div className="riskGauge">
-                            <div className="riskGaugeFill" style={{ width: `${value * 100}%`, background: "#0f3f95" }} />
-                          </div>
-                          <strong>{value.toFixed(2)}</strong>
-                        </label>
-                      </div>
+                      <Grid item xs={12} md={6} key={k}>
+                        <Paper variant="outlined" sx={{ p: 1 }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>{k}</Typography>
+                            <Typography variant="caption" color="text.secondary">{value.toFixed(2)}</Typography>
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={value * 100}
+                            sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
+                          />
+                        </Paper>
+                      </Grid>
                     );
                   })}
-                </div>
+                </Grid>
 
                 <Paper variant="outlined" sx={{ p: 1.2, mt: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>Live interpretation</Typography>
@@ -728,17 +764,24 @@ export default function NexonPage() {
                   </Typography>
                 </Paper>
 
-                <ul className="burstLog">
-                  {filteredBurstEvents.length ? (
-                    filteredBurstEvents.slice(0, 5).map((evt, idx) => (
-                      <li key={`${evt.occurred_at}-${idx}`}>
-                        {evt.event_type === "enter" ? "🔴" : "🟢"} {String(evt.occurred_at).slice(5, 16)} {evt.ip_name} {String(evt.event_type).toUpperCase()} ({evt.trigger_reason})
-                      </li>
-                    ))
-                  ) : (
-                    <li>No burst events yet (waiting for live signals)</li>
-                  )}
-                </ul>
+                <Paper variant="outlined" sx={{ mt: 1, p: 0.5 }}>
+                  <List dense disablePadding>
+                    {filteredBurstEvents.length ? (
+                      filteredBurstEvents.slice(0, 5).map((evt, idx) => (
+                        <ListItem key={`${evt.occurred_at}-${idx}`} divider>
+                          <ListItemText
+                            primary={`${String(evt.occurred_at).slice(5, 16)} · ${evt.ip_name} · ${String(evt.event_type).toUpperCase()}`}
+                            secondary={evt.trigger_reason}
+                          />
+                        </ListItem>
+                      ))
+                    ) : (
+                      <ListItem>
+                        <ListItemText primary="No burst events yet (waiting for live signals)" />
+                      </ListItem>
+                    )}
+                  </List>
+                </Paper>
               </>
             ) : (
               <Stack spacing={0.5}>
