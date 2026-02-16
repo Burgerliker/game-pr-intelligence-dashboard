@@ -269,6 +269,132 @@ def _is_near_duplicate(conn: sqlite3.Connection, company: str, title: str, date:
     return False
 
 
+def _resolve_syndicated_group_id(
+    conn: sqlite3.Connection,
+    company: str,
+    title: str,
+    date: str,
+    source_group_id: str,
+) -> str:
+    """재배포 가능성이 높은 기사의 소스 그룹을 기존 그룹으로 정규화."""
+    if not source_group_id:
+        return source_group_id
+
+    exists = conn.execute("SELECT 1 FROM source_groups WHERE group_id = ? LIMIT 1", (source_group_id,)).fetchone()
+    if exists is not None:
+        return source_group_id
+
+    title_norm = _normalize_title(title)
+    if not title_norm or not date:
+        return source_group_id
+
+    try:
+        base_date = datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return source_group_id
+
+    start_date = (base_date - timedelta(days=1)).strftime("%Y-%m-%d")
+    end_date = (base_date + timedelta(days=1)).strftime("%Y-%m-%d")
+    rows = conn.execute(
+        """
+        SELECT COALESCE(source_group_id, '') AS source_group_id, title_clean
+        FROM articles
+        WHERE company = ?
+          AND date BETWEEN ? AND ?
+          AND COALESCE(source_group_id, '') != ''
+        ORDER BY id DESC
+        LIMIT 500
+        """,
+        (company, start_date, end_date),
+    ).fetchall()
+
+    best_gid = source_group_id
+    best_ratio = 0.0
+    for r in rows:
+        gid = str(r["source_group_id"] or "")
+        if not gid:
+            continue
+        existing_norm = _normalize_title(str(r["title_clean"] or ""))
+        if not existing_norm:
+            continue
+        if existing_norm == title_norm:
+            return gid
+        ratio = SequenceMatcher(None, title_norm, existing_norm).ratio()
+        if ratio >= 0.985 and ratio > best_ratio:
+            best_ratio = ratio
+            best_gid = gid
+    return best_gid
+
+
+def _increment_group_repost(conn: sqlite3.Connection, source_group_id: str, now: str) -> None:
+    if not source_group_id:
+        return
+    row = conn.execute(
+        "SELECT repost_count FROM source_groups WHERE group_id = ?",
+        (source_group_id,),
+    ).fetchone()
+    if row is None:
+        existing_mentions = conn.execute(
+            "SELECT COUNT(1) AS cnt FROM articles WHERE COALESCE(source_group_id, '') = COALESCE(?, '')",
+            (source_group_id,),
+        ).fetchone()
+        base_count = int(existing_mentions["cnt"] or 0)
+        conn.execute(
+            """
+            INSERT INTO source_groups (group_id, canonical_article_id, repost_count, first_seen_at, last_seen_at)
+            VALUES (?, NULL, ?, ?, ?)
+            """,
+            (source_group_id, max(2, base_count + 1), now, now),
+        )
+        return
+    conn.execute(
+        """
+        UPDATE source_groups
+        SET repost_count = COALESCE(repost_count, 0) + 1,
+            last_seen_at = ?
+        WHERE group_id = ?
+        """,
+        (now, source_group_id),
+    )
+
+
+def _compute_group_volume(conn: sqlite3.Connection, group_ids: set[str]) -> dict[str, float | int]:
+    effective_groups = {g for g in group_ids if g and not g.startswith("legacy:")}
+    unique_articles = int(len(group_ids))
+    if not effective_groups:
+        return {
+            "unique_articles": unique_articles,
+            "total_mentions": unique_articles,
+            "repost_multiplier": round(float(unique_articles) / max(unique_articles, 1), 3),
+        }
+
+    placeholders = ",".join(["?"] * len(effective_groups))
+    rows = conn.execute(
+        f"""
+        SELECT group_id, repost_count
+        FROM source_groups
+        WHERE group_id IN ({placeholders})
+        """,
+        sorted(effective_groups),
+    ).fetchall()
+    repost_by_group = {str(r["group_id"]): max(1, int(r["repost_count"] or 1)) for r in rows}
+    total_mentions = 0
+    for gid in group_ids:
+        if not gid:
+            continue
+        if gid.startswith("legacy:"):
+            total_mentions += 1
+            continue
+        total_mentions += repost_by_group.get(gid, 1)
+
+    total_mentions = int(total_mentions)
+    return {
+        "unique_articles": unique_articles,
+        "total_mentions": total_mentions,
+        "repost_multiplier": round(float(total_mentions) / max(unique_articles, 1), 3),
+    }
+
+
 def save_articles(df: pd.DataFrame) -> int:
     if df.empty:
         return 0
@@ -297,13 +423,11 @@ def save_articles(df: pd.DataFrame) -> int:
             outlet = _extract_outlet(originallink, link)
             content_hash = _to_hash(company, originallink, link, title, date)
             source_group_id = _to_source_group_id(originallink, link, title, date)
+            source_group_id = _resolve_syndicated_group_id(conn, company, title, date, source_group_id)
 
             if content_hash in seen_hashes:
                 continue
             seen_hashes.add(content_hash)
-
-            if _is_near_duplicate(conn, company, title, date, source_group_id):
-                continue
 
             cur = conn.execute(
                 """
@@ -347,15 +471,7 @@ def save_articles(df: pd.DataFrame) -> int:
                     ),
                 )
             else:
-                conn.execute(
-                    """
-                    UPDATE source_groups
-                    SET repost_count = COALESCE(repost_count, 0) + 1,
-                        last_seen_at = ?
-                    WHERE group_id = ?
-                    """,
-                    (now, source_group_id),
-                )
+                _increment_group_repost(conn, source_group_id, now)
         conn.commit()
         after = conn.execute("SELECT COUNT(1) AS cnt FROM articles").fetchone()["cnt"]
         return int(after) - int(before)
@@ -506,7 +622,8 @@ def get_ip_clusters(
     try:
         rows = conn.execute(
             """
-            SELECT date, title_clean, description_clean, sentiment,
+            SELECT id, date, title_clean, description_clean, sentiment,
+                   COALESCE(source_group_id, '') AS source_group_id,
                    COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet
             FROM articles
             WHERE company = ? AND date BETWEEN ? AND ?
@@ -521,6 +638,7 @@ def get_ip_clusters(
     overall_keywords = Counter()
     total = 0
     outlets = Counter()
+    group_ids: set[str] = set()
 
     for r in rows:
         text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
@@ -529,6 +647,8 @@ def get_ip_clusters(
             continue
 
         total += 1
+        gid = str(r["source_group_id"] or "") or f"legacy:{int(r['id'])}"
+        group_ids.add(gid)
         sentiment = str(r["sentiment"] or "")
         outlets[str(r["outlet"] or "unknown")] += 1
 
@@ -592,6 +712,12 @@ def get_ip_clusters(
         for word, count in top_keyword_counts
     ]
 
+    conn = _connect()
+    try:
+        volume = _compute_group_volume(conn, group_ids)
+    finally:
+        conn.close()
+
     return {
         "meta": {
             "company": "넥슨",
@@ -599,7 +725,11 @@ def get_ip_clusters(
             "ip_id": (ip or "").strip().lower(),
             "date_from": date_from,
             "date_to": date_to,
-            "total_articles": int(total),
+            "total_articles": int(volume["total_mentions"]),
+            "unique_articles": int(volume["unique_articles"]),
+            "total_mentions": int(volume["total_mentions"]),
+            "repost_multiplier": float(volume["repost_multiplier"]),
+            "raw_rows": int(total),
             "cluster_count": int(len(clusters)),
         },
         "ip_catalog": get_risk_ip_catalog(),
@@ -619,10 +749,11 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
     try:
         rows = conn.execute(
             """
-            SELECT date,
+            SELECT id, date,
                    title_clean,
                    description_clean,
                    sentiment,
+                   COALESCE(source_group_id, '') AS source_group_id,
                    COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet
             FROM articles
             WHERE company = ? AND date BETWEEN ? AND ?
@@ -639,6 +770,7 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
         k: {"article_count": 0, "negative_count": 0, "negative_ratio": 0.0, "risk_score": 0.0}
         for k in RISK_THEME_RULES
     }
+    group_ids: set[str] = set()
 
     total = 0
     for r in rows:
@@ -653,6 +785,8 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
             continue
 
         total += 1
+        gid = str(r["source_group_id"] or "") or f"legacy:{int(r['id'])}"
+        group_ids.add(gid)
         if date not in daily_acc:
             daily_acc[date] = {"article_count": 0, "negative_count": 0}
         daily_acc[date]["article_count"] += 1
@@ -719,6 +853,12 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
         for ip_name_key, count in sorted(ip_breakdown_acc.items(), key=lambda kv: kv[1], reverse=True)
     ]
 
+    conn = _connect()
+    try:
+        volume = _compute_group_volume(conn, group_ids)
+    finally:
+        conn.close()
+
     return {
         "meta": {
             "company": "넥슨",
@@ -726,7 +866,11 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
             "ip_id": (ip or "all").strip().lower(),
             "date_from": date_from,
             "date_to": date_to,
-            "total_articles": int(total),
+            "total_articles": int(volume["total_mentions"]),
+            "unique_articles": int(volume["unique_articles"]),
+            "total_mentions": int(volume["total_mentions"]),
+            "repost_multiplier": float(volume["repost_multiplier"]),
+            "raw_rows": int(total),
         },
         "daily": daily,
         "outlets": outlets,
@@ -815,11 +959,17 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             )
 
         recent = [r for r in scoped if r["dt"] >= start_window]
-        recent_groups = sorted({r["source_group_id"] for r in recent if r["source_group_id"]})
+        recent_group_items: dict[str, dict[str, Any]] = {}
+        for r in recent:
+            gid = str(r["source_group_id"] or "") or f"legacy:{int(r['id'])}"
+            if gid not in recent_group_items:
+                recent_group_items[gid] = r
+        recent_groups = sorted(recent_group_items.keys())
+        recent_real_group_ids = sorted(g for g in recent_groups if not g.startswith("legacy:"))
 
         sentiment_by_group: dict[str, dict[str, float | str]] = {}
-        if recent_groups:
-            placeholders = ",".join(["?"] * len(recent_groups))
+        if recent_real_group_ids:
+            placeholders = ",".join(["?"] * len(recent_real_group_ids))
             srows = conn.execute(
                 f"""
                 SELECT source_group_id, sentiment_score, sentiment_label, confidence, analyzed_at
@@ -827,7 +977,7 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                 WHERE source_group_id IN ({placeholders})
                 ORDER BY analyzed_at DESC, id DESC
                 """,
-                recent_groups,
+                recent_real_group_ids,
             ).fetchall()
             for sr in srows:
                 gid = str(sr["source_group_id"] or "")
@@ -874,14 +1024,14 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         V_t = float(_sigmoid(z_score))
 
         theme_counter: Counter[str] = Counter()
-        for r in recent:
+        for r in recent_group_items.values():
             for theme, keywords in RISK_THEME_RULES.items():
                 if any(k.lower() in r["text"] for k in keywords):
                     theme_counter[theme] += 1
                     break
         T_t = 0.0
-        if recent:
-            total_recent = float(len(recent))
+        if recent_group_items:
+            total_recent = float(len(recent_group_items))
             for theme, cnt in theme_counter.items():
                 share = float(cnt) / total_recent
                 T_t += share * float(THEME_WEIGHTS.get(theme, 0.4))
@@ -893,6 +1043,8 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             for outlet, cnt in outlet_counter.items():
                 share = float(cnt) / total_recent
                 M_t += share * _outlet_weight(outlet)
+
+        spread_ratio = float(len(recent) / max(len(recent_groups), 1))
 
         raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
         ip_id = (ip or "all").strip().lower()
@@ -946,10 +1098,12 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                 "M": round(float(M_t), 3),
             },
             "alert_level": alert,
-            "sample_size": int(len(recent)),
+            "sample_size": int(len(recent_groups)),
+            "mention_count_window": int(len(recent)),
             "count_1h": int(count_1h),
             "z_score": round(float(z_score), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
+            "spread_ratio": round(float(spread_ratio), 3),
         }
     finally:
         conn.close()
