@@ -19,8 +19,16 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import LoadingState from "../../components/LoadingState";
+import ErrorState from "../../components/ErrorState";
+import { apiGet } from "../../lib/api";
+import {
+  createEmptyCluster,
+  createEmptyRisk,
+  normalizeNexonDashboard,
+} from "../../lib/normalizeNexon";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const NEXON_LOGO = "/nexon-logo.png";
 const D3WordCloud = dynamic(() => import("react-d3-cloud"), { ssr: false });
 const IP_BANNER_STYLE = {
@@ -100,12 +108,6 @@ const MOCK_CLUSTER = {
   ],
 };
 
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
 function WordCloudChart({ items }) {
   const wrapRef = useRef(null);
   const [size, setSize] = useState({ width: 980, height: 320 });
@@ -164,19 +166,49 @@ function WordCloudChart({ items }) {
 
 export default function NexonPage() {
   const [ip, setIp] = useState("maplestory");
-  const [riskData, setRiskData] = useState(MOCK_RISK);
-  const [clusterData, setClusterData] = useState(MOCK_CLUSTER);
+  const [riskData, setRiskData] = useState(() => createEmptyRisk("maplestory"));
+  const [clusterData, setClusterData] = useState(() => createEmptyCluster("maplestory"));
   const [riskScore, setRiskScore] = useState(null);
   const [burstStatus, setBurstStatus] = useState(null);
   const [burstEvents, setBurstEvents] = useState([]);
-  const [usingMock, setUsingMock] = useState(true);
+  const [usingMock, setUsingMock] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const swipeStartXRef = useRef(null);
+  const ipCacheRef = useRef(new Map());
+  const requestSeqRef = useRef(0);
+  const formatUpdatedAt = (date = new Date()) => {
+    const d = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleTimeString("ko-KR", { hour12: false });
+  };
 
   const loadDashboard = async (targetIp = ip) => {
-    setLoading(true);
+    const requestSeq = ++requestSeqRef.current;
+    const baseCatalog = riskData?.ip_catalog || MOCK_RISK.ip_catalog;
+    setRiskData(createEmptyRisk(targetIp, baseCatalog));
+    setClusterData(createEmptyCluster(targetIp));
+    setRiskScore(null);
     setError("");
+    setNotice("");
+    setLoading(true);
+    const cache = ipCacheRef.current.get(targetIp);
+    if (cache) {
+      if (requestSeq !== requestSeqRef.current) return;
+      setRiskData(cache.riskData);
+      setClusterData(cache.clusterData);
+      setRiskScore(cache.riskScore);
+      setBurstStatus(cache.burstStatus);
+      setBurstEvents(cache.burstEvents);
+      setUsingMock(Boolean(cache.usingMock));
+      setNotice(cache.notice || "");
+      setLastUpdatedAt(cache.lastUpdatedAt || formatUpdatedAt());
+      setLoading(false);
+      return;
+    }
+
     try {
       const base = new URLSearchParams({ ip: targetIp });
       const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload] = await Promise.all([
@@ -184,25 +216,62 @@ export default function NexonPage() {
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
         apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
         apiGet("/api/burst-status").catch(() => null),
-        apiGet("/api/burst-events?limit=10").catch(() => null),
+        apiGet("/api/burst-events?limit=50").catch(() => null),
       ]);
 
-      const okRisk = Number(riskPayload?.meta?.total_articles || 0) > 0;
-      const okCluster = Number(clusterPayload?.meta?.cluster_count || 0) > 0;
-      const ipName = (riskPayload?.ip_catalog || MOCK_RISK.ip_catalog).find((x) => x.id === targetIp)?.name || targetIp;
-      setRiskData(okRisk ? riskPayload : { ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, ip: ipName, total_articles: 0 } });
-      setClusterData(okCluster ? clusterPayload : MOCK_CLUSTER);
-      setUsingMock(!(okRisk && okCluster));
+      const normalized = normalizeNexonDashboard({
+        targetIp,
+        riskPayload,
+        clusterPayload,
+        useMockFallback: USE_MOCK_FALLBACK,
+        mockRisk: MOCK_RISK,
+        mockCluster: MOCK_CLUSTER,
+        baseCatalog,
+      });
+      const resolvedRisk = normalized.riskData;
+      const resolvedCluster = normalized.clusterData;
+      const resolvedNotice = normalized.notice;
+      const resolvedUsingMock = normalized.usingMock;
+      const refreshedAt = formatUpdatedAt();
+
+      if (requestSeq !== requestSeqRef.current) return;
+      setRiskData(resolvedRisk);
+      setClusterData(resolvedCluster);
+      setUsingMock(resolvedUsingMock);
       setRiskScore(riskScorePayload || null);
       setBurstStatus(burstStatusPayload || null);
-      setBurstEvents((burstEventsPayload?.items || []).slice(0, 10));
+      setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
+      setNotice(resolvedNotice);
+      setLastUpdatedAt(refreshedAt);
+
+      ipCacheRef.current.set(targetIp, {
+        riskData: resolvedRisk,
+        clusterData: resolvedCluster,
+        riskScore: riskScorePayload || null,
+        burstStatus: burstStatusPayload || null,
+        burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
+        usingMock: resolvedUsingMock,
+        notice: resolvedNotice,
+        lastUpdatedAt: refreshedAt,
+      });
     } catch (e) {
-      const ipName = MOCK_RISK.ip_catalog.find((x) => x.id === targetIp)?.name || targetIp;
-      setRiskData({ ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, ip: ipName, total_articles: 0 } });
-      setClusterData(MOCK_CLUSTER);
-      setUsingMock(true);
+      if (requestSeq !== requestSeqRef.current) return;
+      if (USE_MOCK_FALLBACK) {
+        const ipName = MOCK_RISK.ip_catalog.find((x) => x.id === targetIp)?.name || targetIp;
+        setRiskData({ ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, ip: ipName, total_articles: 0 } });
+        setClusterData(MOCK_CLUSTER);
+        setUsingMock(true);
+        setNotice("실데이터 호출 실패로 샘플 데이터를 표시 중입니다.");
+      } else {
+        setRiskData(createEmptyRisk(targetIp, baseCatalog));
+        setClusterData(createEmptyCluster(targetIp));
+        setUsingMock(false);
+        setNotice("실데이터 호출에 실패했습니다. 백엔드 주소/API 상태를 확인해주세요.");
+      }
+      setLastUpdatedAt("-");
       setError(String(e));
     } finally {
+      if (requestSeq !== requestSeqRef.current) return;
       setLoading(false);
     }
   };
@@ -258,6 +327,7 @@ export default function NexonPage() {
         ]);
         if (rs) setRiskScore(rs);
         if (bs) setBurstStatus(bs);
+        if (rs || bs) setLastUpdatedAt(formatUpdatedAt());
       } catch {
         // noop
       }
@@ -276,6 +346,17 @@ export default function NexonPage() {
     const items = burstStatus?.items || [];
     return items.find((x) => x.ip_id === ip) || items.find((x) => x.ip_id === "all") || items[0] || null;
   }, [burstStatus, ip]);
+  const recentBurstCount = useMemo(() => {
+    const now = Date.now();
+    return (burstEvents || [])
+      .filter((evt) => (ip === "all" ? true : evt.ip_name === ip))
+      .filter((evt) => now - new Date(String(evt.occurred_at).replace(" ", "T")).getTime() <= 30 * 60 * 1000)
+      .length;
+  }, [burstEvents, ip]);
+  const filteredBurstEvents = useMemo(
+    () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
+    [burstEvents, ip]
+  );
   const burstPeriods = useMemo(() => {
     if (!burstEvents.length) return [];
     const sorted = [...burstEvents]
@@ -339,6 +420,7 @@ export default function NexonPage() {
             <Stack direction="row" spacing={1}>
               <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
               <Button component={Link} href="/compare" variant="outlined" size="small">경쟁사 비교</Button>
+              <Button component={Link} href="/nexon/backtest" variant="contained" size="small">Backtest 보기</Button>
             </Stack>
           </Stack>
         </Paper>
@@ -469,11 +551,22 @@ export default function NexonPage() {
               <Stack direction="row" spacing={1}>
                 <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
+                <Chip variant="outlined" label={`Last updated: ${lastUpdatedAt || "-"}`} />
+                <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" />
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
-            {loading ? <LinearProgress sx={{ mt: 1.5 }} /> : null}
-            {error ? <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert> : null}
+            {loading ? (
+              <Box sx={{ mt: 1.5 }}>
+                <LoadingState title="IP 데이터를 동기화하는 중" subtitle="리스크/군집/버스트 상태를 갱신하고 있습니다." />
+              </Box>
+            ) : null}
+            {notice ? <Alert severity={usingMock ? "warning" : "info"} sx={{ mt: 1.5 }}>{notice}</Alert> : null}
+            {error ? (
+              <Box sx={{ mt: 1.5 }}>
+                <ErrorState title="대시보드 데이터를 불러오지 못했습니다." details={error} actionLabel="재시도" onAction={() => loadDashboard(ip)} />
+              </Box>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -526,6 +619,9 @@ export default function NexonPage() {
                       주기 {selectedBurstStatus?.interval_seconds || 600}s
                       {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""}
                     </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      최근 30분 이벤트 {recentBurstCount}건
+                    </Typography>
                   </Paper>
                   <Paper variant="outlined" sx={{ p: 1.2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>컴포넌트</Typography>
@@ -556,17 +652,28 @@ export default function NexonPage() {
                 </div>
 
                 <ul className="burstLog">
-                  {(burstEvents || []).slice(0, 5).map((evt, idx) => (
-                    <li key={`${evt.occurred_at}-${idx}`}>
-                      {evt.event_type === "enter" ? "🔴" : "🟢"} {String(evt.occurred_at).slice(5, 16)} {evt.ip_name} {String(evt.event_type).toUpperCase()} ({evt.trigger_reason})
-                    </li>
-                  ))}
+                  {filteredBurstEvents.length ? (
+                    filteredBurstEvents.slice(0, 5).map((evt, idx) => (
+                      <li key={`${evt.occurred_at}-${idx}`}>
+                        {evt.event_type === "enter" ? "🔴" : "🟢"} {String(evt.occurred_at).slice(5, 16)} {evt.ip_name} {String(evt.event_type).toUpperCase()} ({evt.trigger_reason})
+                      </li>
+                    ))
+                  ) : (
+                    <li>No burst events yet (waiting for live signals)</li>
+                  )}
                 </ul>
               </>
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                위험도 데이터가 아직 없습니다.
-              </Typography>
+              <Stack spacing={0.5}>
+                <Typography variant="body2" color="text.secondary">
+                  위험도 데이터가 아직 없습니다.
+                </Typography>
+                {!filteredBurstEvents.length ? (
+                  <Typography variant="caption" color="text.secondary">
+                    No burst events yet (waiting for live signals)
+                  </Typography>
+                ) : null}
+              </Stack>
             )}
           </CardContent>
         </Card>

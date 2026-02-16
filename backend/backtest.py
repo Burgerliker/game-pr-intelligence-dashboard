@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1
+from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1, get_active_db_path
 from utils.sentiment import analyze_sentiment_rule_v1
 
 
@@ -181,15 +182,24 @@ def _ensure_group_sentiments(conn: sqlite3.Connection, mentions: list[Mention]) 
     return sentiment_by_group
 
 
-def _calc_summary(timeseries: list[dict[str, Any]], weights: dict[str, float]) -> dict[str, Any]:
+def _calc_summary(
+    timeseries: list[dict[str, Any]],
+    weights: dict[str, float],
+    event_count_by_type: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    event_count_by_type = event_count_by_type or {}
     if not timeseries:
         return {
             "max_risk": 0.0,
             "max_risk_at": None,
             "avg_risk": 0.0,
             "p1_count": 0,
+            "p1_bucket_count": 0,
             "p1_total_hours": 0,
             "p2_count": 0,
+            "p2_bucket_count": 0,
+            "event_count": 0,
+            "event_count_by_type": {},
             "dominant_component": "S",
         }
 
@@ -204,13 +214,19 @@ def _calc_summary(timeseries: list[dict[str, Any]], weights: dict[str, float]) -
             comp_acc[k] += float(comp.get(k, 0.0)) * float(weights[k])
     dominant_component = max(comp_acc.items(), key=lambda kv: kv[1])[0]
 
+    p1_bucket_count = int(sum(1 for x in timeseries if x.get("alert_level") == "P1"))
+    p2_bucket_count = int(sum(1 for x in timeseries if x.get("alert_level") == "P2"))
     return {
         "max_risk": round(float(max_row.get("risk_score", 0.0)), 1),
         "max_risk_at": max_row.get("timestamp"),
         "avg_risk": round(float(avg_risk), 1),
-        "p1_count": int(sum(1 for x in timeseries if x.get("alert_level") == "P1")),
+        "p1_count": p1_bucket_count,
+        "p1_bucket_count": p1_bucket_count,
         "p1_total_hours": int(p1_hours),
-        "p2_count": int(sum(1 for x in timeseries if x.get("alert_level") == "P2")),
+        "p2_count": p2_bucket_count,
+        "p2_bucket_count": p2_bucket_count,
+        "event_count": int(sum(event_count_by_type.values())),
+        "event_count_by_type": event_count_by_type,
         "dominant_component": dominant_component,
     }
 
@@ -224,9 +240,29 @@ def _detect_events(timeseries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         score = float(row.get("risk_score", 0.0))
         if level != prev:
             if level in ("P1", "P2"):
-                events.append({"timestamp": ts, "event": f"{level}_enter", "risk_score": round(score, 1), "trigger": "risk_threshold"})
+                event_type = f"{level}_enter"
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "ts": ts,
+                        "event": event_type,
+                        "type": event_type,
+                        "risk_score": round(score, 1),
+                        "trigger": "risk_threshold",
+                    }
+                )
             if prev in ("P1", "P2") and level not in (prev,):
-                events.append({"timestamp": ts, "event": f"{prev}_exit", "risk_score": round(score, 1), "trigger": "risk_recovery"})
+                event_type = f"{prev}_exit"
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "ts": ts,
+                        "event": event_type,
+                        "type": event_type,
+                        "risk_score": round(score, 1),
+                        "trigger": "risk_recovery",
+                    }
+                )
         prev = level
     return events
 
@@ -252,6 +288,12 @@ def run_backtest(
 
     norm_w = _normalize_weights(weights)
     baseline_start = start - timedelta(days=7)
+    debug_backtest = os.getenv("DEBUG_BACKTEST", "").strip().lower() in {"1", "true", "yes", "on"}
+    debug_timestamps = {
+        s.strip()
+        for s in os.getenv("DEBUG_BACKTEST_TIMESTAMPS", "").split(",")
+        if s.strip()
+    }
 
     conn = _connect()
     try:
@@ -302,6 +344,12 @@ def run_backtest(
         window_start = current - window_delta
         window_mentions = [m for m in scoped if window_start <= m.dt <= current]
         mention_count = len(window_mentions)
+        group_count = 0
+        spread_ratio = 0.0
+        z_score = 0.0
+        ema_alpha = None
+        ema_prev = prev_risk
+        ema_next = None
 
         if mention_count == 0:
             raw = 0.0
@@ -309,12 +357,15 @@ def run_backtest(
             components = {"S": 0.0, "V": 0.0, "T": 0.0, "M": 0.0}
             uncertain_ratio = 0.0
             dominant = "S"
+            ema_alpha = 0.1 if prev_risk is not None else 1.0
+            ema_next = score
         else:
             group_map: dict[str, Mention] = {}
             for m in window_mentions:
                 group_map.setdefault(m.group_id, m)
             group_mentions = list(group_map.values())
             group_count = len(group_mentions)
+            spread_ratio = float(mention_count / max(group_count, 1))
 
             weighted_scores: list[float] = []
             uncertain_count = 0
@@ -374,10 +425,14 @@ def run_backtest(
 
             if prev_risk is None:
                 score = raw
+                ema_alpha = 1.0
             elif mention_count < 10:
                 score = 0.9 * prev_risk + 0.1 * raw
+                ema_alpha = 0.1
             else:
                 score = 0.7 * prev_risk + 0.3 * raw
+                ema_alpha = 0.3
+            ema_next = score
 
             components = {
                 "S": round(float(S_t), 3),
@@ -392,24 +447,68 @@ def run_backtest(
 
         score = float(max(0.0, min(100.0, score)))
         alert = _alert_level(score)
+        score_rounded = round(float(score), 1)
+        raw_rounded = round(float(raw), 3)
         row = {
             "timestamp": current.strftime("%Y-%m-%dT%H:%M:%S"),
-            "risk_score": round(float(score), 1),
-            "raw_risk": round(float(raw), 1),
+            "ts": current.strftime("%Y-%m-%dT%H:%M:%S"),
+            "risk_score": score_rounded,
+            "raw_risk": raw_rounded,
             "alert_level": alert,
+            "alert": alert,
             "components": components,
             "article_count": int(mention_count),
+            "article_count_window": int(mention_count),
+            "mention_count_window": int(mention_count),
+            "group_count_window": int(group_count),
+            "spread_ratio": round(float(spread_ratio), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
+            "S": float(components.get("S", 0.0)),
+            "V": float(components.get("V", 0.0)),
+            "T": float(components.get("T", 0.0)),
+            "M": float(components.get("M", 0.0)),
+            "ema_prev": round(float(ema_prev), 3) if ema_prev is not None else None,
+            "ema_alpha": float(ema_alpha) if ema_alpha is not None else None,
+            "risk_score_ema": round(float(ema_next), 3) if ema_next is not None else score_rounded,
             "dominant_component": dominant,
         }
+        if debug_backtest and (not debug_timestamps or row["timestamp"] in debug_timestamps):
+            weighted_raw = 100.0 * (
+                norm_w["S"] * float(components.get("S", 0.0))
+                + norm_w["V"] * float(components.get("V", 0.0))
+                + norm_w["T"] * float(components.get("T", 0.0))
+                + norm_w["M"] * float(components.get("M", 0.0))
+            )
+            print(
+                "[BACKTEST_DEBUG]",
+                {
+                    "timestamp": row["timestamp"],
+                    "article_count": mention_count,
+                    "group_count": group_count,
+                    "spread_ratio": round(spread_ratio, 3),
+                    "uncertain_ratio": row["uncertain_ratio"],
+                    "components": components,
+                    "weights": norm_w,
+                    "weighted_raw_from_components": round(weighted_raw, 3),
+                    "raw_risk": row["raw_risk"],
+                    "z_score": round(float(z_score), 3),
+                    "ema_prev": round(float(ema_prev), 3) if ema_prev is not None else None,
+                    "ema_alpha": ema_alpha,
+                    "ema_next": round(float(ema_next), 3) if ema_next is not None else None,
+                    "risk_score": row["risk_score"],
+                    "alert_level": row["alert_level"],
+                },
+            )
         timeseries.append(row)
         prev_risk = score
         current += step
 
     events = _detect_events(timeseries)
-    summary = _calc_summary(timeseries, norm_w)
+    event_count_by_type = dict(Counter(str(e.get("type") or e.get("event") or "") for e in events))
+    summary = _calc_summary(timeseries, norm_w, event_count_by_type=event_count_by_type)
     period_mentions = [m for m in scoped if start <= m.dt <= end]
     unique_groups = {m.group_id for m in period_mentions}
+    db_path = get_active_db_path()
 
     return {
         "meta": {
@@ -423,9 +522,11 @@ def run_backtest(
             "unique_articles": int(len(unique_groups)),
             "total_steps": int(len(timeseries)),
             "weights": {k: round(float(v), 4) for k, v in norm_w.items()},
+            "db_path": str(db_path),
+            "db_file_name": db_path.name,
         },
+        "thresholds": {"p1": 70, "p2": 45},
         "timeseries": timeseries,
         "events": events,
         "summary": summary,
     }
-

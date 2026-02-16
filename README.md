@@ -18,6 +18,7 @@
 환경변수:
 - 기본 DB: `backend/data/articles.db`
 - 다른 DB를 쓰려면 `PR_DB_PATH` 설정 (예: `backend/data/articles_backtest.db`)
+- 프론트 API 베이스: `NEXT_PUBLIC_API_BASE_URL` (예: `http://127.0.0.1:8000`)
 
 ### 1) 백엔드
 ```bash
@@ -36,6 +37,7 @@ PR_DB_PATH=backend/data/articles_backtest.db uvicorn backend.main:app --reload -
 ```bash
 cd frontend
 npm install
+export NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 npm run dev
 ```
 
@@ -43,8 +45,10 @@ npm run dev
 - 메인: `http://localhost:3000`
 - 경쟁사 비교: `http://localhost:3000/compare`
 - 넥슨 군집/리스크: `http://localhost:3000/nexon`
+- 백테스트: `http://localhost:3000/nexon/backtest`
 
 ## 주요 API
+- `GET /health`: 서버 상태 + 현재 DB 경로/파일명
 - `POST /api/analyze`: 경쟁사 비교 수집/분석
 - `POST /api/nexon-cluster-source`: 넥슨 군집용 수집/분석
 - `GET /api/risk-dashboard`: 날짜/IP 기반 리스크 지표
