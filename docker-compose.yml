@@ -6,6 +6,9 @@ services:
     container_name: pr-backend
     env_file:
       - .env
+    environment:
+      - LIVE_DB_PATH=backend/data/articles.db
+      - BACKTEST_DB_PATH=backend/data/articles_backtest.db
     ports:
       - "8000:8000"
     volumes:

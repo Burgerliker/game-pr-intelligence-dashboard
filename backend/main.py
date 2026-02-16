@@ -43,7 +43,7 @@ from backend.storage import (
 )
 from backend.analysis_project import CORE_IPS, build_project_snapshot
 from backend.burst_manager import BurstManager
-from backend.backtest import run_backtest
+from backend.backtest import get_backtest_db_path, run_backtest
 from services.naver_api import (
     COMPANIES,
     fetch_company_news_compare,
@@ -501,6 +501,19 @@ def health() -> dict:
 @app.get("/api/health")
 def api_health() -> dict:
     return health()
+
+
+@app.get("/api/backtest-health")
+def backtest_health() -> dict:
+    db_path = Path(get_backtest_db_path())
+    db_name = db_path.name.lower()
+    mode = "backtest" if "backtest" in db_name else "live"
+    return {
+        "ok": True,
+        "db_path": str(db_path),
+        "db_file_name": db_path.name,
+        "mode": mode,
+    }
 
 
 @app.get("/api/config")

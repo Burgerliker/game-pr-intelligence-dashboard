@@ -35,7 +35,7 @@ export default function NexonBacktestPage() {
         const qs = new URLSearchParams(FIXED_PARAMS);
         const [backtest, healthRes] = await Promise.all([
           apiGet(`/api/backtest?${qs.toString()}`),
-          apiGet("/api/health").catch(() => null),
+          apiGet("/api/backtest-health").catch(() => null),
         ]);
         if (controller.signal.aborted) return;
         setPayload(backtest);

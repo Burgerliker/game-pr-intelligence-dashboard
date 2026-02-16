@@ -64,8 +64,18 @@ OUTLET_GAME_MEDIA = {
 
 
 def _resolve_db_path() -> Path:
-    raw = os.getenv("PR_DB_PATH", "").strip()
-    db_path = Path(raw) if raw else DEFAULT_DB_PATH
+    raw_live = os.getenv("LIVE_DB_PATH", "").strip()
+    legacy_raw = os.getenv("PR_DB_PATH", "").strip()
+
+    # Live DB는 기본적으로 articles.db를 사용한다.
+    # 레거시 PR_DB_PATH는 backtest 파일을 가리킬 때는 무시해서 운영 혼선을 방지한다.
+    chosen = raw_live
+    if not chosen and legacy_raw:
+        legacy_name = Path(legacy_raw).name.lower()
+        if "backtest" not in legacy_name:
+            chosen = legacy_raw
+
+    db_path = Path(chosen) if chosen else DEFAULT_DB_PATH
     if not db_path.is_absolute():
         db_path = ROOT_DIR / db_path
     return db_path

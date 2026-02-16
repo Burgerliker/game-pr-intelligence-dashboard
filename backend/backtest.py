@@ -10,15 +10,35 @@ from typing import Any
 
 import pandas as pd
 
-from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1, get_active_db_path
+from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1
 from utils.sentiment import analyze_sentiment_rule_v1
 
 
-def _connect() -> sqlite3.Connection:
-    # storage 모듈과 동일한 DB 선택 규칙 사용
-    from backend.storage import _connect as storage_connect  # type: ignore
+def _resolve_backtest_db_path() -> str:
+    raw = os.getenv("BACKTEST_DB_PATH", "").strip()
+    if not raw:
+        legacy = os.getenv("PR_DB_PATH", "").strip()
+        if legacy and "backtest" in os.path.basename(legacy).lower():
+            raw = legacy
+    if not raw:
+        raw = "backend/data/articles_backtest.db"
+    return raw
 
-    return storage_connect()
+
+def get_backtest_db_path() -> str:
+    path = _resolve_backtest_db_path()
+    if os.path.isabs(path):
+        return path
+    return str((os.path.abspath(os.path.join(os.path.dirname(__file__), "..", path))))
+
+
+def _connect() -> sqlite3.Connection:
+    db_path = get_backtest_db_path()
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 def _resolve_ip_name(ip: str) -> str:
@@ -508,7 +528,7 @@ def run_backtest(
     summary = _calc_summary(timeseries, norm_w, event_count_by_type=event_count_by_type)
     period_mentions = [m for m in scoped if start <= m.dt <= end]
     unique_groups = {m.group_id for m in period_mentions}
-    db_path = get_active_db_path()
+    db_path = get_backtest_db_path()
 
     return {
         "meta": {
@@ -523,7 +543,7 @@ def run_backtest(
             "total_steps": int(len(timeseries)),
             "weights": {k: round(float(v), 4) for k, v in norm_w.items()},
             "db_path": str(db_path),
-            "db_file_name": db_path.name,
+            "db_file_name": os.path.basename(db_path),
         },
         "thresholds": {"p1": 70, "p2": 45},
         "timeseries": timeseries,
