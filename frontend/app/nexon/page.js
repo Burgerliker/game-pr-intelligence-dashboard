@@ -652,11 +652,15 @@ export default function NexonPage() {
                 </div>
 
                 <ul className="burstLog">
-                  {filteredBurstEvents.slice(0, 5).map((evt, idx) => (
-                    <li key={`${evt.occurred_at}-${idx}`}>
-                      {evt.event_type === "enter" ? "🔴" : "🟢"} {String(evt.occurred_at).slice(5, 16)} {evt.ip_name} {String(evt.event_type).toUpperCase()} ({evt.trigger_reason})
-                    </li>
-                  ))}
+                  {filteredBurstEvents.length ? (
+                    filteredBurstEvents.slice(0, 5).map((evt, idx) => (
+                      <li key={`${evt.occurred_at}-${idx}`}>
+                        {evt.event_type === "enter" ? "🔴" : "🟢"} {String(evt.occurred_at).slice(5, 16)} {evt.ip_name} {String(evt.event_type).toUpperCase()} ({evt.trigger_reason})
+                      </li>
+                    ))
+                  ) : (
+                    <li>No burst events yet (waiting for live signals)</li>
+                  )}
                 </ul>
               </>
             ) : (
