@@ -12,13 +12,10 @@ import {
   Chip,
   Container,
   Divider,
-  FormControl,
   Grid,
-  InputLabel,
+  IconButton,
   LinearProgress,
-  MenuItem,
   Paper,
-  Select,
   Stack,
   Typography,
 } from "@mui/material";
@@ -26,6 +23,19 @@ import {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 const NEXON_LOGO = "/nexon-logo.png";
 const D3WordCloud = dynamic(() => import("react-d3-cloud"), { ssr: false });
+const IP_BANNER_STYLE = {
+  all: {
+    kicker: "NEXON OVERVIEW",
+    accent: "#8ba2ff",
+    bg: "linear-gradient(150deg,#101934 0%,#1b3f98 48%,#4d74e2 100%)",
+    glow: "radial-gradient(circle at 82% 18%, rgba(154,188,255,.36) 0%, rgba(154,188,255,0) 52%)",
+  },
+  maplestory: { kicker: "MAPLESTORY", accent: "#ffb347", bg: "linear-gradient(145deg,#2f1c10 0%,#6f3f12 52%,#f09a42 100%)" },
+  dnf: { kicker: "DNF", accent: "#ff7a7a", bg: "linear-gradient(145deg,#2a0d12 0%,#5f1823 52%,#c63d48 100%)" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#88f0d3", bg: "linear-gradient(145deg,#0d2432 0%,#1f5668 52%,#42a5a8 100%)" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#9ec6ff", bg: "linear-gradient(145deg,#121f47 0%,#1f4f99 55%,#4d8ddf 100%)" },
+  fconline: { kicker: "FC ONLINE", accent: "#9ff58a", bg: "linear-gradient(145deg,#092315 0%,#0d5733 52%,#2cae63 100%)" },
+};
 
 const MOCK_RISK = {
   meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
@@ -46,7 +56,7 @@ const MOCK_RISK = {
     { theme: "보상/환불", article_count: 702, negative_ratio: 35.7, risk_score: 0.64 },
   ],
   ip_catalog: [
-    { id: "all", name: "전체" },
+    { id: "all", name: "넥슨 (전체보기)" },
     { id: "maplestory", name: "메이플스토리" },
     { id: "dnf", name: "던전앤파이터" },
     { id: "arcraiders", name: "아크레이더스" },
@@ -162,6 +172,7 @@ export default function NexonPage() {
   const [usingMock, setUsingMock] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const swipeStartXRef = useRef(null);
 
   const loadDashboard = async (targetIp = ip) => {
     setLoading(true);
@@ -200,6 +211,43 @@ export default function NexonPage() {
     loadDashboard(ip);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip]);
+
+  const bannerItems = useMemo(
+    () =>
+      (riskData?.ip_catalog || MOCK_RISK.ip_catalog).map((item) => ({
+        ...item,
+        visual: IP_BANNER_STYLE[item.id] || IP_BANNER_STYLE.all,
+      })),
+    [riskData?.ip_catalog]
+  );
+
+  const currentBannerIndex = useMemo(() => bannerItems.findIndex((x) => x.id === ip), [bannerItems, ip]);
+  const currentBanner = currentBannerIndex >= 0 ? bannerItems[currentBannerIndex] : bannerItems[0];
+  const goPrevBanner = () => {
+    if (!bannerItems.length) return;
+    const nextIndex = currentBannerIndex <= 0 ? 0 : currentBannerIndex - 1;
+    const next = bannerItems[nextIndex];
+    if (next?.id && next.id !== ip) setIp(next.id);
+  };
+  const goNextBanner = () => {
+    if (!bannerItems.length) return;
+    const nextIndex = currentBannerIndex < 0 || currentBannerIndex >= bannerItems.length - 1 ? bannerItems.length - 1 : currentBannerIndex + 1;
+    const next = bannerItems[nextIndex];
+    if (next?.id && next.id !== ip) setIp(next.id);
+  };
+  const handleBannerTouchStart = (e) => {
+    swipeStartXRef.current = e.touches?.[0]?.clientX ?? null;
+  };
+  const handleBannerTouchEnd = (e) => {
+    const startX = swipeStartXRef.current;
+    const endX = e.changedTouches?.[0]?.clientX ?? null;
+    swipeStartXRef.current = null;
+    if (startX == null || endX == null) return;
+    const delta = endX - startX;
+    if (Math.abs(delta) < 50) return;
+    if (delta > 0) goPrevBanner();
+    else goNextBanner();
+  };
 
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -297,16 +345,131 @@ export default function NexonPage() {
 
         <Card variant="outlined">
           <CardContent>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "flex-end" }}>
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="ip-select-label">IP</InputLabel>
-                <Select labelId="ip-select-label" label="IP" value={ip} onChange={(e) => setIp(e.target.value)}>
-                  {(riskData?.ip_catalog || MOCK_RISK.ip_catalog).map((item) => (
-                    <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
+            <Stack spacing={1.2}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  모니터링 IP
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {Math.max(currentBannerIndex + 1, 1)} / {bannerItems.length}
+                </Typography>
+              </Stack>
+
+              {currentBanner ? (
+                <Paper
+                  onTouchStart={handleBannerTouchStart}
+                  onTouchEnd={handleBannerTouchEnd}
+                  sx={{
+                    width: "100%",
+                    height: { xs: 260, md: 320 },
+                    p: { xs: 2, md: 2.4 },
+                    borderRadius: 3,
+                    color: "#eef4ff",
+                    position: "relative",
+                    overflow: "hidden",
+                    border: "2px solid #8ab4ff",
+                    background: currentBanner.visual.bg,
+                    boxShadow: "0 14px 30px rgba(20,52,122,0.34)",
+                    transition: "all .2s ease",
+                  }}
+                >
+                  <IconButton
+                    onClick={goPrevBanner}
+                    disabled={currentBannerIndex <= 0}
+                    sx={{
+                      position: "absolute",
+                      left: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      bgcolor: "rgba(5,12,31,.4)",
+                      color: "#fff",
+                      border: "1px solid rgba(255,255,255,.28)",
+                      "&:hover": { bgcolor: "rgba(5,12,31,.62)" },
+                      "&.Mui-disabled": { color: "rgba(255,255,255,.35)" },
+                    }}
+                  >
+                    {"<"}
+                  </IconButton>
+                  <IconButton
+                    onClick={goNextBanner}
+                    disabled={currentBannerIndex >= bannerItems.length - 1}
+                    sx={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      bgcolor: "rgba(5,12,31,.4)",
+                      color: "#fff",
+                      border: "1px solid rgba(255,255,255,.28)",
+                      "&:hover": { bgcolor: "rgba(5,12,31,.62)" },
+                      "&.Mui-disabled": { color: "rgba(255,255,255,.35)" },
+                    }}
+                  >
+                    {">"}
+                  </IconButton>
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      inset: 0,
+                      background: currentBanner.visual.glow || "radial-gradient(circle at 82% 18%, rgba(255,255,255,.28) 0%, rgba(255,255,255,0) 52%)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <Box
+                    component="img"
+                    src={NEXON_LOGO}
+                    alt="NEXON"
+                    sx={{
+                      position: "absolute",
+                      right: 18,
+                      top: 16,
+                      width: 64,
+                      opacity: 0.9,
+                      filter: "grayscale(100%) brightness(2.1)",
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      position: "absolute",
+                      right: 18,
+                      bottom: 10,
+                      fontSize: 64,
+                      fontWeight: 900,
+                      lineHeight: 0.9,
+                      letterSpacing: "-.02em",
+                      color: "rgba(255,255,255,.08)",
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {currentBanner.visual.kicker.split(" ")[0]}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, letterSpacing: ".08em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                    {currentBanner.visual.kicker}
+                  </Typography>
+                  <Typography sx={{ mt: 1, pr: 8, fontSize: { xs: 30, md: 38 }, fontWeight: 900, lineHeight: 1.04 }}>
+                    {currentBanner.name}
+                  </Typography>
+                  <Typography sx={{ mt: 1, pr: 8, fontSize: 13, color: "rgba(237,245,255,.84)" }}>
+                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 군집 · 버스트 모니터"}
+                  </Typography>
+                  <Chip
+                    label="배너 좌우 화살표 또는 스와이프"
+                    size="small"
+                    sx={{
+                      mt: 2,
+                      bgcolor: "rgba(255,255,255,.15)",
+                      color: "#fff",
+                      border: "1px solid rgba(255,255,255,.28)",
+                    }}
+                  />
+                </Paper>
+              ) : null}
+
+              <Stack direction="row" spacing={1}>
+                <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
+                <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
+              </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
             {loading ? <LinearProgress sx={{ mt: 1.5 }} /> : null}
