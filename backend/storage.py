@@ -145,6 +145,18 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS burst_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_name TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                trigger_reason TEXT NOT NULL,
+                risk_at_event REAL NOT NULL,
+                occurred_at TEXT NOT NULL
+            )
+            """
+        )
 
         sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
         if "source_group_id" not in sentiment_cols:
@@ -162,6 +174,7 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_method ON sentiment_results(method)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_analyzed_at ON sentiment_results(analyzed_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_ip_ts ON risk_timeseries(ip_id, ts)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_burst_ip_time ON burst_events(ip_name, occurred_at)")
         conn.commit()
     finally:
         conn.close()
@@ -938,5 +951,70 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             "z_score": round(float(z_score), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
         }
+    finally:
+        conn.close()
+
+
+def get_recent_risk_scores(ip_id: str, minutes: int = 30) -> list[float]:
+    ip_val = (ip_id or "all").strip().lower()
+    since = (datetime.now() - timedelta(minutes=max(1, int(minutes)))).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT risk_score
+            FROM risk_timeseries
+            WHERE ip_id = ? AND ts >= ?
+            ORDER BY ts ASC, id ASC
+            """,
+            (ip_val, since),
+        ).fetchall()
+        return [float(r["risk_score"] or 0.0) for r in rows]
+    finally:
+        conn.close()
+
+
+def record_burst_event(ip_name: str, event_type: str, trigger_reason: str, risk_at_event: float) -> None:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO burst_events (ip_name, event_type, trigger_reason, risk_at_event, occurred_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (ip_name, event_type, trigger_reason, float(risk_at_event), now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_recent_burst_events(ip_name: str, limit: int = 30) -> list[dict[str, Any]]:
+    ip_val = (ip_name or "").strip().lower()
+    conn = _connect()
+    try:
+        if ip_val:
+            rows = conn.execute(
+                """
+                SELECT ip_name, event_type, trigger_reason, risk_at_event, occurred_at
+                FROM burst_events
+                WHERE ip_name = ?
+                ORDER BY occurred_at DESC, id DESC
+                LIMIT ?
+                """,
+                (ip_val, int(limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT ip_name, event_type, trigger_reason, risk_at_event, occurred_at
+                FROM burst_events
+                ORDER BY occurred_at DESC, id DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()

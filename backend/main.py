@@ -5,8 +5,11 @@ import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -20,12 +23,16 @@ from backend.storage import (
     get_ip_clusters,
     get_live_risk,
     get_nexon_dashboard,
+    get_recent_burst_events,
+    get_recent_risk_scores,
     get_risk_dashboard,
     get_risk_ip_catalog,
     init_db,
+    record_burst_event,
     save_articles,
 )
 from backend.analysis_project import CORE_IPS, build_project_snapshot
+from backend.burst_manager import BurstManager
 from services.naver_api import (
     COMPANIES,
     fetch_company_news_compare,
@@ -48,6 +55,23 @@ class NexonClusterRequest(BaseModel):
 
 app = FastAPI(title="NEXON PR API", version="1.0.0")
 
+MONITOR_IPS = list(CORE_IPS)
+BASE_INTERVAL_SECONDS = 600
+BURST_INTERVAL_SECONDS = 120
+MAX_BURST_SECONDS = 7200
+
+scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+burst_managers: dict[str, BurstManager] = {
+    ip_id: BurstManager(
+        ip_id,
+        base_interval=BASE_INTERVAL_SECONDS,
+        burst_interval=BURST_INTERVAL_SECONDS,
+        max_burst_duration=MAX_BURST_SECONDS,
+    )
+    for ip_id in MONITOR_IPS
+}
+last_burst_state: dict[str, dict[str, Any]] = {}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,6 +84,71 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    _start_monitoring_scheduler()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+
+
+def _job_id(ip_id: str) -> str:
+    return f"risk-monitor-{ip_id}"
+
+
+def _run_monitor_tick(ip_id: str) -> None:
+    risk = get_live_risk(ip=ip_id, window_hours=24)
+    risk_score = float(risk.get("risk_score", 0.0))
+    z_score = float(risk.get("z_score", 0.0))
+    history_30m = get_recent_risk_scores(ip_id=ip_id, minutes=30)
+    sustained_low = len(history_30m) >= 6 and all(v < 55.0 for v in history_30m[-6:])
+
+    manager = burst_managers[ip_id]
+    decision = manager.evaluate(
+        current_risk=risk_score,
+        is_volume_spike=(z_score >= 2.0),
+        sustained_low_30m=sustained_low,
+    )
+
+    if decision.changed:
+        if scheduler.running:
+            scheduler.reschedule_job(
+                _job_id(ip_id),
+                trigger=IntervalTrigger(seconds=int(decision.interval_seconds)),
+            )
+        record_burst_event(
+            ip_name=ip_id,
+            event_type=str(decision.event_type or "unknown"),
+            trigger_reason=str(decision.trigger_reason or "unknown"),
+            risk_at_event=risk_score,
+        )
+    last_burst_state[ip_id] = {
+        "mode": decision.mode,
+        "interval_seconds": int(decision.interval_seconds),
+        "burst_remaining": decision.burst_remaining,
+        "risk_score": risk_score,
+        "z_score": z_score,
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def _start_monitoring_scheduler() -> None:
+    if scheduler.running:
+        return
+    for ip_id in MONITOR_IPS:
+        scheduler.add_job(
+            _run_monitor_tick,
+            trigger=IntervalTrigger(seconds=BASE_INTERVAL_SECONDS),
+            id=_job_id(ip_id),
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+            kwargs={"ip_id": ip_id},
+        )
+    scheduler.start()
+    for ip_id in MONITOR_IPS:
+        _run_monitor_tick(ip_id)
 
 
 def _to_records(df: pd.DataFrame) -> list[dict]:
@@ -404,6 +493,43 @@ def risk_score(
         return get_live_risk(ip=ip, window_hours=window_hours)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/burst-status")
+def burst_status(ip: str = Query(default="")) -> dict:
+    ip_val = (ip or "").strip().lower()
+    if ip_val and ip_val not in burst_managers:
+        raise HTTPException(status_code=400, detail="지원하지 않는 IP입니다.")
+
+    if ip_val:
+        return {
+            "items": [
+                {
+                    "ip_id": ip_val,
+                    **last_burst_state.get(
+                        ip_val,
+                        {"mode": "base", "interval_seconds": BASE_INTERVAL_SECONDS, "burst_remaining": None},
+                    ),
+                }
+            ]
+        }
+
+    items = []
+    for key in MONITOR_IPS:
+        state = last_burst_state.get(
+            key,
+            {"mode": "base", "interval_seconds": BASE_INTERVAL_SECONDS, "burst_remaining": None},
+        )
+        items.append({"ip_id": key, **state})
+    return {"items": items}
+
+
+@app.get("/api/burst-events")
+def burst_events(ip: str = Query(default=""), limit: int = Query(default=30, ge=1, le=200)) -> dict:
+    ip_val = (ip or "").strip().lower()
+    if ip_val and ip_val not in burst_managers:
+        raise HTTPException(status_code=400, detail="지원하지 않는 IP입니다.")
+    return {"items": get_recent_burst_events(ip_name=ip_val, limit=limit)}
 
 
 @app.get("/api/ip-clusters")
