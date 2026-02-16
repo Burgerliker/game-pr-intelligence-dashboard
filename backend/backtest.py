@@ -412,14 +412,29 @@ def run_backtest(
 
         score = float(max(0.0, min(100.0, score)))
         alert = _alert_level(score)
+        score_rounded = round(float(score), 1)
+        raw_rounded = round(float(raw), 3)
         row = {
             "timestamp": current.strftime("%Y-%m-%dT%H:%M:%S"),
-            "risk_score": round(float(score), 1),
-            "raw_risk": round(float(raw), 1),
+            "ts": current.strftime("%Y-%m-%dT%H:%M:%S"),
+            "risk_score": score_rounded,
+            "raw_risk": raw_rounded,
             "alert_level": alert,
+            "alert": alert,
             "components": components,
             "article_count": int(mention_count),
+            "article_count_window": int(mention_count),
+            "mention_count_window": int(mention_count),
+            "group_count_window": int(group_count),
+            "spread_ratio": round(float(spread_ratio), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
+            "S": float(components.get("S", 0.0)),
+            "V": float(components.get("V", 0.0)),
+            "T": float(components.get("T", 0.0)),
+            "M": float(components.get("M", 0.0)),
+            "ema_prev": round(float(ema_prev), 3) if ema_prev is not None else None,
+            "ema_alpha": float(ema_alpha) if ema_alpha is not None else None,
+            "risk_score_ema": round(float(ema_next), 3) if ema_next is not None else score_rounded,
             "dominant_component": dominant,
         }
         if debug_backtest and (not debug_timestamps or row["timestamp"] in debug_timestamps):
