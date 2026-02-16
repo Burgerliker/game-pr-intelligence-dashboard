@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import pandas as pd
+from utils.sentiment import analyze_sentiment_rule_v1
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DB_DIR = ROOT_DIR / "backend" / "data"
@@ -161,6 +162,16 @@ def _to_hash(company: str, originallink: str, link: str, title: str, date: str) 
     return hashlib.sha1(key.encode("utf-8")).hexdigest()
 
 
+def _to_source_group_id(originallink: str, link: str, title: str, date: str) -> str:
+    normalized_url = _normalize_url(originallink) or _normalize_url(link)
+    if normalized_url:
+        parsed = urlparse(normalized_url)
+        key = f"{parsed.netloc.lower()}{parsed.path}"
+    else:
+        key = f"{_normalize_title(title)}|{date or ''}"
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()
+
+
 def _extract_outlet(originallink: str, link: str) -> str:
     chosen = _normalize_url(originallink) or _normalize_url(link)
     if not chosen:
@@ -174,8 +185,8 @@ def _extract_outlet(originallink: str, link: str) -> str:
     return host or "unknown"
 
 
-def _is_near_duplicate(conn: sqlite3.Connection, company: str, title: str, date: str) -> bool:
-    """동일 회사/일자 내 유사 제목 중복 제거."""
+def _is_near_duplicate(conn: sqlite3.Connection, company: str, title: str, date: str, source_group_id: str) -> bool:
+    """동일 회사/일자/소스그룹 내 유사 제목 중복 제거."""
     title_norm = _normalize_title(title)
     if not title_norm:
         return False
@@ -183,11 +194,11 @@ def _is_near_duplicate(conn: sqlite3.Connection, company: str, title: str, date:
         """
         SELECT title_clean
         FROM articles
-        WHERE company = ? AND date = ?
+        WHERE company = ? AND date = ? AND COALESCE(source_group_id, '') = COALESCE(?, '')
         ORDER BY id DESC
         LIMIT 200
         """,
-        (company, date),
+        (company, date, source_group_id),
     ).fetchall()
     for r in rows:
         existing = _normalize_title(r["title_clean"])
@@ -223,25 +234,70 @@ def save_articles(df: pd.DataFrame) -> int:
                 except Exception:
                     pub_date = ""
             date = str(row.get("date", "") or "")
-            sentiment = str(row.get("sentiment", "") or "")
+            analyzed = analyze_sentiment_rule_v1(title, desc)
+            sentiment = str(row.get("sentiment", "") or "") or analyzed["sentiment_kr"]
             outlet = _extract_outlet(originallink, link)
             content_hash = _to_hash(company, originallink, link, title, date)
+            source_group_id = _to_source_group_id(originallink, link, title, date)
 
             if content_hash in seen_hashes:
                 continue
             seen_hashes.add(content_hash)
 
-            if _is_near_duplicate(conn, company, title, date):
+            if _is_near_duplicate(conn, company, title, date, source_group_id):
                 continue
 
-            conn.execute(
+            cur = conn.execute(
                 """
                 INSERT OR IGNORE INTO articles (
-                    company, title_clean, description_clean, originallink, link, outlet, pub_date, date, sentiment, content_hash, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    company, title_clean, description_clean, originallink, link, outlet, pub_date, date, sentiment, content_hash, created_at, source_group_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (company, title, desc, originallink, link, outlet, pub_date, date, sentiment, content_hash, now),
+                (company, title, desc, originallink, link, outlet, pub_date, date, sentiment, content_hash, now, source_group_id),
             )
+
+            if cur.rowcount == 0:
+                continue
+
+            article_id = int(cur.lastrowid)
+            existing_group = conn.execute(
+                "SELECT canonical_article_id, repost_count FROM source_groups WHERE group_id = ?",
+                (source_group_id,),
+            ).fetchone()
+            if existing_group is None:
+                conn.execute(
+                    """
+                    INSERT INTO source_groups (group_id, canonical_article_id, repost_count, first_seen_at, last_seen_at)
+                    VALUES (?, ?, 1, ?, ?)
+                    """,
+                    (source_group_id, article_id, now, now),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO sentiment_results (
+                        article_id, source_group_id, sentiment_score, sentiment_label, confidence, method, analyzed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        article_id,
+                        source_group_id,
+                        float(analyzed["sentiment_score"]),
+                        str(analyzed["sentiment_label"]),
+                        float(analyzed["confidence"]),
+                        str(analyzed["method"]),
+                        now,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE source_groups
+                    SET repost_count = COALESCE(repost_count, 0) + 1,
+                        last_seen_at = ?
+                    WHERE group_id = ?
+                    """,
+                    (now, source_group_id),
+                )
         conn.commit()
         after = conn.execute("SELECT COUNT(1) AS cnt FROM articles").fetchone()["cnt"]
         return int(after) - int(before)
