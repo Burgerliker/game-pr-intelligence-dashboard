@@ -19,6 +19,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from backend.storage import (
+    get_active_db_path,
     get_articles,
     get_ip_clusters,
     get_live_risk,
@@ -398,7 +399,18 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True}
+    db_path = get_active_db_path()
+    return {
+        "ok": True,
+        "pr_db_path": str(db_path),
+        "db_path": str(db_path),
+        "db_file_name": db_path.name,
+    }
+
+
+@app.get("/api/health")
+def api_health() -> dict:
+    return health()
 
 
 @app.get("/api/config")

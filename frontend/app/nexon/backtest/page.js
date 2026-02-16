@@ -1,0 +1,341 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Box, Button, Chip, Container, Paper, Stack, Typography } from "@mui/material";
+import LoadingState from "../../../components/LoadingState";
+import ErrorState from "../../../components/ErrorState";
+import { apiGet } from "../../../lib/api";
+import { normalizeBacktestPayload } from "../../../lib/normalizeBacktest";
+
+const FIXED_PARAMS = {
+  ip: "maplestory",
+  date_from: "2025-11-01",
+  date_to: "2026-02-10",
+  step_hours: "6",
+};
+const FIXED_CASE = "maple_idle_probability_2026";
+const BURST_START = "2026-01-28T00:00:00";
+const BURST_END = "2026-01-29T23:59:59";
+
+export default function NexonBacktestPage() {
+  const chartRef = useRef(null);
+  const chartInstRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [payload, setPayload] = useState(null);
+  const [health, setHealth] = useState(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const run = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const qs = new URLSearchParams(FIXED_PARAMS);
+        const [backtest, healthRes] = await Promise.all([
+          apiGet(`/api/backtest?${qs.toString()}`),
+          apiGet("/api/health").catch(() => null),
+        ]);
+        if (controller.signal.aborted) return;
+        setPayload(backtest);
+        setHealth(healthRes);
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        setError(String(e));
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+    return () => controller.abort();
+  }, []);
+
+  const normalized = useMemo(() => normalizeBacktestPayload(payload), [payload]);
+  const hasSeries = normalized.timestamps.length > 0;
+  const dbLabel = health?.db_file_name || health?.db_path || "-";
+
+  useEffect(() => {
+    if (!chartRef.current || !hasSeries) return;
+
+    let active = true;
+    let resizeObserver;
+    let onResize;
+
+    const mount = async () => {
+      const echarts = await import("echarts");
+      if (!active || !chartRef.current) return;
+
+      const chart = echarts.init(chartRef.current);
+      chartInstRef.current = chart;
+
+      const eventScatter = normalized.events.map((e) => ({
+        value: [e.ts, e.risk_at_ts],
+        name: e.label,
+        eventType: e.type,
+      }));
+
+      const option = {
+        animation: false,
+        backgroundColor: "#ffffff",
+        legend: {
+          top: 6,
+          data: ["Risk", "Events", "Volume", "S", "V", "T", "M"],
+        },
+        tooltip: {
+          trigger: "axis",
+          axisPointer: { type: "cross" },
+          formatter: (params) => {
+            if (!Array.isArray(params) || !params.length) return "";
+            const ts = params[0].axisValue;
+            const lines = [`<strong>${ts}</strong>`];
+            params.forEach((p) => {
+              if (p.seriesName === "Events") {
+                const name = p.data?.name || "EVENT";
+                const evType = p.data?.eventType || "event";
+                lines.push(`${p.marker} ${name} (${evType})`);
+              } else {
+                lines.push(`${p.marker} ${p.seriesName}: ${Number(p.data ?? 0).toFixed(2)}`);
+              }
+            });
+            return lines.join("<br/>");
+          },
+        },
+        grid: [
+          { left: 64, right: 32, top: 50, height: 260 },
+          { left: 64, right: 32, top: 350, height: 120 },
+          { left: 64, right: 32, top: 510, height: 190 },
+        ],
+        xAxis: [
+          {
+            type: "category",
+            data: normalized.timestamps,
+            axisLabel: {
+              hideOverlap: true,
+              formatter: (value) => {
+                const s = String(value || "");
+                if (s.length >= 16) return `${s.slice(5, 10)} ${s.slice(11, 16)}`;
+                return s;
+              },
+            },
+          },
+          {
+            type: "category",
+            data: normalized.timestamps,
+            gridIndex: 1,
+            axisLabel: { show: false },
+          },
+          {
+            type: "category",
+            data: normalized.timestamps,
+            gridIndex: 2,
+            axisLabel: {
+              rotate: 0,
+              hideOverlap: true,
+              formatter: (value) => {
+                const s = String(value || "");
+                if (s.length >= 16) return `${s.slice(5, 10)} ${s.slice(11, 16)}`;
+                return s;
+              },
+            },
+          },
+        ],
+        yAxis: [
+          {
+            type: "value",
+            name: "Risk",
+            min: 0,
+            max: 100,
+          },
+          {
+            type: "value",
+            name: "Volume",
+            gridIndex: 1,
+            min: 0,
+          },
+          {
+            type: "value",
+            name: "S/V/T/M",
+            gridIndex: 2,
+            min: 0,
+            max: 1.2,
+          },
+        ],
+        dataZoom: [
+          { type: "inside", xAxisIndex: [0, 1, 2], filterMode: "none" },
+          { type: "slider", xAxisIndex: [0, 1, 2], bottom: 0, height: 20, filterMode: "none" },
+        ],
+        series: [
+          {
+            name: "Risk",
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            data: normalized.risk,
+            lineStyle: { width: 2.5, color: "#113f95" },
+            markLine: {
+              symbol: ["none", "none"],
+              label: { formatter: "{b}: {c}" },
+              lineStyle: { type: "dashed" },
+              data: [
+                { name: "P1", yAxis: normalized.thresholds.p1, lineStyle: { color: "#dc3c4a" } },
+                { name: "P2", yAxis: normalized.thresholds.p2, lineStyle: { color: "#e89c1c" } },
+              ],
+            },
+            markArea: {
+              itemStyle: { color: "rgba(220,60,74,0.12)" },
+              data: [[{ xAxis: BURST_START }, { xAxis: BURST_END }]],
+            },
+          },
+          {
+            name: "Events",
+            type: "scatter",
+            data: eventScatter,
+            symbolSize: 10,
+            itemStyle: { color: "#d32f2f" },
+            tooltip: { trigger: "item" },
+          },
+          {
+            name: "Volume",
+            type: "bar",
+            xAxisIndex: 1,
+            yAxisIndex: 1,
+            data: normalized.volume,
+            itemStyle: { color: "rgba(17,63,149,0.45)" },
+            barMaxWidth: 12,
+          },
+          {
+            name: "S",
+            type: "line",
+            xAxisIndex: 2,
+            yAxisIndex: 2,
+            stack: "svtm",
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            areaStyle: { opacity: 0.22 },
+            data: normalized.svtm.S,
+          },
+          {
+            name: "V",
+            type: "line",
+            xAxisIndex: 2,
+            yAxisIndex: 2,
+            stack: "svtm",
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            areaStyle: { opacity: 0.22 },
+            data: normalized.svtm.V,
+          },
+          {
+            name: "T",
+            type: "line",
+            xAxisIndex: 2,
+            yAxisIndex: 2,
+            stack: "svtm",
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            areaStyle: { opacity: 0.22 },
+            data: normalized.svtm.T,
+          },
+          {
+            name: "M",
+            type: "line",
+            xAxisIndex: 2,
+            yAxisIndex: 2,
+            stack: "svtm",
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            areaStyle: { opacity: 0.22 },
+            data: normalized.svtm.M,
+          },
+        ],
+      };
+
+      chart.setOption(option, true);
+
+      resizeObserver = new ResizeObserver(() => {
+        chart.resize();
+      });
+      resizeObserver.observe(chartRef.current);
+      onResize = () => chart.resize();
+      window.addEventListener("resize", onResize);
+    };
+
+    mount();
+
+    return () => {
+      active = false;
+      if (resizeObserver) resizeObserver.disconnect();
+      if (onResize) window.removeEventListener("resize", onResize);
+      if (chartInstRef.current) {
+        chartInstRef.current.dispose();
+        chartInstRef.current = null;
+      }
+    };
+  }, [normalized, hasSeries]);
+
+  return (
+    <Container maxWidth="xl" sx={{ py: 2 }}>
+      <Stack spacing={1.5}>
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, position: "sticky", top: 10, zIndex: 20, background: "#fff" }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 1 }}>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1 }}>
+              <Chip label="IP: maplestory" variant="outlined" />
+              <Chip label={`Case: ${FIXED_CASE}`} variant="outlined" />
+              <Chip label="Period: 2025-11-01 ~ 2026-02-10" variant="outlined" />
+              <Chip label="Step: 6h" variant="outlined" />
+            </Stack>
+            <Stack direction="row" spacing={1}>
+              <Button component={Link} href="/nexon" variant="outlined" size="small">넥슨 대시보드</Button>
+              <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
+            </Stack>
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>Backtest Timeline</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            maplestory 내부 이슈(case: maple_idle_probability_2026) 기준 리스크 반응
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap", rowGap: 1 }}>
+            <Chip label={`DB: ${dbLabel}`} size="small" variant="outlined" />
+            <Chip label={`Backend: ${health?.ok ? "healthy" : "unknown"}`} size="small" variant="outlined" />
+          </Stack>
+
+          {loading ? <Box sx={{ mt: 2 }}><LoadingState title="백테스트 로딩 중" subtitle="리스크 타임라인을 계산하고 있습니다." /></Box> : null}
+          {error ? (
+            <Box sx={{ mt: 2 }}>
+              <ErrorState
+                title="백테스트 데이터를 불러오지 못했습니다."
+                details={`${String(error)}\nPR_DB_PATH 및 백엔드 실행 상태를 확인해주세요.`}
+              />
+            </Box>
+          ) : null}
+          {!loading && !error && !hasSeries ? (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              백테스트 데이터가 없습니다. 백엔드를 `PR_DB_PATH=backend/data/articles_backtest.db`로 실행했는지 확인하고, `/health`의 DB 배지를 확인해주세요.
+            </Alert>
+          ) : null}
+
+          {!loading && !error && hasSeries ? (
+            <>
+              <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap", rowGap: 1 }}>
+                <Chip label={`Max Risk: ${Number(payload?.summary?.max_risk || 0).toFixed(1)}`} color="error" variant="outlined" />
+                <Chip label={`Avg Risk: ${Number(payload?.summary?.avg_risk || 0).toFixed(1)}`} variant="outlined" />
+                <Chip label={`P1 Count: ${Number(payload?.summary?.p1_count || 0)}`} color="error" variant="outlined" />
+                <Chip label={`P2 Count: ${Number(payload?.summary?.p2_count || 0)}`} color="warning" variant="outlined" />
+                <Chip label={`Dominant: ${payload?.summary?.dominant_component || "-"}`} variant="outlined" />
+              </Stack>
+              <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: 740 }} />
+            </>
+          ) : null}
+        </Paper>
+      </Stack>
+    </Container>
+  );
+}

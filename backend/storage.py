@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 import sqlite3
 from collections import Counter
@@ -15,8 +16,7 @@ import pandas as pd
 from utils.sentiment import analyze_sentiment_rule_v1
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DB_DIR = ROOT_DIR / "backend" / "data"
-DB_PATH = DB_DIR / "articles.db"
+DEFAULT_DB_PATH = ROOT_DIR / "backend" / "data" / "articles.db"
 RISK_THEME_RULES: dict[str, list[str]] = {
     "확률형/BM": ["확률", "확률형", "가챠", "과금", "bm", "뽑기"],
     "운영/장애": ["점검", "장애", "오류", "버그", "접속", "서버", "롤백"],
@@ -63,9 +63,23 @@ OUTLET_GAME_MEDIA = {
 }
 
 
+def _resolve_db_path() -> Path:
+    raw = os.getenv("PR_DB_PATH", "").strip()
+    db_path = Path(raw) if raw else DEFAULT_DB_PATH
+    if not db_path.is_absolute():
+        db_path = ROOT_DIR / db_path
+    return db_path
+
+
+def get_active_db_path() -> Path:
+    return _resolve_db_path()
+
+
 def _connect() -> sqlite3.Connection:
-    DB_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    db_path = _resolve_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
