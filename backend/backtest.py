@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass
@@ -252,6 +253,12 @@ def run_backtest(
 
     norm_w = _normalize_weights(weights)
     baseline_start = start - timedelta(days=7)
+    debug_backtest = os.getenv("DEBUG_BACKTEST", "").strip().lower() in {"1", "true", "yes", "on"}
+    debug_timestamps = {
+        s.strip()
+        for s in os.getenv("DEBUG_BACKTEST_TIMESTAMPS", "").split(",")
+        if s.strip()
+    }
 
     conn = _connect()
     try:
@@ -302,6 +309,12 @@ def run_backtest(
         window_start = current - window_delta
         window_mentions = [m for m in scoped if window_start <= m.dt <= current]
         mention_count = len(window_mentions)
+        group_count = 0
+        spread_ratio = 0.0
+        z_score = 0.0
+        ema_alpha = None
+        ema_prev = prev_risk
+        ema_next = None
 
         if mention_count == 0:
             raw = 0.0
@@ -309,12 +322,15 @@ def run_backtest(
             components = {"S": 0.0, "V": 0.0, "T": 0.0, "M": 0.0}
             uncertain_ratio = 0.0
             dominant = "S"
+            ema_alpha = 0.1 if prev_risk is not None else 1.0
+            ema_next = score
         else:
             group_map: dict[str, Mention] = {}
             for m in window_mentions:
                 group_map.setdefault(m.group_id, m)
             group_mentions = list(group_map.values())
             group_count = len(group_mentions)
+            spread_ratio = float(mention_count / max(group_count, 1))
 
             weighted_scores: list[float] = []
             uncertain_count = 0
@@ -374,10 +390,14 @@ def run_backtest(
 
             if prev_risk is None:
                 score = raw
+                ema_alpha = 1.0
             elif mention_count < 10:
                 score = 0.9 * prev_risk + 0.1 * raw
+                ema_alpha = 0.1
             else:
                 score = 0.7 * prev_risk + 0.3 * raw
+                ema_alpha = 0.3
+            ema_next = score
 
             components = {
                 "S": round(float(S_t), 3),
@@ -402,6 +422,33 @@ def run_backtest(
             "uncertain_ratio": round(float(uncertain_ratio), 3),
             "dominant_component": dominant,
         }
+        if debug_backtest and (not debug_timestamps or row["timestamp"] in debug_timestamps):
+            weighted_raw = 100.0 * (
+                norm_w["S"] * float(components.get("S", 0.0))
+                + norm_w["V"] * float(components.get("V", 0.0))
+                + norm_w["T"] * float(components.get("T", 0.0))
+                + norm_w["M"] * float(components.get("M", 0.0))
+            )
+            print(
+                "[BACKTEST_DEBUG]",
+                {
+                    "timestamp": row["timestamp"],
+                    "article_count": mention_count,
+                    "group_count": group_count,
+                    "spread_ratio": round(spread_ratio, 3),
+                    "uncertain_ratio": row["uncertain_ratio"],
+                    "components": components,
+                    "weights": norm_w,
+                    "weighted_raw_from_components": round(weighted_raw, 3),
+                    "raw_risk": row["raw_risk"],
+                    "z_score": round(float(z_score), 3),
+                    "ema_prev": round(float(ema_prev), 3) if ema_prev is not None else None,
+                    "ema_alpha": ema_alpha,
+                    "ema_next": round(float(ema_next), 3) if ema_next is not None else None,
+                    "risk_score": row["risk_score"],
+                    "alert_level": row["alert_level"],
+                },
+            )
         timeseries.append(row)
         prev_risk = score
         current += step
@@ -428,4 +475,3 @@ def run_backtest(
         "events": events,
         "summary": summary,
     }
-
