@@ -691,8 +691,8 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 260, md: 320 },
-                    p: { xs: 2, md: 2.4 },
+                    height: { xs: 250, md: 300 },
+                    p: { xs: 2.2, md: 2.8 },
                     borderRadius: 3,
                     color: "#eef4ff",
                     position: "relative",
@@ -703,40 +703,6 @@ export default function NexonPage() {
                     transition: "all .2s ease",
                   }}
                 >
-                  <IconButton
-                    onClick={goPrevBanner}
-                    disabled={currentBannerIndex <= 0}
-                    sx={{
-                      position: "absolute",
-                      left: 10,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      bgcolor: "rgba(5,12,31,.46)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,.28)",
-                      "&:hover": { bgcolor: "rgba(5,12,31,.64)" },
-                      "&.Mui-disabled": { color: "rgba(255,255,255,.35)" },
-                    }}
-                  >
-                    {"<"}
-                  </IconButton>
-                  <IconButton
-                    onClick={goNextBanner}
-                    disabled={currentBannerIndex >= bannerItems.length - 1}
-                    sx={{
-                      position: "absolute",
-                      right: 10,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      bgcolor: "rgba(5,12,31,.46)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,.28)",
-                      "&:hover": { bgcolor: "rgba(5,12,31,.64)" },
-                      "&.Mui-disabled": { color: "rgba(255,255,255,.35)" },
-                    }}
-                  >
-                    {">"}
-                  </IconButton>
                   <Box
                     sx={{
                       position: "absolute",
@@ -783,20 +749,54 @@ export default function NexonPage() {
                   <Typography sx={{ mt: 1, pr: 8, fontSize: 13, color: "rgba(237,245,255,.82)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 군집 · 버스트 모니터"}
                   </Typography>
-                  <Chip
-                    label="배너 좌우 화살표 또는 스와이프"
-                    size="small"
-                    sx={{
-                      mt: 2,
-                      bgcolor: "rgba(255,255,255,.16)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,.26)",
-                    }}
-                  />
                 </Paper>
               ) : null}
 
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={goPrevBanner}
+                  disabled={currentBannerIndex <= 0}
+                  sx={{
+                    minWidth: 64,
+                    borderColor: "rgba(15,23,42,.2)",
+                    color: "#334155",
+                    bgcolor: "#fff",
+                    "&:hover": { borderColor: "rgba(15,23,42,.35)", bgcolor: "#f8fafc" },
+                  }}
+                >
+                  이전
+                </Button>
+                <Stack direction="row" spacing={0.6} alignItems="center">
+                  {bannerItems.map((item, idx) => (
+                    <Box
+                      key={`dot-${item.id}`}
+                      sx={{
+                        width: idx === currentBannerIndex ? 18 : 8,
+                        height: 8,
+                        borderRadius: 99,
+                        bgcolor: idx === currentBannerIndex ? "#0f3b66" : "rgba(15,23,42,.22)",
+                        transition: "all .2s ease",
+                      }}
+                    />
+                  ))}
+                </Stack>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={goNextBanner}
+                  disabled={currentBannerIndex >= bannerItems.length - 1}
+                  sx={{
+                    minWidth: 64,
+                    borderColor: "rgba(15,23,42,.2)",
+                    color: "#334155",
+                    bgcolor: "#fff",
+                    "&:hover": { borderColor: "rgba(15,23,42,.35)", bgcolor: "#f8fafc" },
+                  }}
+                >
+                  다음
+                </Button>
                 <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
                 <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} />
@@ -843,8 +843,8 @@ export default function NexonPage() {
             </Typography>
             {riskScore ? (
               <>
-                <Grid container spacing={1.2}>
-                  <Grid item xs={12} md={3}>
+                <Grid container spacing={1.8}>
+                  <Grid item xs={12} md={6}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
@@ -871,7 +871,7 @@ export default function NexonPage() {
                     </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={6}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
@@ -884,7 +884,7 @@ export default function NexonPage() {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={6}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
@@ -909,7 +909,7 @@ export default function NexonPage() {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={6}>
                     <Paper variant="outlined" sx={{ p: 1.2, height: "100%" }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
