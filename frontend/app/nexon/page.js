@@ -654,19 +654,19 @@ export default function NexonPage() {
   }, [dailyRows, outletRows, themes, keywordCloud]);
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 4 } }}>
-    <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
-      <Stack spacing={2}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 1.5, sm: 2, md: 4 } }}>
+    <Container maxWidth="xl" sx={{ maxWidth: "1180px !important", px: { xs: 1.2, sm: 2, md: 3 } }}>
+      <Stack spacing={{ xs: 1.4, md: 2 }}>
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, borderColor: "#e5e7eb", bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+          <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between" spacing={1.2}>
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
               <Box>
                 <Typography variant="caption" color="text.secondary">실시간 모니터링</Typography>
-                <Typography sx={{ fontSize: { xs: 24, md: 28 }, fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em" }}>넥슨 IP 리스크 대시보드</Typography>
+                <Typography sx={{ fontSize: { xs: 20, sm: 24, md: 28 }, fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em", lineHeight: 1.1 }}>넥슨 IP 리스크 대시보드</Typography>
               </Box>
             </Stack>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
               <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
               <Button component={Link} href="/compare" variant="outlined" size="small">경쟁사 비교</Button>
               {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="contained" size="small">Backtest 보기</Button> : null}
@@ -692,8 +692,8 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 250, md: 300 },
-                    p: { xs: 2.2, md: 2.8 },
+                    height: { xs: 210, sm: 240, md: 300 },
+                    p: { xs: 1.5, sm: 2.2, md: 2.8 },
                     borderRadius: 3,
                     color: "#eef4ff",
                     position: "relative",
@@ -718,9 +718,9 @@ export default function NexonPage() {
                     alt="NEXON"
                     sx={{
                       position: "absolute",
-                      right: 18,
-                      top: 16,
-                      width: 64,
+                      right: { xs: 10, sm: 14, md: 18 },
+                      top: { xs: 8, sm: 10, md: 16 },
+                      width: { xs: 42, sm: 54, md: 64 },
                       opacity: 0.75,
                       filter: "grayscale(100%) brightness(2.6)",
                     }}
@@ -744,16 +744,16 @@ export default function NexonPage() {
                   <Typography sx={{ fontSize: 12, letterSpacing: ".08em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
-                  <Typography sx={{ mt: 1, pr: 8, fontSize: { xs: 30, md: 38 }, fontWeight: 900, lineHeight: 1.04 }}>
+                  <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 28, sm: 34, md: 38 }, fontWeight: 900, lineHeight: 1.04 }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 1, pr: 8, fontSize: 13, color: "rgba(237,245,255,.82)" }}>
+                  <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 12, md: 13 }, color: "rgba(237,245,255,.82)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 군집 · 버스트 모니터"}
                   </Typography>
                 </Paper>
               ) : null}
 
-              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ rowGap: 0.8 }}>
                 <Paper
                   variant="outlined"
                   sx={{
@@ -809,7 +809,7 @@ export default function NexonPage() {
           </CardContent>
         </Card>
 
-        <Grid container spacing={1.5}>
+        <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
           {[
             { k: "선택 IP", v: riskData?.meta?.ip || "-", s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}` },
             { k: "총 기사 수", v: Number(riskData?.meta?.total_articles || 0).toLocaleString(), s: "필터 기준" },
@@ -817,7 +817,7 @@ export default function NexonPage() {
             { k: "군집 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "상위 6개" },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={3} key={item.k}>
-              <Card variant="outlined" sx={sectionCardSx}><CardContent>
+              <Card variant="outlined" sx={sectionCardSx}><CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 } }}>
                 <Typography variant="body2" color="text.secondary">{item.k}</Typography>
                 <Typography variant="h5" sx={{ mt: 0.8, fontWeight: 800 }}>{item.v}</Typography>
                 <Typography variant="caption" color="text.secondary">{item.s}</Typography>
@@ -827,22 +827,22 @@ export default function NexonPage() {
         </Grid>
 
         <Card variant="outlined" sx={sectionCardSx}>
-          <CardContent>
+          <CardContent sx={{ p: { xs: 1.3, sm: 1.8, md: 2.2 } }}>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.8 }}>
               실시간 위험도 모니터
             </Typography>
             {riskScore ? (
-              <Box sx={{ maxWidth: 1040, mx: "auto" }}>
+              <Box sx={{ maxWidth: 1040, mx: "auto", width: "100%" }}>
                 <Box
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", lg: "1.2fr .8fr" },
-                    gap: 2.4,
+                    gridTemplateColumns: { xs: "1fr", md: "1fr", lg: "1.2fr .8fr" },
+                    gap: { xs: 1.2, sm: 1.6, md: 2.2, lg: 2.4 },
                     alignItems: "start",
                   }}
                 >
                   <Stack spacing={2.2}>
-                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
@@ -867,7 +867,7 @@ export default function NexonPage() {
                         최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                       </Typography>
@@ -878,7 +878,7 @@ export default function NexonPage() {
                         기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                         볼륨(Volume): {recent24hArticles.toLocaleString()}건
@@ -896,7 +896,7 @@ export default function NexonPage() {
                   </Stack>
 
                   <Stack spacing={2.2}>
-                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
                         label={alertLevel}
@@ -907,7 +907,7 @@ export default function NexonPage() {
                         불확실 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
                         <Box
@@ -942,12 +942,12 @@ export default function NexonPage() {
                   </Stack>
                 </Box>
 
-                <Grid container spacing={1.5} sx={{ mt: 1 }}>
+                <Grid container spacing={{ xs: 1, md: 1.5 }} sx={{ mt: 1 }}>
                   {["S", "V", "T", "M"].map((k) => {
                     const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
                     return (
                       <Grid item xs={12} sm={6} md={3} key={k}>
-                        <Paper variant="outlined" sx={{ p: 1.4 }}>
+                        <Paper variant="outlined" sx={{ p: { xs: 1.1, sm: 1.3, md: 1.4 } }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700 }}>
                               {k === "S" ? "감성(S)" : k === "V" ? "볼륨(V)" : k === "T" ? "테마(T)" : "매체(M)"}
@@ -965,7 +965,7 @@ export default function NexonPage() {
                   })}
                 </Grid>
 
-                <Paper variant="outlined" sx={{ mt: 1.8, p: 0.8 }}>
+                <Paper variant="outlined" sx={{ mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
                   <List dense disablePadding>
                     {filteredBurstEvents.length ? (
                       filteredBurstEvents.slice(0, 5).map((evt, idx) => (
@@ -1002,7 +1002,7 @@ export default function NexonPage() {
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 기사/부정 추이</Typography>
-            <Box ref={trendChartRef} sx={{ width: "100%", height: 290 }} />
+            <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 220, sm: 260, md: 290 } }} />
           </CardContent>
         </Card>
 
@@ -1010,20 +1010,20 @@ export default function NexonPage() {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", lg: "1.4fr 1fr" },
-            gap: 1.5,
+            gap: { xs: 1, md: 1.5 },
           }}
         >
           <Card variant="outlined" sx={sectionCardSx}><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
                 언론사별<br />감성 분포
               </Typography>
-              <Box ref={outletChartRef} sx={{ width: "100%", height: 420 }} />
+              <Box ref={outletChartRef} sx={{ width: "100%", height: { xs: 300, md: 420 } }} />
             </CardContent></Card>
           <Card variant="outlined" sx={sectionCardSx}><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
                 위험 테마<br />점수
               </Typography>
-              <Box ref={themeChartRef} sx={{ width: "100%", height: 420 }} />
+              <Box ref={themeChartRef} sx={{ width: "100%", height: { xs: 300, md: 420 } }} />
             </CardContent></Card>
         </Box>
 
