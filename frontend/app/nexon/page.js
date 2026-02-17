@@ -17,6 +17,7 @@ import {
   ListItem,
   ListItemText,
   LinearProgress,
+  MobileStepper,
   Paper,
   Stack,
   Typography,
@@ -753,50 +754,39 @@ export default function NexonPage() {
               ) : null}
 
               <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                <Button
-                  size="small"
+                <Paper
                   variant="outlined"
-                  onClick={goPrevBanner}
-                  disabled={currentBannerIndex <= 0}
                   sx={{
-                    minWidth: 64,
-                    borderColor: "rgba(15,23,42,.2)",
-                    color: "#334155",
+                    borderRadius: 99,
+                    overflow: "hidden",
+                    borderColor: "rgba(15,23,42,.16)",
                     bgcolor: "#fff",
-                    "&:hover": { borderColor: "rgba(15,23,42,.35)", bgcolor: "#f8fafc" },
                   }}
                 >
-                  이전
-                </Button>
-                <Stack direction="row" spacing={0.6} alignItems="center">
-                  {bannerItems.map((item, idx) => (
-                    <Box
-                      key={`dot-${item.id}`}
-                      sx={{
-                        width: idx === currentBannerIndex ? 18 : 8,
-                        height: 8,
-                        borderRadius: 99,
-                        bgcolor: idx === currentBannerIndex ? "#0f3b66" : "rgba(15,23,42,.22)",
-                        transition: "all .2s ease",
-                      }}
-                    />
-                  ))}
-                </Stack>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={goNextBanner}
-                  disabled={currentBannerIndex >= bannerItems.length - 1}
-                  sx={{
-                    minWidth: 64,
-                    borderColor: "rgba(15,23,42,.2)",
-                    color: "#334155",
-                    bgcolor: "#fff",
-                    "&:hover": { borderColor: "rgba(15,23,42,.35)", bgcolor: "#f8fafc" },
-                  }}
-                >
-                  다음
-                </Button>
+                  <MobileStepper
+                    variant="dots"
+                    steps={Math.max(bannerItems.length, 1)}
+                    position="static"
+                    activeStep={Math.max(currentBannerIndex, 0)}
+                    sx={{
+                      bgcolor: "transparent",
+                      py: 0.25,
+                      px: 0.6,
+                      minHeight: 40,
+                      "& .MuiMobileStepper-dot": { mx: 0.35 },
+                    }}
+                    nextButton={
+                      <Button size="small" onClick={goNextBanner} disabled={currentBannerIndex >= bannerItems.length - 1}>
+                        다음
+                      </Button>
+                    }
+                    backButton={
+                      <Button size="small" onClick={goPrevBanner} disabled={currentBannerIndex <= 0}>
+                        이전
+                      </Button>
+                    }
+                  />
+                </Paper>
                 <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
                 <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} />
@@ -846,12 +836,13 @@ export default function NexonPage() {
                 <Box
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                    gap: 2.2,
+                    gridTemplateColumns: { xs: "1fr", lg: "1.2fr .8fr" },
+                    gap: 2.4,
                     alignItems: "start",
                   }}
                 >
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Stack spacing={2.2}>
+                    <Paper variant="outlined" sx={{ p: 2.2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
@@ -872,11 +863,40 @@ export default function NexonPage() {
                           "& .MuiLinearProgress-bar": { bgcolor: riskGaugeColor },
                         }}
                       />
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                      최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
-                    </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
+                      </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        최근 7일 기준선: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
+                      </Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                        볼륨(Volume): {recent24hArticles.toLocaleString()}건
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        확산도(Spread): {spreadValue.toFixed(2)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        불확실도(Uncertainty): {uncertaintyValue.toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.8 }}>
+                        {liveInterpretation}
+                      </Typography>
+                    </Paper>
+                  </Stack>
+
+                  <Stack spacing={2.2}>
+                    <Paper variant="outlined" sx={{ p: 2.2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
                         label={alertLevel}
@@ -887,7 +907,7 @@ export default function NexonPage() {
                         불확실 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2.2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
                         <Box
@@ -910,7 +930,7 @@ export default function NexonPage() {
                         최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2.2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
                         S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
@@ -919,25 +939,14 @@ export default function NexonPage() {
                         T {Number(riskScore?.components?.T || 0).toFixed(2)} · M {Number(riskScore?.components?.M || 0).toFixed(2)}
                       </Typography>
                     </Paper>
+                  </Stack>
                 </Box>
 
-                <Paper variant="outlined" sx={{ p: 2, mt: 2.2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    최근 7일 기준선: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
-                  </Typography>
-                </Paper>
-
-                <Grid container spacing={1.5} sx={{ mt: 0.4 }}>
+                <Grid container spacing={1.5} sx={{ mt: 1 }}>
                   {["S", "V", "T", "M"].map((k) => {
                     const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
                     return (
-                      <Grid item xs={12} md={6} key={k}>
+                      <Grid item xs={12} sm={6} md={3} key={k}>
                         <Paper variant="outlined" sx={{ p: 1.4 }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700 }}>
@@ -955,22 +964,6 @@ export default function NexonPage() {
                     );
                   })}
                 </Grid>
-
-                <Paper variant="outlined" sx={{ p: 2, mt: 1.8 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                    볼륨(Volume): {recent24hArticles.toLocaleString()}건
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    확산도(Spread): {spreadValue.toFixed(2)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    불확실도(Uncertainty): {uncertaintyValue.toFixed(2)}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.8 }}>
-                    {liveInterpretation}
-                  </Typography>
-                </Paper>
 
                 <Paper variant="outlined" sx={{ mt: 1.8, p: 0.8 }}>
                   <List dense disablePadding>
