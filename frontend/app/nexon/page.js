@@ -848,9 +848,10 @@ export default function NexonPage() {
                     display: "grid",
                     gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                     gap: 2.2,
+                    alignItems: "start",
                   }}
                 >
-                    <Paper variant="outlined" sx={{ p: 2, minHeight: 186 }}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
@@ -875,7 +876,7 @@ export default function NexonPage() {
                       최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
                     </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2, minHeight: 186 }}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
                         label={alertLevel}
@@ -886,7 +887,7 @@ export default function NexonPage() {
                         불확실 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2, minHeight: 186 }}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
                         <Box
@@ -909,7 +910,7 @@ export default function NexonPage() {
                         최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2, minHeight: 186 }}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
                         S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
