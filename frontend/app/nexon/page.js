@@ -653,15 +653,16 @@ export default function NexonPage() {
   }, [dailyRows, outletRows, themes, keywordCloud]);
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 4 } }}>
+    <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
       <Stack spacing={2}>
-        <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, borderColor: "rgba(15,23,42,0.08)", bgcolor: "#f8fbff" }}>
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, borderColor: "#e5e7eb", bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Box component="img" src={NEXON_LOGO} alt="NEXON" sx={{ height: 28, width: "auto" }} />
+              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
               <Box>
-                <Typography variant="caption" color="text.secondary">넥슨 PR 분석 센터</Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900 }}>넥슨 IP 리스크 대시보드</Typography>
+                <Typography variant="caption" color="text.secondary">실시간 모니터링</Typography>
+                <Typography sx={{ fontSize: { xs: 24, md: 28 }, fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em" }}>넥슨 IP 리스크 대시보드</Typography>
               </Box>
             </Stack>
             <Stack direction="row" spacing={1}>
@@ -1008,7 +1009,7 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 기사/부정 추이 (ECharts)</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 기사/부정 추이</Typography>
             <Box ref={trendChartRef} sx={{ width: "100%", height: 290 }} />
           </CardContent>
         </Card>
@@ -1022,20 +1023,20 @@ export default function NexonPage() {
         >
           <Card variant="outlined" sx={sectionCardSx}><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
-                언론사별<br />감성 분포 (ECharts)
+                언론사별<br />감성 분포
               </Typography>
               <Box ref={outletChartRef} sx={{ width: "100%", height: 420 }} />
             </CardContent></Card>
           <Card variant="outlined" sx={sectionCardSx}><CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
-                위험 테마<br />점수 (ECharts)
+                위험 테마<br />점수
               </Typography>
               <Box ref={themeChartRef} sx={{ width: "100%", height: 420 }} />
             </CardContent></Card>
         </Box>
 
         <Card variant="outlined" sx={sectionCardSx}><CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>키워드 중요도 맵 (ECharts)</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>키워드 중요도 맵</Typography>
           <Box
             ref={keywordChartRef}
             sx={{
@@ -1176,5 +1177,6 @@ export default function NexonPage() {
         </Card>
       </Stack>
     </Container>
+    </Box>
   );
 }

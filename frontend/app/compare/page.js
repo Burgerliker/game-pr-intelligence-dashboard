@@ -2,12 +2,33 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Container,
+  Divider,
+  Grid,
+  LinearProgress,
+  Paper,
+  Slider,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
 import { apiGet, apiPost } from "../../lib/api";
+import LoadingState from "../../components/LoadingState";
+import ErrorState from "../../components/ErrorState";
 
-const NEXON_LOGO = "/nexon-logo.png";
 const PAGE_SIZE = 40;
 const COMPARE_COLLECTION_DISABLED = true;
-
 const SENTIMENTS = ["긍정", "중립", "부정"];
 
 function ratioToWidth(v) {
@@ -15,7 +36,7 @@ function ratioToWidth(v) {
   return `${Math.max(0, Math.min(100, n))}%`;
 }
 
-export default function Page() {
+export default function ComparePage() {
   const [companies, setCompanies] = useState(["넥슨", "NC소프트", "넷마블", "크래프톤"]);
   const [articleCount, setArticleCount] = useState(40);
   const [loading, setLoading] = useState(false);
@@ -38,6 +59,10 @@ export default function Page() {
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
   const selectedFromData = data?.meta?.selected_companies ?? [];
+
+  const toggleCompany = (name) => {
+    setCompanies((prev) => (prev.includes(name) ? prev.filter((v) => v !== name) : [...prev, name]));
+  };
 
   const loadArticles = async ({ reset = false, companyOverride, sentimentOverride } = {}) => {
     const companyVal = companyOverride ?? filterCompany;
@@ -108,18 +133,11 @@ export default function Page() {
     }
   };
 
-  const toggleCompany = (name) => {
-    setCompanies((prev) => (prev.includes(name) ? prev.filter((v) => v !== name) : [...prev, name]));
-  };
-
   const trendSeries = useMemo(() => {
     if (!trendRows.length || !selectedFromData.length) return [];
     const recent = trendRows.slice(-14);
     return selectedFromData.map((company) => {
-      const points = recent.map((row) => ({
-        date: row.date,
-        value: Number(row[company] || 0),
-      }));
+      const points = recent.map((row) => ({ date: row.date, value: Number(row[company] || 0) }));
       const max = Math.max(...points.map((p) => p.value), 1);
       return { company, points, max };
     });
@@ -128,22 +146,21 @@ export default function Page() {
   const sentimentByCompany = useMemo(() => {
     const map = {};
     for (const row of sentimentRows) {
-      if (!map[row.company]) {
-        map[row.company] = { 긍정: 0, 중립: 0, 부정: 0, total: 0 };
-      }
+      if (!map[row.company]) map[row.company] = { 긍정: 0, 중립: 0, 부정: 0, total: 0 };
       map[row.company][row.sentiment] = Number(row.ratio || 0);
       map[row.company].total += Number(row.count || 0);
     }
     return map;
   }, [sentimentRows]);
 
-  const keywordCards = useMemo(() => {
-    return selectedFromData.map((company) => {
-      const raw = keywordsMap[company] || [];
-      const items = raw.slice(0, 10).map((it) => ({ keyword: it[0], count: it[1] }));
-      return { company, items };
-    });
-  }, [selectedFromData, keywordsMap]);
+  const keywordCards = useMemo(
+    () =>
+      selectedFromData.map((company) => ({
+        company,
+        items: (keywordsMap[company] || []).slice(0, 10).map((it) => ({ keyword: it[0], count: it[1] })),
+      })),
+    [keywordsMap, selectedFromData]
+  );
 
   const filteredDemoArticles = useMemo(() => {
     let rows = (data?.latest_articles || []).slice();
@@ -153,8 +170,6 @@ export default function Page() {
   }, [data, filterCompany, filterSentiment]);
 
   const displayedArticles = dataSource === "live" ? articleRows : filteredDemoArticles;
-  const displayedCount = dataSource === "live" ? articleRows.length : filteredDemoArticles.length;
-  const totalCount = dataSource === "live" ? articleTotal : filteredDemoArticles.length;
 
   useEffect(() => {
     if (!data || dataSource !== "live") return;
@@ -169,9 +184,7 @@ export default function Page() {
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting && articleHasMore && !articleLoading) {
-          loadArticles();
-        }
+        if (entry.isIntersecting && articleHasMore && !articleLoading) loadArticles();
       },
       { rootMargin: "120px" }
     );
@@ -181,244 +194,281 @@ export default function Page() {
   }, [articleHasMore, articleLoading, dataSource]);
 
   return (
-    <main className="page comparePage">
-      <header className="compareHeader">
-        <div className="compareBrand">
-          <img src={NEXON_LOGO} alt="NEXON" />
-          <div>
-            <p>경쟁사 비교</p>
-            <h1>PR Intelligence</h1>
-          </div>
-        </div>
-        <Link href="/" className="compareHomeLink">
-          메인
-        </Link>
-      </header>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 5 } }}>
+      <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
+        <Stack spacing={2}>
+          <Paper
+            sx={{
+              borderRadius: 3,
+              border: "1px solid #e5e7eb",
+              bgcolor: "#f8fafc",
+              px: { xs: 2, md: 3 },
+              py: 1.2,
+              boxShadow: "0 8px 24px rgba(15,23,42,.04)",
+            }}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
+                <Typography sx={{ fontSize: 24, fontWeight: 800, color: "#0f172a" }}>경쟁사 비교 현황판</Typography>
+              </Stack>
+              <Stack direction="row" spacing={1}>
+                <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
+                <Button component={Link} href="/nexon" variant="outlined" size="small">넥슨 IP 리스크</Button>
+              </Stack>
+            </Stack>
+          </Paper>
 
-      <section className="controls compareControls">
-        {COMPARE_COLLECTION_DISABLED ? (
-          <p className="error">보호 모드: 경쟁사 비교 API 수집은 현재 잠금 상태입니다.</p>
-        ) : null}
-        <div className="row">
-          {["넥슨", "NC소프트", "넷마블", "크래프톤"].map((name) => (
-            <button key={name} className={companies.includes(name) ? "chip active" : "chip"} onClick={() => toggleCompany(name)}>
-              {name}
-            </button>
-          ))}
-        </div>
-        <div className="row">
-          <label>
-            회사당 기사 수
-            <input
-              type="range"
-              min="10"
-              max="100"
-              step="10"
-              value={articleCount}
-              onChange={(e) => setArticleCount(Number(e.target.value))}
-            />
-            <strong>{articleCount}</strong>
-          </label>
-          <button className="primary" onClick={runAnalyze} disabled={COMPARE_COLLECTION_DISABLED || loading || companies.length === 0}>
-            {COMPARE_COLLECTION_DISABLED ? "수집 잠금" : loading ? "분석 중..." : "수집 시작"}
-          </button>
-          <button className="ghost" onClick={loadDemo} disabled={loading}>
-            데모 데이터
-          </button>
-        </div>
-        {error ? <p className="error">{error}</p> : null}
-      </section>
+          <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "rgba(15,23,42,.1)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                {COMPARE_COLLECTION_DISABLED ? <Alert severity="info">보호 모드: 수집 버튼은 잠금 상태입니다. 데모 데이터로 화면 확인만 가능합니다.</Alert> : null}
+                {error ? <ErrorState title="요청 처리 실패" details={error} /> : null}
 
-      {!data ? (
-        <section className="empty">데이터를 수집하면 분석 결과가 표시됩니다.</section>
-      ) : (
-        <>
-          <section className="cards">
-            {Object.keys(companyCounts).map((c) => (
-              <article key={c} className="card">
-                <h3>{c}</h3>
-                <strong>{companyCounts[c]}</strong>
-                <span>보도 건수</span>
-              </article>
-            ))}
-            <article className="card">
-              <h3>총합</h3>
-              <strong>{total}</strong>
-              <span>전체 기사</span>
-            </article>
-          </section>
-
-          <section className="panel">
-            <h3>일별 보도량 추이 (최근 14일)</h3>
-            <div className="trendGrid">
-              {trendSeries.map((series) => (
-                <article key={series.company} className="trendCard">
-                  <h4>{series.company}</h4>
-                  <div className="sparkline">
-                    {series.points.map((p) => (
-                      <div key={`${series.company}-${p.date}`} className="barWrap" title={`${p.date}: ${p.value}건`}>
-                        <div className="bar" style={{ height: `${(p.value / series.max) * 100}%` }} />
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>감성 분석</h3>
-            <div className="sentimentGrid">
-              {selectedFromData.map((company) => {
-                const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0 };
-                return (
-                  <article key={company} className="sentimentCard">
-                    <h4>{company}</h4>
-                    {SENTIMENTS.map((s) => (
-                      <div key={`${company}-${s}`} className="sentRow">
-                        <span>{s}</span>
-                        <div className="sentTrack">
-                          <div className={`sentFill ${s}`} style={{ width: ratioToWidth(row[s]) }} />
-                        </div>
-                        <strong>{Number(row[s] || 0).toFixed(1)}%</strong>
-                      </div>
-                    ))}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>회사별 키워드</h3>
-            <div className="keywordGrid">
-              {keywordCards.map((card) => (
-                <article key={card.company} className="keywordCard">
-                  <h4>{card.company}</h4>
-                  <div className="keywordList">
-                    {card.items.map((it) => (
-                      <span key={`${card.company}-${it.keyword}`} className="keywordPill">
-                        {it.keyword} · {it.count}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>핵심 인사이트</h3>
-            <div className="insightGrid">
-              <article className="insightCard">
-                <h4>Top 5 이슈</h4>
-                <ul>
-                  {(insights.top_issues || []).map((item, idx) => (
-                    <li key={`${item.company}-${item.keyword}-${idx}`}>
-                      <strong>{item.company}</strong> · {item.keyword} ({item.count}건, {item.share_pct}%)
-                      <br />
-                      <span>{item.example_title}</span>
-                    </li>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {["넥슨", "NC소프트", "넷마블", "크래프톤"].map((name) => (
+                    <Chip
+                      key={name}
+                      label={name}
+                      onClick={() => toggleCompany(name)}
+                      color={companies.includes(name) ? "primary" : "default"}
+                      variant={companies.includes(name) ? "filled" : "outlined"}
+                    />
                   ))}
-                </ul>
-              </article>
+                </Stack>
 
-              <article className="insightCard">
-                <h4>경쟁사 대비 변화(최근 7일 vs 이전 7일)</h4>
-                <ul>
-                  {(insights.competitive_changes || []).map((item) => (
-                    <li key={item.company}>
-                      <strong>{item.company}</strong> · 보도량 {item.article_change_pct}% / 부정비중 {item.negative_ratio_change_pp}%p
-                    </li>
-                  ))}
-                </ul>
-              </article>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
+                  <Box sx={{ minWidth: 280, maxWidth: 360, width: "100%" }}>
+                    <Typography variant="body2" color="text.secondary">회사당 기사 수: {articleCount}</Typography>
+                    <Slider
+                      min={10}
+                      max={100}
+                      step={10}
+                      value={articleCount}
+                      onChange={(_, v) => setArticleCount(Number(v))}
+                    />
+                  </Box>
+                  <Stack direction="row" spacing={1}>
+                    <Button variant="contained" onClick={runAnalyze} disabled={COMPARE_COLLECTION_DISABLED || loading || companies.length === 0}>
+                      {loading ? "처리 중..." : "수집 시작"}
+                    </Button>
+                    <Button variant="outlined" onClick={loadDemo} disabled={loading}>데모 데이터</Button>
+                  </Stack>
+                </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
 
-              <article className="insightCard">
-                <h4>리스크 알림</h4>
-                {(insights.risk_alerts || []).length === 0 ? (
-                  <p className="muted">현재 규칙 기준 고위험 신호는 없습니다.</p>
-                ) : (
-                  <ul>
-                    {insights.risk_alerts.map((item, idx) => (
-                      <li key={`${item.company}-${idx}`}>
-                        <strong>{item.company}</strong> [{item.level.toUpperCase()}] {item.reason}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-
-              <article className="insightCard">
-                <h4>실행 제안</h4>
-                <ul>
-                  {(insights.actions || []).map((item) => (
-                    <li key={`${item.company}-${item.priority}`}>
-                      <strong>{item.company}</strong> ({item.priority}) {item.action}
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            </div>
-          </section>
-
-          <section className="panel">
-            <h3>최신 기사 목록</h3>
-            <div className="filters">
-              <label>
-                회사
-                <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
-                  <option value="전체">전체</option>
-                  {selectedFromData.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                감성
-                <select value={filterSentiment} onChange={(e) => setFilterSentiment(e.target.value)}>
-                  <option value="전체">전체</option>
-                  {SENTIMENTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <span className="resultCount">
-                {dataSource === "live" ? `불러온 기사: ${displayedCount} / ${totalCount}` : `필터 결과: ${displayedCount}건`}
-              </span>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>회사</th>
-                  <th>제목</th>
-                  <th>감성</th>
-                  <th>날짜</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayedArticles.map((a, idx) => (
-                  <tr key={`${a.url}-${idx}`}>
-                    <td>{a.company}</td>
-                    <td>{a.url ? <a href={a.url} target="_blank" rel="noreferrer">{a.title}</a> : a.title}</td>
-                    <td>{a.sentiment}</td>
-                    <td>{a.date}</td>
-                  </tr>
+          {!data ? (
+            <LoadingState title="비교 데이터 대기 중" subtitle="데모 데이터 버튼으로 즉시 화면을 확인할 수 있습니다." />
+          ) : (
+            <>
+              <Grid container spacing={1.4}>
+                {Object.entries(companyCounts).map(([name, count]) => (
+                  <Grid item xs={6} md={4} key={name}>
+                    <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                      <CardContent>
+                        <Typography variant="body2" color="text.secondary">{name}</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 800 }}>{Number(count).toLocaleString()}</Typography>
+                        <Typography variant="caption" color="text.secondary">보도 건수</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
                 ))}
-              </tbody>
-            </table>
-            {dataSource === "live" ? (
-              <div ref={sentinelRef} className="articleSentinel">
-                {articleLoading ? "기사 불러오는 중..." : articleHasMore ? "아래로 스크롤하면 계속 불러옵니다." : "마지막 기사입니다."}
-              </div>
-            ) : null}
-          </section>
-        </>
-      )}
-    </main>
+                <Grid item xs={6} md={4}>
+                  <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">총합</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 800 }}>{Number(total).toLocaleString()}</Typography>
+                      <Typography variant="caption" color="text.secondary">전체 기사</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={1.4}>
+                <Grid item xs={12} md={6}>
+                  <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%" }}>
+                    <CardContent>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>일별 보도량 추이 (최근 14일)</Typography>
+                      <Stack spacing={1.2}>
+                        {trendSeries.map((series) => (
+                          <Box key={series.company}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{series.company}</Typography>
+                            <Stack direction="row" spacing={0.3} sx={{ mt: 0.8, height: 56, alignItems: "end" }}>
+                              {series.points.map((p) => (
+                                <Box key={`${series.company}-${p.date}`} title={`${p.date}: ${p.value}건`} sx={{ flex: 1 }}>
+                                  <Box sx={{ width: "100%", height: `${(p.value / series.max) * 100}%`, minHeight: 2, borderRadius: 0.5, bgcolor: "#2f67d8" }} />
+                                </Box>
+                              ))}
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%" }}>
+                    <CardContent>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>감성 분석</Typography>
+                      <Stack spacing={1.4}>
+                        {selectedFromData.map((company) => {
+                          const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0 };
+                          return (
+                            <Box key={company}>
+                              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>{company}</Typography>
+                              {SENTIMENTS.map((s) => (
+                                <Stack key={`${company}-${s}`} direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                                  <Typography variant="caption" sx={{ width: 30 }}>{s}</Typography>
+                                  <LinearProgress
+                                    variant="determinate"
+                                    value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
+                                    sx={{ flex: 1, height: 8, borderRadius: 99, bgcolor: "#edf2fb" }}
+                                  />
+                                  <Typography variant="caption" sx={{ width: 48, textAlign: "right" }}>{Number(row[s] || 0).toFixed(1)}%</Typography>
+                                </Stack>
+                              ))}
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>회사별 키워드</Typography>
+                  <Grid container spacing={1.1}>
+                    {keywordCards.map((card) => (
+                      <Grid item xs={12} md={6} key={card.company}>
+                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>{card.company}</Typography>
+                          <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
+                            {card.items.map((it) => (
+                              <Chip key={`${card.company}-${it.keyword}`} size="small" variant="outlined" label={`${it.keyword} · ${it.count}`} />
+                            ))}
+                          </Stack>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>핵심 인사이트</Typography>
+                  <Grid container spacing={1.1}>
+                    <Grid item xs={12} md={6}>
+                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%" }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>Top 5 이슈</Typography>
+                        <Stack spacing={0.8}>
+                          {(insights.top_issues || []).map((item, idx) => (
+                            <Typography key={`${item.company}-${item.keyword}-${idx}`} variant="caption" color="text.secondary">
+                              <b>{item.company}</b> · {item.keyword} ({item.count}건, {item.share_pct}%)
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%" }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>실행 제안</Typography>
+                        <Stack spacing={0.8}>
+                          {(insights.actions || []).map((item) => (
+                            <Typography key={`${item.company}-${item.priority}`} variant="caption" color="text.secondary">
+                              <b>{item.company}</b> ({item.priority}) {item.action}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                <CardContent>
+                  <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.2} sx={{ mb: 1.2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800 }}>최신 기사 목록</Typography>
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                      <Chip
+                        size="small"
+                        label={`회사: ${filterCompany}`}
+                        variant="outlined"
+                        onClick={() => setFilterCompany(filterCompany === "전체" ? (selectedFromData[0] || "전체") : "전체")}
+                      />
+                      <Chip
+                        size="small"
+                        label={`감성: ${filterSentiment}`}
+                        variant="outlined"
+                        onClick={() => setFilterSentiment(filterSentiment === "전체" ? "부정" : "전체")}
+                      />
+                      <Chip
+                        size="small"
+                        label={dataSource === "live" ? `불러온 기사: ${displayedArticles.length} / ${articleTotal}` : `필터 결과: ${displayedArticles.length}`}
+                        variant="outlined"
+                      />
+                    </Stack>
+                  </Stack>
+
+                  <Box sx={{ overflowX: "auto" }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>회사</TableCell>
+                          <TableCell>제목</TableCell>
+                          <TableCell>감성</TableCell>
+                          <TableCell>날짜</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {displayedArticles.map((a, idx) => (
+                          <TableRow key={`${a.url}-${idx}`} hover>
+                            <TableCell>{a.company}</TableCell>
+                            <TableCell>
+                              {a.url ? (
+                                <a href={a.url} target="_blank" rel="noreferrer" style={{ color: "#0f3b66", textDecoration: "none" }}>
+                                  {a.title}
+                                </a>
+                              ) : (
+                                a.title
+                              )}
+                            </TableCell>
+                            <TableCell>{a.sentiment}</TableCell>
+                            <TableCell>{a.date}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+
+                  <Box ref={sentinelRef} sx={{ mt: 1.2 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {dataSource === "live"
+                        ? articleLoading
+                          ? "기사 불러오는 중..."
+                          : articleHasMore
+                            ? "아래로 스크롤하면 계속 불러옵니다."
+                            : "마지막 기사입니다."
+                        : ""}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          <Divider sx={{ my: 1 }} />
+          <Typography variant="caption" color="text.secondary" align="center">
+            포트폴리오 비교 화면 · 데이터 상태에 따라 결과가 달라질 수 있습니다.
+          </Typography>
+        </Stack>
+      </Container>
+    </Box>
   );
 }

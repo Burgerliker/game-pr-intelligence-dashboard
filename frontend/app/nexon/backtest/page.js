@@ -322,10 +322,19 @@ export default function NexonBacktestPage() {
     };
   }, [normalized, hasSeries]);
 
+  if (!SHOW_BACKTEST) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="info">운영 모드에서는 Backtest 페이지를 비활성화했습니다.</Alert>
+      </Container>
+    );
+  }
+
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 4 } }}>
+    <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
       <Stack spacing={1.5}>
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, position: "sticky", top: 10, zIndex: 20, background: "#fff" }}>
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, position: "sticky", top: 10, zIndex: 20, background: "#f8fafc", borderColor: "#e5e7eb", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 1 }}>
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1 }}>
               <Chip label="IP: maplestory" variant="outlined" />
@@ -340,8 +349,8 @@ export default function NexonBacktestPage() {
           </Stack>
         </Paper>
 
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>Backtest Timeline</Typography>
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, borderColor: "rgba(15,23,42,.10)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>백테스트 타임라인</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             maplestory 내부 이슈(case: maple_idle_probability_2026) 기준 리스크 반응
           </Typography>
@@ -420,12 +429,6 @@ export default function NexonBacktestPage() {
         </Paper>
       </Stack>
     </Container>
+    </Box>
   );
 }
-  if (!SHOW_BACKTEST) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="info">운영 모드에서는 Backtest 페이지를 비활성화했습니다.</Alert>
-      </Container>
-    );
-  }

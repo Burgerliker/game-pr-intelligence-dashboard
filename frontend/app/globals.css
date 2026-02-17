@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;800&display=swap");
 
 :root {
   --bg: #e9edf4;
@@ -17,7 +17,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  font-family: "Plus Jakarta Sans", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+}
+
+.MuiTypography-root,
+.MuiButton-root,
+.MuiChip-root,
+.MuiInputBase-root {
+  font-family: "Plus Jakarta Sans", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif !important;
 }
 
 a {
