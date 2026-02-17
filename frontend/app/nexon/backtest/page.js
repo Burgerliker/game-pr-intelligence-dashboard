@@ -17,6 +17,7 @@ const FIXED_PARAMS = {
 const FIXED_CASE = "maple_idle_probability_2026";
 const BURST_START = "2026-01-28T00:00:00";
 const BURST_END = "2026-01-29T23:59:59";
+const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
 
 export default function NexonBacktestPage() {
   const chartRef = useRef(null);
@@ -421,3 +422,10 @@ export default function NexonBacktestPage() {
     </Container>
   );
 }
+  if (!SHOW_BACKTEST) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="info">운영 모드에서는 Backtest 페이지를 비활성화했습니다.</Alert>
+      </Container>
+    );
+  }

@@ -31,6 +31,7 @@ import {
 } from "../../lib/normalizeNexon";
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
+const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
 const NEXON_LOGO = "/nexon-logo.png";
 const IP_BANNER_STYLE = {
   all: {
@@ -666,7 +667,7 @@ export default function NexonPage() {
             <Stack direction="row" spacing={1}>
               <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
               <Button component={Link} href="/compare" variant="outlined" size="small">경쟁사 비교</Button>
-              <Button component={Link} href="/nexon/backtest" variant="contained" size="small">Backtest 보기</Button>
+              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="contained" size="small">Backtest 보기</Button> : null}
             </Stack>
           </Stack>
         </Paper>
@@ -798,7 +799,7 @@ export default function NexonPage() {
                 <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
                 <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} />
-                <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" />
+                {SHOW_BACKTEST ? <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" /> : null}
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
