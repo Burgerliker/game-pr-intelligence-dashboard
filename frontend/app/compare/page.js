@@ -45,6 +45,7 @@ const WINDOW_HOURS_OPTIONS = [
   { hours: 72, label: "3일" },
   { hours: 168, label: "일주일" },
 ];
+const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -861,9 +862,7 @@ export default function ComparePage() {
                         size="small"
                         label={`감성: ${filterSentiment}`}
                         variant="outlined"
-                        onClick={() =>
-                          setFilterSentiment(filterSentiment === "전체" ? "부정" : "전체")
-                        }
+                        onClick={() => setFilterSentiment((prev) => cycleListValue(SENTIMENT_FILTER_OPTIONS, prev))}
                       />
                       <Chip
                         size="small"
