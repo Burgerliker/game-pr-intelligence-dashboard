@@ -790,7 +790,9 @@ export default function NexonPage() {
               </Box>
             </Stack>
             <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
-              <Chip variant="outlined" label="실시간 대시보드" sx={statusChipSx} />
+              <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
+              <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
+              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="outlined" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
             </Stack>
           </Stack>
         </Paper>
@@ -912,12 +914,6 @@ export default function NexonPage() {
                     }
                   />
                 </Paper>
-                <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
-                <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
-                {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="outlined" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
-              </Stack>
-
-              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ rowGap: 0.8 }}>
                 <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
                 <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />

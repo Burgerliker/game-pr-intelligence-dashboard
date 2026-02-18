@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -16,7 +17,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, ChevronRight, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { List } from "react-window";
 import {
   apiGet,
@@ -32,6 +33,7 @@ import {
 } from "../../lib/pageStatus";
 import {
   filterChipSx,
+  navButtonSx,
   pageContainerSx,
   pageShellSx,
   panelPaperSx,
@@ -522,22 +524,21 @@ export default function ComparePage() {
                 spacing={1}
                 sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
               >
-                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={statusChipSx} />
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />자동 갱신: {Math.round(refreshMs / 1000)}초</span>}
-                  sx={statusChipSx}
-                />
-                <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={statusChipSx} />
+                <Button component={Link} href="/" variant="outlined" size="small" sx={navButtonSx}>메인</Button>
+                <Button component={Link} href="/nexon" variant="outlined" size="small" sx={navButtonSx}>넥슨 IP 리스크</Button>
               </Stack>
             </Stack>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+              <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={statusChipSx} />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />자동 갱신: {Math.round(refreshMs / 1000)}초</span>}
+                sx={statusChipSx}
+              />
+              <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={statusChipSx} />
+            </Stack>
           </Paper>
-
-          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-            <Chip component={Link} href="/" clickable variant="outlined" label="메인" sx={INTERACTIVE_CHIP_SX} />
-            <Chip component={Link} href="/nexon" clickable variant="outlined" label={<span>넥슨 IP 리스크 <ChevronRight {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: "4px" }} /></span>} sx={INTERACTIVE_CHIP_SX} />
-          </Stack>
 
           <ApiGuardBanner />
 
