@@ -649,7 +649,6 @@ export default function ComparePage() {
                                             sx={{
                                               width: "100%",
                                               height: `${(p.value / series.max) * 100}%`,
-                                              minHeight: 2,
                                               borderRadius: 0.5,
                                               bgcolor: pointState.barColor,
                                             }}
