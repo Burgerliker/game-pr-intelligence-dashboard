@@ -37,6 +37,7 @@ const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"]
 const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
+const DEFAULT_WINDOW_HOURS = 24;
 
 function getRefreshIntervalMs() {
   const configured = Number(process.env.NEXT_PUBLIC_COMPARE_REFRESH_MS || "");
@@ -106,6 +107,7 @@ export default function ComparePage() {
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
   const selectedFromData = data?.meta?.selected_companies ?? selectedCompanies;
+  const windowHours = Number(data?.meta?.window_hours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -136,7 +138,7 @@ export default function ComparePage() {
     try {
       const query = new URLSearchParams({
         companies: selectedCompanies.join(","),
-        window_hours: "24",
+        window_hours: String(windowHours),
         limit: "40",
       });
       const payload = await apiGet(`/api/compare-live?${query.toString()}`, {
@@ -174,7 +176,16 @@ export default function ComparePage() {
         setLoading(false);
       }
     }
-  }, [clearScheduledFetch, selectedCompanies, stopPolling]);
+  }, [clearScheduledFetch, selectedCompanies, stopPolling, windowHours]);
+
+  const companyCards = useMemo(
+    () =>
+      selectedCompanies.map((name) => ({
+        company: name,
+        count: Number(companyCounts?.[name] || 0),
+      })),
+    [companyCounts, selectedCompanies]
+  );
 
   const scheduleFetch = useCallback(
     (delayMs = REQUEST_DEBOUNCE_MS, { force = false, allowDuringRateLimit = false } = {}) => {
@@ -212,10 +223,16 @@ export default function ComparePage() {
     const recent = trendRows.slice(-14);
     return selectedFromData.map((company) => {
       const points = recent.map((row) => ({ date: row.date, value: Number(row[company] || 0) }));
-      const max = Math.max(...points.map((p) => p.value), 1);
-      return { company, points, max };
+      const max = Math.max(...points.map((p) => p.value), 0);
+      const hasData = points.some((p) => p.value > 0);
+      return { company, points, max, hasData };
     });
   }, [trendRows, selectedFromData]);
+
+  const hasAnyTrendData = useMemo(
+    () => trendSeries.some((series) => series.hasData),
+    [trendSeries]
+  );
 
   const sentimentByCompany = useMemo(() => {
     const map = {};
@@ -364,6 +381,9 @@ export default function ComparePage() {
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   조회 대상 회사
                 </Typography>
+                <Alert severity="info" sx={{ borderRadius: 2 }}>
+                  최근 {windowHours}시간 수집 기준입니다.
+                </Alert>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   {DEFAULT_COMPANIES.map((name) => (
                     <Chip
@@ -397,22 +417,25 @@ export default function ComparePage() {
           {data ? (
             <>
               <Grid container spacing={1.4}>
-                {Object.entries(companyCounts).map(([name, count]) => (
-                  <Grid item xs={6} md={4} key={name}>
+                {companyCards.map(({ company, count }) => (
+                  <Grid item xs={6} md={4} key={company}>
                     <Card
                       variant="outlined"
                       sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
                     >
                       <CardContent>
                         <Typography variant="body2" color="text.secondary">
-                          {name}
+                          {company}
                         </Typography>
                         <Typography variant="h4" sx={{ fontWeight: 800 }}>
                           {Number(count).toLocaleString()}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          보도 건수
-                        </Typography>
+                        <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.4 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            보도 건수
+                          </Typography>
+                          {count === 0 ? <Chip size="small" color="warning" variant="outlined" label="데이터 없음" /> : null}
+                        </Stack>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -451,34 +474,84 @@ export default function ComparePage() {
                       <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
                         일별 보도량 추이 (최근 14일)
                       </Typography>
-                      <Stack spacing={1.2}>
-                        {trendSeries.map((series) => (
-                          <Box key={series.company}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                              {series.company}
-                            </Typography>
-                            <Stack
-                              direction="row"
-                              spacing={0.3}
-                              sx={{ mt: 0.8, height: 56, alignItems: "end" }}
-                            >
-                              {series.points.map((p) => (
-                                <Box key={`${series.company}-${p.date}`} title={`${p.date}: ${p.value}건`} sx={{ flex: 1 }}>
-                                  <Box
-                                    sx={{
-                                      width: "100%",
-                                      height: `${(p.value / series.max) * 100}%`,
-                                      minHeight: 2,
-                                      borderRadius: 0.5,
-                                      bgcolor: "#2f67d8",
-                                    }}
-                                  />
-                                </Box>
-                              ))}
-                            </Stack>
-                          </Box>
-                        ))}
-                      </Stack>
+                      {!trendSeries.length || !hasAnyTrendData ? (
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            borderRadius: 2,
+                            borderStyle: "dashed",
+                            borderColor: "#cbd5e1",
+                            bgcolor: "#f8fafc",
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>
+                            데이터 없음
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#64748b" }}>
+                            선택한 기간에 보도량 추이 데이터가 없습니다.
+                          </Typography>
+                        </Paper>
+                      ) : (
+                        <Stack spacing={1.2}>
+                          {trendSeries.map((series) => (
+                            <Box key={series.company}>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {series.company}
+                              </Typography>
+                              {series.hasData ? (
+                                <Stack
+                                  direction="row"
+                                  spacing={0.3}
+                                  sx={{ mt: 0.8, height: 56, alignItems: "end" }}
+                                >
+                                  {series.points.map((p) => (
+                                    <Box key={`${series.company}-${p.date}`} title={`${p.date}: ${p.value}건`} sx={{ flex: 1 }}>
+                                      {p.value > 0 ? (
+                                        <Box
+                                          sx={{
+                                            width: "100%",
+                                            height: `${(p.value / series.max) * 100}%`,
+                                            minHeight: 2,
+                                            borderRadius: 0.5,
+                                            bgcolor: "#2f67d8",
+                                          }}
+                                        />
+                                      ) : (
+                                        <Box
+                                          sx={{
+                                            width: "100%",
+                                            height: 6,
+                                            borderRadius: 0.5,
+                                            bgcolor: "#e2e8f0",
+                                          }}
+                                        />
+                                      )}
+                                    </Box>
+                                  ))}
+                                </Stack>
+                              ) : (
+                                <Paper
+                                  variant="outlined"
+                                  sx={{
+                                    mt: 0.8,
+                                    px: 1.2,
+                                    py: 1,
+                                    borderRadius: 1.6,
+                                    borderStyle: "dashed",
+                                    borderColor: "#cbd5e1",
+                                    bgcolor: "#f8fafc",
+                                  }}
+                                >
+                                  <Typography variant="caption" sx={{ color: "#64748b" }}>
+                                    데이터 없음
+                                  </Typography>
+                                </Paper>
+                              )}
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
                     </CardContent>
                   </Card>
                 </Grid>
@@ -499,18 +572,22 @@ export default function ComparePage() {
                       <Stack spacing={1.4}>
                         {selectedFromData.map((company) => {
                           const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0 };
+                          const sampleCount = Number(companyCounts?.[company] || row.total || 0);
                           return (
                             <Box key={company}>
                               <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                                 {company}
                               </Typography>
+                              {sampleCount <= 0 ? (
+                                <Chip size="small" color="warning" variant="outlined" label="표본 없음" sx={{ mb: 0.8 }} />
+                              ) : null}
                               {SENTIMENTS.map((s) => (
                                 <Stack
                                   key={`${company}-${s}`}
                                   direction="row"
                                   spacing={1}
                                   alignItems="center"
-                                  sx={{ mb: 0.5 }}
+                                  sx={{ mb: 0.5, display: sampleCount <= 0 ? "none" : "flex" }}
                                 >
                                   <Typography variant="caption" sx={{ width: 30 }}>
                                     {s}
