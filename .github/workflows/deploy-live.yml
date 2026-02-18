@@ -1,17 +1,6 @@
 name: Deploy Live Backend
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "backend/**"
-      - "services/**"
-      - "utils/**"
-      - "Dockerfile.backend"
-      - "docker-compose.yml"
-      - ".env.live"
-      - "requirements.txt"
-      - ".github/workflows/deploy-live.yml"
   workflow_dispatch:
 
 concurrency:
@@ -45,22 +34,11 @@ jobs:
             git checkout main
             git pull --ff-only origin main
 
-            cat > .env.live <<EOF
-            NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-            LIVE_DB_PATH=backend/data/articles.db
-            BACKTEST_DB_PATH=backend/data/articles_backtest.db
-            ENABLE_DEBUG_ENDPOINTS=0
-            ENABLE_MANUAL_COLLECTION=0
-            CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-            CORS_ALLOW_CREDENTIALS=1
-            SCHEDULER_LOG_TTL_DAYS=7
-            TEST_ARTICLE_TTL_HOURS=24
-            NAVER_CLIENT_ID=${NAVER_CLIENT_ID}
-            NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}
-            EOF
-
-            cp .env.live .env
-            bash scripts/preflight_deploy_live.sh --env-file .env.live --profile live
+            if [ ! -f .env.live ]; then
+              echo "ERROR: .env.live not found in $APP_DIR" >&2
+              exit 1
+            fi
+            bash scripts/preflight_deploy_live.sh --env-file .env.live --profile live || exit 1
             docker compose --profile live up -d --build backend-live
             sleep 5
             curl -fsS http://127.0.0.1:8000/api/health
