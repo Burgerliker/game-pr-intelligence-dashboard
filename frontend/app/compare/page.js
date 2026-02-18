@@ -38,7 +38,11 @@ const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
 const DEFAULT_WINDOW_HOURS = 72;
-const WINDOW_HOURS_OPTIONS = [24, 72, 168];
+const WINDOW_HOURS_OPTIONS = [
+  { hours: 24, label: "하루" },
+  { hours: 72, label: "3일" },
+  { hours: 168, label: "일주일" },
+];
 
 function getRefreshIntervalMs() {
   const configured = Number(process.env.NEXT_PUBLIC_COMPARE_REFRESH_MS || "");
@@ -398,10 +402,10 @@ export default function ComparePage() {
                   ))}
                 </Stack>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {WINDOW_HOURS_OPTIONS.map((hours) => (
+                  {WINDOW_HOURS_OPTIONS.map(({ hours, label }) => (
                     <Chip
                       key={hours}
-                      label={`${hours}시간`}
+                      label={label}
                       onClick={() => setSelectedWindowHours(hours)}
                       color={windowHours === hours ? "primary" : "default"}
                       variant={windowHours === hours ? "filled" : "outlined"}
