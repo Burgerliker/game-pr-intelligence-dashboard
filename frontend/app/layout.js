@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "NEXON PR 인사이트 센터",
-  description: "NEXON 포트폴리오용 PR 분석 대시보드",
+  title: "PR Portfolio",
+  description: "게임 PR 리스크 분석 포트폴리오",
 };
 
 export default function RootLayout({ children }) {
@@ -12,4 +12,3 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
-
