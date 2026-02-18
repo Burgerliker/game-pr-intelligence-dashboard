@@ -51,6 +51,7 @@ const TREND_METRIC_OPTIONS = [
   { key: "heat", label: "Heat(이슈량)" },
 ];
 const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
+const INTERACTIVE_CHIP_SX = { height: 44, fontSize: 15, fontWeight: 700 };
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -326,6 +327,14 @@ export default function ComparePage() {
     () => trendMetric !== "count" && trendSeries.some((series) => series.hasLowSample),
     [trendMetric, trendSeries]
   );
+  const trendDateRangeLabel = useMemo(() => {
+    const base = trendSeries[0]?.points || [];
+    if (!base.length) return "";
+    const first = String(base[0]?.date || "");
+    const last = String(base[base.length - 1]?.date || "");
+    if (!first || !last) return "";
+    return first === last ? first : `${first} ~ ${last}`;
+  }, [trendSeries]);
 
   const keywordCards = useMemo(
     () =>
@@ -495,16 +504,16 @@ export default function ComparePage() {
                 spacing={1}
                 sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
               >
-                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={{ fontSize: 13 }} />
-                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} sx={{ fontSize: 13 }} />
-                <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={{ fontSize: 13 }} />
+                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={INTERACTIVE_CHIP_SX} />
+                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} sx={INTERACTIVE_CHIP_SX} />
+                <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={INTERACTIVE_CHIP_SX} />
               </Stack>
             </Stack>
           </Paper>
 
           <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-            <Chip component={Link} href="/" clickable variant="outlined" label="메인" />
-            <Chip component={Link} href="/nexon" clickable variant="outlined" label="넥슨 IP 리스크" />
+            <Chip component={Link} href="/" clickable variant="outlined" label="메인" sx={INTERACTIVE_CHIP_SX} />
+            <Chip component={Link} href="/nexon" clickable variant="outlined" label="넥슨 IP 리스크" sx={INTERACTIVE_CHIP_SX} />
           </Stack>
 
           <ApiGuardBanner />
@@ -529,6 +538,7 @@ export default function ComparePage() {
                       onClick={() => toggleSelectedCompany(name)}
                       color={selectedCompanies.includes(name) ? "primary" : "default"}
                       variant={selectedCompanies.includes(name) ? "filled" : "outlined"}
+                      sx={INTERACTIVE_CHIP_SX}
                     />
                   ))}
                 </Stack>
@@ -540,6 +550,7 @@ export default function ComparePage() {
                       onClick={() => setSelectedWindowHours(hours)}
                       color={windowHours === hours ? "primary" : "default"}
                       variant={windowHours === hours ? "filled" : "outlined"}
+                      sx={INTERACTIVE_CHIP_SX}
                     />
                   ))}
                 </Stack>
@@ -596,7 +607,7 @@ export default function ComparePage() {
                           <Typography variant="caption" sx={{ color: "#64748b" }}>
                             보도 건수
                           </Typography>
-                          <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} sx={{ fontSize: 13 }} />
+                          <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} sx={INTERACTIVE_CHIP_SX} />
                         </Stack>
                         <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.4 }}>
                           {state.helper}
@@ -625,9 +636,9 @@ export default function ComparePage() {
                 </Grid>
               </Grid>
               <Stack direction="row" spacing={0.9} useFlexGap flexWrap="wrap" sx={{ mt: 0.8, mb: 0.4 }}>
-                <Chip label="0건: 수집 없음" color="warning" variant="outlined" sx={{ height: 32, fontSize: 13, fontWeight: 700 }} />
-                <Chip label={`저건수: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={{ height: 32, fontSize: 13, fontWeight: 700 }} />
-                <Chip label="정상: 표본 안정 구간" color="success" variant="outlined" sx={{ height: 32, fontSize: 13, fontWeight: 700 }} />
+                <Chip label="0건: 수집 없음" color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
+                <Chip label={`저건수: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
+                <Chip label="정상: 표본 안정 구간" color="success" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
               </Stack>
 
               <Grid container spacing={{ xs: 1.2, md: 1.6 }}>
@@ -656,7 +667,7 @@ export default function ComparePage() {
                             onClick={() => setTrendMetric(option.key)}
                             color={trendMetric === option.key ? "primary" : "default"}
                             variant={trendMetric === option.key ? "filled" : "outlined"}
-                            sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
+                            sx={INTERACTIVE_CHIP_SX}
                           />
                         ))}
                       </Stack>
@@ -687,7 +698,7 @@ export default function ComparePage() {
                                         ? `Risk 최대 ${series.max.toFixed(1)}`
                                         : `Heat 최대 ${series.max.toFixed(1)}`
                                   }
-                                  sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
+                                  sx={INTERACTIVE_CHIP_SX}
                                 />
                               </Stack>
                               {series.hasData ? (
@@ -746,6 +757,11 @@ export default function ComparePage() {
                           ))}
                         </Stack>
                       )}
+                      {trendDateRangeLabel ? (
+                        <Typography variant="body2" sx={{ color: "#64748b", mt: 1.2 }}>
+                          기준 일자: {trendDateRangeLabel} · 단위: {trendMetric === "count" ? "기사 건수" : "지수(0~100)"}
+                        </Typography>
+                      ) : null}
                     </CardContent>
                   </Card>
                 </Grid>
@@ -781,7 +797,7 @@ export default function ComparePage() {
                                   color={sampleState.chipColor}
                                   variant="outlined"
                                   label={`${sampleState.label} · ${sampleCount}건`}
-                                  sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
+                                  sx={INTERACTIVE_CHIP_SX}
                                 />
                               </Stack>
                               {sampleCount <= 0 ? (
@@ -844,7 +860,7 @@ export default function ComparePage() {
                                 size="small"
                                 variant="outlined"
                                 label={`${it.keyword} · ${it.count}`}
-                                sx={{ fontSize: 13 }}
+                                sx={INTERACTIVE_CHIP_SX}
                               />
                             ))}
                           </Stack>
@@ -924,20 +940,20 @@ export default function ComparePage() {
                         label={`회사: ${filterCompany}`}
                         variant="outlined"
                         onClick={() => setFilterCompany((prev) => cycleListValue(articleCompanyFilters, prev))}
-                        sx={{ fontSize: 13 }}
+                        sx={INTERACTIVE_CHIP_SX}
                       />
                       <Chip
                         size="small"
                         label={`감성: ${filterSentiment}`}
                         variant="outlined"
                         onClick={() => setFilterSentiment((prev) => cycleListValue(SENTIMENT_FILTER_OPTIONS, prev))}
-                        sx={{ fontSize: 13 }}
+                        sx={INTERACTIVE_CHIP_SX}
                       />
                       <Chip
                         size="small"
                         label={`필터 결과: ${displayedArticles.length}`}
                         variant="outlined"
-                        sx={{ fontSize: 13 }}
+                        sx={INTERACTIVE_CHIP_SX}
                       />
                     </Stack>
                   </Stack>
@@ -951,7 +967,7 @@ export default function ComparePage() {
                         px: 1.2,
                         pb: 0.8,
                         color: "text.secondary",
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 700,
                       }}
                     >
@@ -981,7 +997,7 @@ export default function ComparePage() {
                                 borderTop: "1px solid",
                                 borderColor: "rgba(15,23,42,.08)",
                                 px: 1.2,
-                                fontSize: 13,
+                                fontSize: 14,
                                 "&:hover": { bgcolor: "rgba(15,59,102,.04)" },
                               }}
                             >

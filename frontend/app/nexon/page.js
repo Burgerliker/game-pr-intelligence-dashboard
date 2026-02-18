@@ -524,6 +524,8 @@ export default function NexonPage() {
     letterSpacing: "-.01em",
     lineHeight: 1.08,
   };
+  const controlChipSx = { minHeight: 44, fontSize: 14, fontWeight: 700 };
+  const controlButtonSx = { minHeight: 44, fontSize: 14, fontWeight: 700 };
 
   useEffect(() => {
     let active = true;
@@ -720,7 +722,7 @@ export default function NexonPage() {
             label: {
               show: true,
               formatter: "{b}",
-              fontSize: 12,
+              fontSize: 13,
               color: "#fff",
             },
             upperLabel: { show: false },
@@ -780,9 +782,9 @@ export default function NexonPage() {
               </Box>
             </Stack>
             <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
-              <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
-              <Button component={Link} href="/compare" variant="outlined" size="small">경쟁사 비교</Button>
-              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="contained" size="small">Backtest 보기</Button> : null}
+              <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
+              <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
+              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="contained" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
             </Stack>
           </Stack>
         </Paper>
@@ -857,13 +859,13 @@ export default function NexonPage() {
                   >
                     {currentBanner.visual.kicker.split(" ")[0]}
                   </Typography>
-                  <Typography sx={{ fontSize: 12, letterSpacing: ".08em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                  <Typography sx={{ fontSize: 14, letterSpacing: ".08em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
                   <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 28, sm: 34, md: 38 }, fontWeight: 900, lineHeight: 1.04 }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 12, md: 13 }, color: "rgba(237,245,255,.82)" }}>
+                  <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.82)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
                   </Typography>
                 </Paper>
@@ -892,21 +894,21 @@ export default function NexonPage() {
                       "& .MuiMobileStepper-dot": { mx: 0.35 },
                     }}
                     nextButton={
-                      <Button size="small" onClick={goNextBanner} disabled={currentBannerIndex >= bannerItems.length - 1}>
+                      <Button size="small" sx={controlButtonSx} onClick={goNextBanner} disabled={currentBannerIndex >= bannerItems.length - 1}>
                         다음
                       </Button>
                     }
                     backButton={
-                      <Button size="small" onClick={goPrevBanner} disabled={currentBannerIndex <= 0}>
+                      <Button size="small" sx={controlButtonSx} onClick={goPrevBanner} disabled={currentBannerIndex <= 0}>
                         이전
                       </Button>
                     }
                   />
                 </Paper>
-                <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} />
-                <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} />
-                <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} />
-                {SHOW_BACKTEST ? <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" /> : null}
+                <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} sx={controlChipSx} />
+                <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={controlChipSx} />
+                <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={controlChipSx} />
+                {SHOW_BACKTEST ? <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" sx={controlChipSx} /> : null}
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
@@ -981,13 +983,13 @@ export default function NexonPage() {
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
-                        <Chip size="small" variant="outlined" label={`식 ${riskFormulaVersion}`} sx={{ fontSize: 12 }} />
+                        <Chip size="small" variant="outlined" label={`식 ${riskFormulaVersion}`} sx={controlChipSx} />
                         <Chip
                           size="small"
                           variant="outlined"
                           color={riskConfidence < 0.4 ? "warning" : "default"}
                           label={`신뢰 ${(riskConfidence * 100).toFixed(0)}%`}
-                          sx={{ fontSize: 12 }}
+                          sx={controlChipSx}
                         />
                       </Stack>
                       {isLowSample ? (
@@ -1006,7 +1008,7 @@ export default function NexonPage() {
                         size="small"
                         color={riskMeaning.color}
                         variant="outlined"
-                        sx={{ mt: 0.5 }}
+                        sx={{ ...controlChipSx, mt: 0.5 }}
                       />
                       <LinearProgress
                         variant="determinate"
@@ -1226,7 +1228,7 @@ export default function NexonPage() {
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>이슈 묶음 분석</Typography>
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>
             {(clusterData?.top_outlets || []).map((o) => (
-              <Chip key={o.outlet} label={`${o.outlet} ${o.article_count}건`} size="small" variant="outlined" />
+              <Chip key={o.outlet} label={`${o.outlet} ${o.article_count}건`} size="small" variant="outlined" sx={controlChipSx} />
             ))}
           </Stack>
           <Divider sx={{ mb: 1 }} />
@@ -1300,6 +1302,7 @@ export default function NexonPage() {
                               label={a.sentiment || "중립"}
                               color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
                               variant="outlined"
+                              sx={controlChipSx}
                             />
                           </Stack>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
