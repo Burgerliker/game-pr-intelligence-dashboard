@@ -269,6 +269,16 @@ export default function ComparePage() {
     });
   };
 
+  const sentimentByCompany = useMemo(() => {
+    const map = {};
+    for (const row of sentimentRows) {
+      if (!map[row.company]) map[row.company] = { 긍정: 0, 중립: 0, 부정: 0, total: 0 };
+      map[row.company][row.sentiment] = Number(row.ratio || 0);
+      map[row.company].total += Number(row.count || 0);
+    }
+    return map;
+  }, [sentimentRows]);
+
   const trendSeries = useMemo(() => {
     if (!trendRows.length || !companiesForView.length) return [];
     const recent = trendRows.slice(-14);
@@ -284,16 +294,6 @@ export default function ComparePage() {
     () => trendSeries.some((series) => series.hasData),
     [trendSeries]
   );
-
-  const sentimentByCompany = useMemo(() => {
-    const map = {};
-    for (const row of sentimentRows) {
-      if (!map[row.company]) map[row.company] = { 긍정: 0, 중립: 0, 부정: 0, total: 0 };
-      map[row.company][row.sentiment] = Number(row.ratio || 0);
-      map[row.company].total += Number(row.count || 0);
-    }
-    return map;
-  }, [sentimentRows]);
 
   const keywordCards = useMemo(
     () =>
@@ -463,9 +463,9 @@ export default function ComparePage() {
                 spacing={1}
                 sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
               >
-                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} />
-                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} />
-                <Chip size="small" color="primary" variant="outlined" label="조회 전용" />
+                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={{ fontSize: 13 }} />
+                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} sx={{ fontSize: 13 }} />
+                <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={{ fontSize: 13 }} />
               </Stack>
             </Stack>
           </Paper>
@@ -564,7 +564,7 @@ export default function ComparePage() {
                           <Typography variant="caption" sx={{ color: "#64748b" }}>
                             보도 건수
                           </Typography>
-                          <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} />
+                          <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} sx={{ fontSize: 13 }} />
                         </Stack>
                         <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.4 }}>
                           {state.helper}
@@ -592,10 +592,10 @@ export default function ComparePage() {
                   </Card>
                 </Grid>
               </Grid>
-              <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.2 }}>
-                <Chip size="small" label="0건: 수집 없음" color="warning" variant="outlined" />
-                <Chip size="small" label={`저건수: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" />
-                <Chip size="small" label="정상: 표본 안정 구간" color="success" variant="outlined" />
+              <Stack direction="row" spacing={0.9} useFlexGap flexWrap="wrap" sx={{ mt: 0.2 }}>
+                <Chip label="0건: 수집 없음" color="warning" variant="outlined" sx={{ height: 32, fontSize: 13, fontWeight: 700 }} />
+                <Chip label={`저건수: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={{ height: 32, fontSize: 13, fontWeight: 700 }} />
+                <Chip label="정상: 표본 안정 구간" color="success" variant="outlined" sx={{ height: 32, fontSize: 13, fontWeight: 700 }} />
               </Stack>
 
               <Grid container spacing={1.4}>
@@ -609,10 +609,10 @@ export default function ComparePage() {
                     }}
                   >
                     <CardContent>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, lineHeight: 1.3 }}>
                         일별 보도량 추이 (최근 14일)
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
+                      <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
                         파랑=정상, 황색=저건수, 회색=0건
                       </Typography>
                       {!trendSeries.length ? (
@@ -620,18 +620,18 @@ export default function ComparePage() {
                       ) : !hasAnyTrendData ? (
                         <EmptyState title="모든 회사가 0건입니다." subtitle="수집 주기 이후 자동 갱신에서 다시 확인됩니다." tone="warning" compact />
                       ) : (
-                        <Stack spacing={1.2}>
+                        <Stack spacing={1.45}>
                           {trendSeries.map((series) => (
                             <Box key={series.company}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
                                   {series.company}
                                 </Typography>
                                 <Chip
-                                  size="small"
                                   variant="outlined"
                                   color={getVolumeState(series.max).chipColor}
                                   label={`${getVolumeState(series.max).label} (최대 ${series.max}건)`}
+                                  sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
                                 />
                               </Stack>
                               {series.hasData ? (
@@ -697,7 +697,7 @@ export default function ComparePage() {
                       <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4 }}>
                         감성 분석
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
+                      <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
                         표본 0건은 비율 대신 상태 안내만 표시됩니다.
                       </Typography>
                       <Stack spacing={1.4}>
@@ -708,14 +708,14 @@ export default function ComparePage() {
                           return (
                             <Box key={company}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.8 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
                                   {company}
                                 </Typography>
                                 <Chip
-                                  size="small"
                                   color={sampleState.chipColor}
                                   variant="outlined"
                                   label={`${sampleState.label} · ${sampleCount}건`}
+                                  sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
                                 />
                               </Stack>
                               {sampleCount <= 0 ? (
@@ -734,7 +734,7 @@ export default function ComparePage() {
                                   alignItems="center"
                                   sx={{ mb: 0.5, display: sampleCount <= 0 ? "none" : "flex" }}
                                 >
-                                  <Typography variant="caption" sx={{ width: 30 }}>
+                                  <Typography variant="body2" sx={{ width: 36 }}>
                                     {s}
                                   </Typography>
                                   <LinearProgress
@@ -742,7 +742,7 @@ export default function ComparePage() {
                                     value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
                                     sx={{ flex: 1, height: 8, borderRadius: 99, bgcolor: "#edf2fb" }}
                                   />
-                                  <Typography variant="caption" sx={{ width: 48, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                  <Typography variant="body2" sx={{ width: 52, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                                     {Number(row[s] || 0).toFixed(1)}%
                                   </Typography>
                                 </Stack>
@@ -778,6 +778,7 @@ export default function ComparePage() {
                                 size="small"
                                 variant="outlined"
                                 label={`${it.keyword} · ${it.count}`}
+                                sx={{ fontSize: 13 }}
                               />
                             ))}
                           </Stack>
@@ -852,22 +853,25 @@ export default function ComparePage() {
                       최신 기사 목록
                     </Typography>
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                        <Chip
+                      <Chip
                         size="small"
                         label={`회사: ${filterCompany}`}
                         variant="outlined"
                         onClick={() => setFilterCompany((prev) => cycleListValue(articleCompanyFilters, prev))}
+                        sx={{ fontSize: 13 }}
                       />
                       <Chip
                         size="small"
                         label={`감성: ${filterSentiment}`}
                         variant="outlined"
                         onClick={() => setFilterSentiment((prev) => cycleListValue(SENTIMENT_FILTER_OPTIONS, prev))}
+                        sx={{ fontSize: 13 }}
                       />
                       <Chip
                         size="small"
                         label={`필터 결과: ${displayedArticles.length}`}
                         variant="outlined"
+                        sx={{ fontSize: 13 }}
                       />
                     </Stack>
                   </Stack>
@@ -881,7 +885,7 @@ export default function ComparePage() {
                         px: 1.2,
                         pb: 0.8,
                         color: "text.secondary",
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: 700,
                       }}
                     >

@@ -170,7 +170,6 @@ export default function NexonPage() {
   );
   const tipMap = {
     burst: "최근 임계치 이벤트 발생 로그입니다.",
-    svtm: "S/V/T/M은 감성·볼륨·테마·매체 신호입니다.",
     cluster: "유사 기사 키워드로 묶은 이슈 그룹 수입니다.",
     alert: "위험도 구간별 대응 우선순위 등급입니다.",
   };
@@ -1041,63 +1040,14 @@ export default function NexonPage() {
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
-                      <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
-                        <Box
-                          sx={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            bgcolor: selectedBurstStatus?.mode === "burst" ? "error.main" : "success.main",
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {selectedBurstStatus?.mode === "burst" ? "BURST 모드" : "정상 수집"}
-                        </Typography>
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
-                        주기 {selectedBurstStatus?.interval_seconds || 600}s
-                        {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
-                        최근 30분 이벤트 {recentBurstCount}건
-                      </Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
-                      <LabelWithTip label="위험도 구성요소" tip={tipMap.svtm} />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
-                        감성 {Number(riskScore?.components?.S || 0).toFixed(2)} · 기사량 {Number(riskScore?.components?.V || 0).toFixed(2)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
-                        테마 {Number(riskScore?.components?.T || 0).toFixed(2)} · 매체 {Number(riskScore?.components?.M || 0).toFixed(2)}
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 상태</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.45, fontVariantNumeric: "tabular-nums" }}>
+                        {selectedBurstStatus?.mode === "burst" ? "BURST 수집" : "정상 수집"} · 주기 {selectedBurstStatus?.interval_seconds || 600}s
+                        {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""} · 최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
                   </Stack>
                 </Box>
-
-                <Grid container spacing={{ xs: 1, md: 1.5 }} sx={{ mt: 1 }}>
-                  {["S", "V", "T", "M"].map((k) => {
-                    const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
-                    const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "기사량 신호" : k === "T" ? "테마 신호" : "매체 신호";
-                    return (
-                      <Grid item xs={12} sm={6} md={3} key={k}>
-                        <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1, sm: 1.15, md: 1.25 } }}>
-                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
-                            <LabelWithTip label={signalLabel} tip={tipMap.svtm} variant="caption" />
-                            <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                              {value.toFixed(2)}
-                            </Typography>
-                          </Stack>
-                          <LinearProgress
-                            variant="determinate"
-                            value={value * 100}
-                            sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
-                          />
-                        </Paper>
-                      </Grid>
-                    );
-                  })}
-                </Grid>
 
                 <Paper variant="outlined" sx={{ ...panelSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
                   <Box sx={{ px: 1.2, pt: 0.6 }}>

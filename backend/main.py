@@ -7,6 +7,7 @@ import time
 import os
 import logging
 from threading import Lock
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError, as_completed
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,8 @@ if str(ROOT_DIR) not in sys.path:
 
 from backend.storage import (
     IP_RULES,
+    cleanup_live_articles,
+    cleanup_risk_timeseries,
     cleanup_scheduler_logs,
     cleanup_test_articles,
     get_active_db_path,
@@ -47,6 +50,7 @@ from backend.storage import (
     get_scheduler_log_fallback_count,
     repair_article_outlets,
     save_articles,
+    upsert_risk_daily_summary,
 )
 from backend.analysis_project import CORE_IPS, build_project_snapshot
 from backend.burst_manager import BurstManager
@@ -87,6 +91,8 @@ LIVE_COLLECT_INCLUDE_SIM = os.getenv("LIVE_COLLECT_INCLUDE_SIM", "1") == "1"
 COLLECT_ZERO_STREAK_WARN_THRESHOLD = int(os.getenv("COLLECT_ZERO_STREAK_WARN_THRESHOLD", "10"))
 COMPARE_LIVE_RATE_LIMIT_PER_MIN = int(os.getenv("COMPARE_LIVE_RATE_LIMIT_PER_MIN", "30"))
 COMPARE_LIVE_CACHE_TTL_SECONDS = int(os.getenv("COMPARE_LIVE_CACHE_TTL_SECONDS", "45"))
+COMPARE_LIVE_COMPANY_TIMEOUT_SECONDS = int(os.getenv("COMPARE_LIVE_COMPANY_TIMEOUT_SECONDS", "10"))
+COMPARE_LIVE_MAX_WORKERS = int(os.getenv("COMPARE_LIVE_MAX_WORKERS", "4"))
 ENABLE_COMPETITOR_AUTO_COLLECT = os.getenv("ENABLE_COMPETITOR_AUTO_COLLECT", "1") == "1"
 COMPETITOR_COLLECT_INTERVAL_SECONDS = int(os.getenv("COMPETITOR_COLLECT_INTERVAL_SECONDS", "3600"))
 COMPETITOR_COLLECT_ARTICLES = int(os.getenv("COMPETITOR_COLLECT_ARTICLES", "30"))
@@ -108,6 +114,8 @@ BACKFILL_QUERIES: dict[str, list[str]] = {
 }
 SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
+LIVE_ARTICLE_RETENTION_DAYS = int(os.getenv("LIVE_ARTICLE_RETENTION_DAYS", "30"))
+RISK_TIMESERIES_RETENTION_DAYS = int(os.getenv("RISK_TIMESERIES_RETENTION_DAYS", "90"))
 ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
 DISABLE_COMPETITOR_COMPARE = os.getenv("DISABLE_COMPETITOR_COMPARE", "1") == "1"
 ENABLE_MANUAL_COLLECTION = os.getenv("ENABLE_MANUAL_COLLECTION", "0") == "1"
@@ -143,6 +151,14 @@ compare_live_metrics = {
     "cache_hits": 0,
     "cache_misses": 0,
     "cache_fallback_hits": 0,
+}
+cleanup_last_result = {
+    "deleted_scheduler_logs": 0,
+    "deleted_test_articles": 0,
+    "deleted_live_articles": 0,
+    "deleted_risk_rows": 0,
+    "summary_rows_upserted": 0,
+    "updated_at": "",
 }
 SENTIMENT_BUCKETS = ("긍정", "중립", "부정")
 
@@ -337,12 +353,56 @@ def _increment_compare_live_metric(metric_key: str) -> None:
 
 
 def _build_compare_live_payload(selected: list[str], limit: int, window_hours: int) -> dict[str, Any]:
-    frames = []
-    for company in selected:
-        part = fetch_company_news_compare(company, total=int(limit))
-        if not part.empty:
-            frames.append(part)
+    def _fetch_one(company: str) -> tuple[str, pd.DataFrame]:
+        return company, fetch_company_news_compare(company, total=int(limit))
 
+    frames: list[pd.DataFrame] = []
+    failed_companies: list[str] = []
+    timeout_companies: list[str] = []
+    empty_companies: list[str] = []
+    processed_companies: set[str] = set()
+
+    def _consume_future(company: str, future: Any) -> None:
+        try:
+            _, part = future.result()
+            processed_companies.add(company)
+            if part.empty:
+                empty_companies.append(company)
+                return
+            frames.append(part)
+        except Exception:  # noqa: BLE001
+            failed_companies.append(company)
+            processed_companies.add(company)
+
+    max_workers = max(1, min(int(COMPARE_LIVE_MAX_WORKERS), len(selected)))
+    per_company_timeout = max(1, int(COMPARE_LIVE_COMPANY_TIMEOUT_SECONDS))
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        futures = {executor.submit(_fetch_one, company): company for company in selected}
+        try:
+            for future in as_completed(futures, timeout=per_company_timeout):
+                company = futures[future]
+                _consume_future(company, future)
+        except FutureTimeoutError:
+            pass
+        finally:
+            for future, company in futures.items():
+                if company in processed_companies:
+                    continue
+                if future.done():
+                    _consume_future(company, future)
+                    continue
+                timeout_companies.append(company)
+                future.cancel()
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    if timeout_companies:
+        logger.warning("compare_live per-company timeout: companies=%s", ",".join(timeout_companies))
+    if failed_companies:
+        logger.warning("compare_live partial failures: companies=%s", ",".join(failed_companies))
+    if empty_companies:
+        logger.info("compare_live empty result companies=%s", ",".join(empty_companies))
     if not frames:
         raise RuntimeError(get_last_api_error() or "뉴스를 수집하지 못했습니다.")
 
@@ -592,19 +652,39 @@ def _run_maintenance_cleanup() -> None:
     try:
         deleted_logs = cleanup_scheduler_logs(retain_days=SCHEDULER_LOG_TTL_DAYS)
         deleted_tests = cleanup_test_articles(retain_hours=TEST_ARTICLE_TTL_HOURS)
+        deleted_live_articles = cleanup_live_articles(retain_days=LIVE_ARTICLE_RETENTION_DAYS)
+        deleted_risk_rows = cleanup_risk_timeseries(retain_days=RISK_TIMESERIES_RETENTION_DAYS)
+        summary_rows_upserted = upsert_risk_daily_summary()
+        cleanup_last_result.update(
+            {
+                "deleted_scheduler_logs": int(deleted_logs),
+                "deleted_test_articles": int(deleted_tests),
+                "deleted_live_articles": int(deleted_live_articles),
+                "deleted_risk_rows": int(deleted_risk_rows),
+                "summary_rows_upserted": int(summary_rows_upserted),
+                "updated_at": run_ts,
+            }
+        )
         scheduler_job_state[job_id] = {
             "last_run_time": run_ts,
             "last_status": "success",
             "last_error": "",
-            "last_collect_count": int(deleted_logs + deleted_tests),
-            "last_group_count": int(deleted_tests),
+            "last_collect_count": int(deleted_logs + deleted_tests + deleted_live_articles + deleted_risk_rows),
+            "last_group_count": int(summary_rows_upserted),
+            "deleted_live_articles": int(deleted_live_articles),
+            "deleted_risk_rows": int(deleted_risk_rows),
+            "summary_rows_upserted": int(summary_rows_upserted),
             "last_collect_duration_ms": int((time.time() - started) * 1000),
         }
         record_scheduler_log(
             job_id=job_id,
             status="success",
             run_time=run_ts,
-            error_message=f"deleted_logs={deleted_logs},deleted_tests={deleted_tests}",
+            error_message=(
+                f"deleted_logs={deleted_logs},deleted_tests={deleted_tests},"
+                f"deleted_live_articles={deleted_live_articles},deleted_risk_rows={deleted_risk_rows},"
+                f"summary_rows_upserted={summary_rows_upserted}"
+            ),
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("maintenance cleanup failed")
@@ -1180,6 +1260,12 @@ def health() -> dict:
         "compare_live_cache_hits": int(compare_live_metrics.get("cache_hits", 0)),
         "compare_live_cache_misses": int(compare_live_metrics.get("cache_misses", 0)),
         "compare_live_rate_limited": int(compare_live_metrics.get("rate_limited", 0)),
+        "live_article_retention_days": int(LIVE_ARTICLE_RETENTION_DAYS),
+        "risk_timeseries_retention_days": int(RISK_TIMESERIES_RETENTION_DAYS),
+        "deleted_live_articles": int(cleanup_last_result.get("deleted_live_articles", 0)),
+        "deleted_risk_rows": int(cleanup_last_result.get("deleted_risk_rows", 0)),
+        "summary_rows_upserted": int(cleanup_last_result.get("summary_rows_upserted", 0)),
+        "cleanup_last_updated_at": str(cleanup_last_result.get("updated_at", "")),
         "collect_zero_streak_threshold": int(COLLECT_ZERO_STREAK_WARN_THRESHOLD),
         "collect_zero_insert_streaks": {ip_id: int(streak) for ip_id, streak in collect_zero_insert_streak.items()},
         "collect_zero_alert_ips": zero_alert_ips,

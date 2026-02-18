@@ -289,6 +289,20 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS risk_daily_summary (
+                ip_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                avg_risk REAL NOT NULL,
+                max_risk REAL NOT NULL,
+                article_count INTEGER NOT NULL,
+                sample_size_avg REAL NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (ip_id, date)
+            )
+            """
+        )
 
         sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
         if "source_group_id" not in sentiment_cols:
@@ -321,6 +335,7 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_analyzed_at ON sentiment_results(analyzed_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_ip_ts ON risk_timeseries(ip_id, ts)")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_ip_ts ON risk_timeseries(ip_id, ts)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_daily_date ON risk_daily_summary(date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_burst_ip_time ON burst_events(ip_name, occurred_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scheduler_job_time ON scheduler_logs(job_id, run_time)")
         conn.commit()
@@ -1848,6 +1863,85 @@ def cleanup_scheduler_logs(retain_days: int = 7) -> int:
             return int(cur.rowcount or 0)
         except sqlite3.OperationalError:
             return 0
+    finally:
+        conn.close()
+
+
+def cleanup_live_articles(retain_days: int = 30) -> int:
+    days = int(retain_days)
+    if days <= 0:
+        return 0
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            """
+            DELETE FROM articles
+            WHERE is_test = 0
+              AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) < datetime(?)
+            """,
+            (cutoff,),
+        )
+        conn.commit()
+        return int(cur.rowcount or 0)
+    finally:
+        conn.close()
+
+
+def cleanup_risk_timeseries(retain_days: int = 90) -> int:
+    days = int(retain_days)
+    if days <= 0:
+        return 0
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        cur = conn.execute("DELETE FROM risk_timeseries WHERE ts < ?", (cutoff,))
+        conn.commit()
+        return int(cur.rowcount or 0)
+    finally:
+        conn.close()
+
+
+def upsert_risk_daily_summary() -> int:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT ip_id, substr(ts, 1, 10) AS date_key
+            FROM risk_timeseries
+            GROUP BY ip_id, substr(ts, 1, 10)
+            """
+        ).fetchall()
+        total_groups = int(len(rows))
+        if total_groups == 0:
+            return 0
+        conn.execute(
+            """
+            INSERT INTO risk_daily_summary (
+                ip_id, date, avg_risk, max_risk, article_count, sample_size_avg, updated_at
+            )
+            SELECT
+                ip_id,
+                substr(ts, 1, 10) AS date_key,
+                ROUND(AVG(risk_score), 3) AS avg_risk,
+                MAX(risk_score) AS max_risk,
+                COUNT(*) AS article_count,
+                ROUND(AVG(sample_size), 3) AS sample_size_avg,
+                ?
+            FROM risk_timeseries
+            GROUP BY ip_id, substr(ts, 1, 10)
+            ON CONFLICT(ip_id, date) DO UPDATE SET
+                avg_risk = excluded.avg_risk,
+                max_risk = excluded.max_risk,
+                article_count = excluded.article_count,
+                sample_size_avg = excluded.sample_size_avg,
+                updated_at = excluded.updated_at
+            """,
+            (now,),
+        )
+        conn.commit()
+        return total_groups
     finally:
         conn.close()
 
