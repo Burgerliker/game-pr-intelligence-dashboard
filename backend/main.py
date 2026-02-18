@@ -93,7 +93,7 @@ MAX_BURST_SECONDS = 7200
 LIVE_COLLECT_INTERVAL_SECONDS = int(os.getenv("LIVE_COLLECT_INTERVAL_SECONDS", "600"))
 LIVE_COLLECT_DISPLAY = int(os.getenv("LIVE_COLLECT_DISPLAY", "100"))
 LIVE_COLLECT_PAGES = int(os.getenv("LIVE_COLLECT_PAGES", "3"))
-LIVE_COLLECT_QUERIES_PER_IP = int(os.getenv("LIVE_COLLECT_QUERIES_PER_IP", "4"))
+LIVE_COLLECT_QUERIES_PER_IP = int(os.getenv("LIVE_COLLECT_QUERIES_PER_IP", "8"))
 LIVE_COLLECT_INCLUDE_SIM = os.getenv("LIVE_COLLECT_INCLUDE_SIM", "1") == "1"
 COLLECT_ZERO_STREAK_WARN_THRESHOLD = int(os.getenv("COLLECT_ZERO_STREAK_WARN_THRESHOLD", "10"))
 COMPARE_LIVE_RATE_LIMIT_PER_MIN = int(os.getenv("COMPARE_LIVE_RATE_LIMIT_PER_MIN", "30"))
@@ -113,11 +113,32 @@ BACKFILL_LOW_COUNT_THRESHOLD = int(os.getenv("BACKFILL_LOW_COUNT_THRESHOLD", "8"
 BACKFILL_MAX_IPS_PER_RUN = int(os.getenv("BACKFILL_MAX_IPS_PER_RUN", "2"))
 BACKFILL_DISPLAY = int(os.getenv("BACKFILL_DISPLAY", "40"))
 BACKFILL_QUERIES: dict[str, list[str]] = {
-    "maplestory": ["메이플스토리", "메이플", "maplestory", "메이플m"],
-    "dnf": ["던전앤파이터", "던파", "dnf", "네오플"],
+    "maplestory": [
+        "메이플스토리",
+        "메이플",
+        "maplestory",
+        "메이플m",
+        "메이플스토리m",
+        "maplestory m",
+        "메이플 키우기",
+        "메이플키우기",
+        "메이플 월드",
+        "메이플월드",
+    ],
+    "dnf": [
+        "던전앤파이터",
+        "던파",
+        "dnf",
+        "neople",
+        "네오플",
+        "던파모바일",
+        "dnf mobile",
+        "퍼스트 버서커 카잔",
+        "the first berserker khazan",
+    ],
     "arcraiders": ["아크레이더스", "아크 레이더스", "arc raiders", "arcraiders"],
     "bluearchive": ["블루아카이브", "블루 아카이브", "블루아카", "blue archive"],
-    "fconline": ["fc온라인", "fc online", "fconline", "피파온라인"],
+    "fconline": ["fc온라인", "fc online", "fconline", "피파온라인", "ea sports fc online"],
 }
 SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
