@@ -474,6 +474,21 @@ export default function NexonPage() {
   const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
   const spreadValue = Number(riskScore?.spread_ratio || 0);
   const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
+  const volumeHint = useMemo(() => {
+    if (recent24hArticles >= 20) return "충분";
+    if (recent24hArticles >= 5) return "보통";
+    return "부족";
+  }, [recent24hArticles]);
+  const spreadHint = useMemo(() => {
+    if (spreadValue >= 1.8) return "같은 이슈가 여러 기사로 재확산되는 구간";
+    if (spreadValue >= 1.2) return "유사 이슈가 반복 보도되는 구간";
+    return "개별 이슈 위주(재확산 낮음)";
+  }, [spreadValue]);
+  const uncertaintyHint = useMemo(() => {
+    if (uncertaintyValue >= 0.5) return "감성 판정 불확실 기사 비중이 높음";
+    if (uncertaintyValue >= 0.2) return "불확실 기사 비중이 일부 존재";
+    return "감성 판정 안정";
+  }, [uncertaintyValue]);
   const liveInterpretation = useMemo(() => {
     if (recent24hArticles < 5) return "기사량이 매우 적어 위험도 신뢰도가 낮을 수 있습니다.";
     if (riskValue >= 70) return "기사량 급증과 고위험 테마 집중으로 위험도가 심각 단계입니다.";
@@ -1040,14 +1055,23 @@ export default function NexonPage() {
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                        볼륨(Volume): {recent24hArticles.toLocaleString()}건
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.7, fontWeight: 700 }}>
+                        볼륨(Volume) · 최근 24시간 기사 수: {recent24hArticles.toLocaleString()}건 ({volumeHint})
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        기사량 자체를 의미합니다. 기사 수가 너무 적으면 위험도 신뢰도도 함께 낮아집니다.
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.65, fontWeight: 700 }}>
                         확산도(Spread): {spreadValue.toFixed(2)}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                        불확실도(Uncertainty): {uncertaintyValue.toFixed(2)}
+                        계산식: mention_count_window / group_count_window. {spreadHint}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.65, fontWeight: 700 }}>
+                        불확실도(Uncertainty): {uncertaintyValue.toFixed(2)} ({Math.round(uncertaintyValue * 100)}%)
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        최근 이슈 그룹 중 감성 판정이 불확실한 비율입니다. {uncertaintyHint}
                       </Typography>
                       <Typography variant="body2" sx={{ mt: 0.7, lineHeight: 1.45 }}>
                         {liveInterpretation}
