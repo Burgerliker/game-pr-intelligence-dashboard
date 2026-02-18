@@ -437,10 +437,12 @@ export default function NexonPage() {
     }
   };
   const riskValue = Number(riskScore?.risk_score || 0);
-  const riskConfidence = Number(riskScore?.confidence || 0);
-  const riskFormulaVersion = String(riskScore?.risk_formula_version || "unknown");
+  const hasConfidence = riskScore && riskScore.confidence != null;
+  const riskConfidence = hasConfidence ? Number(riskScore?.confidence || 0) : null;
+  const riskFormulaVersion = riskScore?.risk_formula_version ? String(riskScore.risk_formula_version) : "";
   const isLowSample = String(riskScore?.data_quality_flag || "").toUpperCase() === "LOW_SAMPLE";
-  const heatValue = Number(riskScore?.issue_heat || 0);
+  const hasHeatValue = riskScore && riskScore.issue_heat != null;
+  const heatValue = hasHeatValue ? Number(riskScore?.issue_heat || 0) : null;
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const alertInfo =
     alertLevel === "P1"
@@ -983,12 +985,12 @@ export default function NexonPage() {
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
-                        <Chip size="small" variant="outlined" label={`식 ${riskFormulaVersion}`} sx={controlChipSx} />
+                        <Chip size="small" variant="outlined" label={riskFormulaVersion ? `식 ${riskFormulaVersion}` : "식 미제공"} sx={controlChipSx} />
                         <Chip
                           size="small"
                           variant="outlined"
-                          color={riskConfidence < 0.4 ? "warning" : "default"}
-                          label={`신뢰 ${(riskConfidence * 100).toFixed(0)}%`}
+                          color={hasConfidence && riskConfidence < 0.4 ? "warning" : "default"}
+                          label={hasConfidence ? `신뢰 ${(riskConfidence * 100).toFixed(0)}%` : "신뢰 미제공"}
                           sx={controlChipSx}
                         />
                       </Stack>
@@ -1022,7 +1024,7 @@ export default function NexonPage() {
                         }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준 · Heat {heatValue.toFixed(1)}
+                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준 · Heat {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>

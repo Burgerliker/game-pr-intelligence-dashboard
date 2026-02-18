@@ -158,6 +158,7 @@ export default function ComparePage() {
   const insights = data?.insights ?? {};
   const trendRows = data?.trend ?? [];
   const trendMetricRows = data?.trend_metrics ?? [];
+  const hasTrendMetricRows = Array.isArray(trendMetricRows) && trendMetricRows.length > 0;
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
   const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
@@ -294,16 +295,30 @@ export default function ComparePage() {
     const fallbackDateOrder = Array.from(new Set((trendMetricRows || []).map((row) => String(row.date)))).slice(-14);
     const dates = dateOrder.length ? dateOrder : fallbackDateOrder;
     if (!dates.length) return [];
+
+    const trendCountMap = new Map();
+    for (const row of trendRows) {
+      const day = String(row?.date || "");
+      if (!day) continue;
+      for (const company of companiesForView) {
+        trendCountMap.set(`${company}::${day}`, Number(row?.[company] || 0));
+      }
+    }
+
     return companiesForView.map((company) => {
       const rows = (trendMetricRows || []).filter((row) => row.company === company);
       const byDate = new Map(rows.map((row) => [String(row.date), row]));
       const points = dates.map((date) => {
         const row = byDate.get(date);
-        const countValue = Number(row?.count || 0);
+        const countValue = Number(
+          row?.count ??
+            trendCountMap.get(`${company}::${date}`) ??
+            0
+        );
         const value = trendMetric === "risk"
-          ? Number(row?.risk_score || 0)
+          ? (hasTrendMetricRows ? Number(row?.risk_score || 0) : countValue)
           : trendMetric === "heat"
-            ? Number(row?.heat_score || 0)
+            ? (hasTrendMetricRows ? Number(row?.heat_score || 0) : countValue)
             : countValue;
         return {
           date,
@@ -317,7 +332,7 @@ export default function ComparePage() {
       const hasLowSample = points.some((p) => p.qualityFlag === "LOW_SAMPLE");
       return { company, points, max, hasData, hasLowSample };
     });
-  }, [companiesForView, lowSampleThreshold, trendMetric, trendMetricRows, trendRows]);
+  }, [companiesForView, hasTrendMetricRows, lowSampleThreshold, trendMetric, trendMetricRows, trendRows]);
 
   const hasAnyTrendData = useMemo(
     () => trendSeries.some((series) => series.hasData),
@@ -670,6 +685,11 @@ export default function ComparePage() {
                           />
                         ))}
                       </Stack>
+                      {!hasTrendMetricRows && trendMetric !== "count" ? (
+                        <Alert severity="info" sx={{ mb: 1.1, borderRadius: 1.5 }}>
+                          현재 서버 응답에 Risk/Heat 일자별 지표가 없어 기사수 추이로 대체 표시 중입니다.
+                        </Alert>
+                      ) : null}
                       {hasTrendLowSample ? (
                         <Alert severity="warning" sx={{ mb: 1.1, borderRadius: 1.5 }}>
                           표본 부족 구간이 포함되어 Risk/Heat 해석 신뢰도가 낮습니다.
@@ -758,7 +778,11 @@ export default function ComparePage() {
                       )}
                       {trendDateRangeLabel ? (
                         <Typography variant="body2" sx={{ color: "#64748b", mt: 1.2 }}>
-                          기준 일자: {trendDateRangeLabel} · 단위: {trendMetric === "count" ? "기사 건수" : "지수(0~100)"}
+                          기준 일자: {trendDateRangeLabel} · 단위: {
+                            trendMetric === "count" || !hasTrendMetricRows
+                              ? "기사 건수"
+                              : "지수(0~100)"
+                          }
                         </Typography>
                       ) : null}
                     </CardContent>
