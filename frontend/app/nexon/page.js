@@ -680,7 +680,18 @@ export default function NexonPage() {
               <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
               <Box>
                 <Typography variant="caption" color="text.secondary">실시간 모니터링</Typography>
-                <Typography sx={{ fontSize: { xs: 20, sm: 24, md: 28 }, fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em", lineHeight: 1.1 }}>넥슨 IP 리스크 대시보드</Typography>
+                <Typography
+                  sx={{
+                    fontSize: { xs: "clamp(1.8rem, 7vw, 2.3rem)", sm: "clamp(2.1rem, 5vw, 2.8rem)", md: "3rem" },
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    letterSpacing: "-.03em",
+                    lineHeight: 1.02,
+                    wordBreak: "keep-all",
+                  }}
+                >
+                  넥슨 IP 리스크 대시보드
+                </Typography>
               </Box>
             </Stack>
             <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
