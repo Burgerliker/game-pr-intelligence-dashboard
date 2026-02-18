@@ -5,6 +5,7 @@ import { Alert, Button, Stack, Typography } from "@mui/material";
 export default function ErrorState({
   title = "문제가 발생했습니다",
   details = "",
+  diagnosticCode = "",
   actionLabel = "",
   onAction = null,
 }) {
@@ -27,6 +28,11 @@ export default function ErrorState({
         {details ? (
           <Typography variant="caption" sx={{ whiteSpace: "pre-wrap" }}>
             {details}
+          </Typography>
+        ) : null}
+        {diagnosticCode ? (
+          <Typography variant="caption" sx={{ opacity: 0.82 }}>
+            진단코드: {diagnosticCode}
           </Typography>
         ) : null}
       </Stack>

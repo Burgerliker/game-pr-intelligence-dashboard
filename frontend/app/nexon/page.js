@@ -124,6 +124,7 @@ export default function NexonPage() {
   const [usingMock, setUsingMock] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
   const [notice, setNotice] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const [articleItems, setArticleItems] = useState([]);
@@ -132,6 +133,7 @@ export default function NexonPage() {
   const [articleHasMore, setArticleHasMore] = useState(false);
   const [articleLoading, setArticleLoading] = useState(false);
   const [articleError, setArticleError] = useState("");
+  const [articleErrorCode, setArticleErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
@@ -168,6 +170,7 @@ export default function NexonPage() {
     setClusterData(createEmptyCluster(targetIp));
     setRiskScore(null);
     setError("");
+    setErrorCode("");
     setNotice("");
     setLoading(true);
     const cache = ipCacheRef.current.get(targetIp);
@@ -255,6 +258,7 @@ export default function NexonPage() {
       }
       setLastUpdatedAt("-");
       setError(getErrorMessage(e, "대시보드 API 요청에 실패했습니다."));
+      setErrorCode(getDiagnosticCode(e, "NEX-DASH"));
     } finally {
       if (requestSeq !== requestSeqRef.current) return;
       setLoading(false);
@@ -273,7 +277,10 @@ export default function NexonPage() {
     if (articleAbortRef.current) articleAbortRef.current.abort();
     const controller = new AbortController();
     articleAbortRef.current = controller;
-    if (reset) setArticleError("");
+    if (reset) {
+      setArticleError("");
+      setArticleErrorCode("");
+    }
     setArticleLoading(true);
     try {
       const payload = await apiGet(
@@ -290,6 +297,7 @@ export default function NexonPage() {
       if (e?.name === "AbortError") return;
       if (reqSeq !== articleReqSeqRef.current) return;
       setArticleError(getErrorMessage(e, "기사 목록 API 호출에 실패했습니다."));
+      setArticleErrorCode(getDiagnosticCode(e, "NEX-ART"));
       if (reset) {
         setArticleItems([]);
         setArticleTotal(0);
@@ -310,6 +318,7 @@ export default function NexonPage() {
     setArticleHasMore(true);
     setArticleLoading(false);
     setArticleError("");
+    setArticleErrorCode("");
     loadMoreArticles(ip, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip]);
@@ -890,7 +899,13 @@ export default function NexonPage() {
             ) : null}
             {error ? (
               <Box sx={{ mt: 1.5 }}>
-                <ErrorState title="대시보드 데이터를 불러오지 못했습니다." details={error} actionLabel="재시도" onAction={() => loadDashboard(ip)} />
+                <ErrorState
+                  title="대시보드 데이터를 불러오지 못했습니다."
+                  details={error}
+                  diagnosticCode={errorCode}
+                  actionLabel="재시도"
+                  onAction={() => loadDashboard(ip)}
+                />
               </Box>
             ) : null}
           </CardContent>
@@ -918,22 +933,22 @@ export default function NexonPage() {
         </Grid>
 
         <Card variant="outlined" sx={sectionCardSx}>
-          <CardContent sx={{ p: { xs: 1.3, sm: 1.8, md: 2.2 } }}>
+          <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.3 } }}>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.8 }}>
               실시간 위험도 모니터
             </Typography>
             {riskScore ? (
-              <Box sx={{ maxWidth: 1040, mx: "auto", width: "100%" }}>
+              <Box sx={{ maxWidth: 1060, mx: "auto", width: "100%" }}>
                 <Box
                   sx={{
                     display: "grid",
                     gridTemplateColumns: { xs: "1fr", md: "1fr", lg: "1.2fr .8fr" },
-                    gap: { xs: 1.2, sm: 1.6, md: 2.2, lg: 2.4 },
+                    gap: { xs: 1.5, sm: 1.9, md: 2.3, lg: 2.6 },
                     alignItems: "start",
                   }}
                 >
-                  <Stack spacing={2.2}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                  <Stack spacing={{ xs: 1.6, sm: 2, md: 2.3 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
@@ -958,7 +973,7 @@ export default function NexonPage() {
                         최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                       </Typography>
@@ -969,7 +984,7 @@ export default function NexonPage() {
                         기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                         볼륨(Volume): {recent24hArticles.toLocaleString()}건
@@ -986,8 +1001,8 @@ export default function NexonPage() {
                     </Paper>
                   </Stack>
 
-                  <Stack spacing={2.2}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                  <Stack spacing={{ xs: 1.6, sm: 2, md: 2.3 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
                       <LabelWithTip label="경보 등급" tip={tipMap.alert} />
                       <Chip
                         label={`${alertInfo.label} (${alertLevel})`}
@@ -998,7 +1013,7 @@ export default function NexonPage() {
                         {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
                         <Box
@@ -1263,6 +1278,7 @@ export default function NexonPage() {
                 <ErrorState
                   title="기사 목록을 불러오지 못했습니다."
                   details={articleError}
+                  diagnosticCode={articleErrorCode}
                   actionLabel="다시 시도"
                   onAction={() => loadMoreArticles(ip, true)}
                 />

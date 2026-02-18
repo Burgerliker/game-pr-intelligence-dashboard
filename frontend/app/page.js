@@ -48,6 +48,7 @@ export default function HomePage() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
   const [hoveredCard, setHoveredCard] = useState(null);
 
@@ -56,6 +57,7 @@ export default function HomePage() {
     const run = async () => {
       setLoading(true);
       setError("");
+      setErrorCode("");
       setHealthDiagCode("");
       try {
         const [healthState, riskRes] = await Promise.all([
@@ -79,6 +81,7 @@ export default function HomePage() {
       } catch (e) {
         if (!active) return;
         setError(getErrorMessage(e, "초기 상태 데이터를 가져오지 못했습니다."));
+        setErrorCode(getDiagnosticCode(e, "HOME-INIT"));
       } finally {
         if (active) setLoading(false);
       }
@@ -215,7 +218,7 @@ export default function HomePage() {
                 details={`서비스는 계속 사용할 수 있습니다.\n운영자 진단코드: ${healthDiagCode}`}
               />
             ) : null}
-            {error ? <ErrorState title="초기 데이터 로드 실패" details={error} /> : null}
+            {error ? <ErrorState title="초기 데이터 로드 실패" details={error} diagnosticCode={errorCode} /> : null}
           </Stack>
 
           <Box

@@ -6,7 +6,7 @@ import { Alert, Box, Button, Chip, Container, Paper, Stack, Typography } from "@
 import ApiGuardBanner from "../../../components/ApiGuardBanner";
 import LoadingState from "../../../components/LoadingState";
 import ErrorState from "../../../components/ErrorState";
-import { apiGet, getErrorMessage } from "../../../lib/api";
+import { apiGet, getDiagnosticCode, getErrorMessage } from "../../../lib/api";
 import { normalizeBacktestPayload } from "../../../lib/normalizeBacktest";
 
 const FIXED_PARAMS = {
@@ -27,6 +27,7 @@ export default function NexonBacktestPage() {
   const resizeHandlerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
   const [payload, setPayload] = useState(null);
   const [health, setHealth] = useState(null);
   const [reloadSeq, setReloadSeq] = useState(0);
@@ -36,6 +37,7 @@ export default function NexonBacktestPage() {
     const run = async () => {
       setLoading(true);
       setError("");
+      setErrorCode("");
       try {
         const qs = new URLSearchParams(FIXED_PARAMS);
         const [backtest, healthRes] = await Promise.all([
@@ -48,6 +50,7 @@ export default function NexonBacktestPage() {
       } catch (e) {
         if (e?.name === "AbortError") return;
         setError(getErrorMessage(e, "백테스트 데이터를 불러오지 못했습니다."));
+        setErrorCode(getDiagnosticCode(e, "NEX-BACKTEST"));
       } finally {
         setLoading(false);
       }
@@ -391,6 +394,7 @@ export default function NexonBacktestPage() {
               <ErrorState
                 title="백테스트 데이터를 불러오지 못했습니다."
                 details={`${String(error)}\nPR_DB_PATH 및 백엔드 실행 상태를 확인해주세요.`}
+                diagnosticCode={errorCode}
                 actionLabel="다시 시도"
                 onAction={() => setReloadSeq((prev) => prev + 1)}
               />
