@@ -45,6 +45,11 @@ const WINDOW_HOURS_OPTIONS = [
   { hours: 72, label: "3일" },
   { hours: 168, label: "일주일" },
 ];
+const TREND_METRIC_OPTIONS = [
+  { key: "count", label: "기사수" },
+  { key: "risk", label: "Risk(위험도)" },
+  { key: "heat", label: "Heat(이슈량)" },
+];
 const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
 
 function getVolumeState(count) {
@@ -135,6 +140,7 @@ export default function ComparePage() {
   const [data, setData] = useState(null);
   const [filterCompany, setFilterCompany] = useState("전체");
   const [filterSentiment, setFilterSentiment] = useState("전체");
+  const [trendMetric, setTrendMetric] = useState("count");
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const [retryAfterSec, setRetryAfterSec] = useState(null);
   const [selectedWindowHours, setSelectedWindowHours] = useState(DEFAULT_WINDOW_HOURS);
@@ -150,8 +156,10 @@ export default function ComparePage() {
   const companyCounts = data?.company_counts ?? {};
   const insights = data?.insights ?? {};
   const trendRows = data?.trend ?? [];
+  const trendMetricRows = data?.trend_metrics ?? [];
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
+  const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
   const companiesForView = selectedCompanies;
   const windowHours = Number(selectedWindowHours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
 
@@ -280,19 +288,43 @@ export default function ComparePage() {
   }, [sentimentRows]);
 
   const trendSeries = useMemo(() => {
-    if (!trendRows.length || !companiesForView.length) return [];
-    const recent = trendRows.slice(-14);
+    if (!companiesForView.length) return [];
+    const dateOrder = trendRows.slice(-14).map((row) => String(row.date));
+    const fallbackDateOrder = Array.from(new Set((trendMetricRows || []).map((row) => String(row.date)))).slice(-14);
+    const dates = dateOrder.length ? dateOrder : fallbackDateOrder;
+    if (!dates.length) return [];
     return companiesForView.map((company) => {
-      const points = recent.map((row) => ({ date: row.date, value: Number(row[company] || 0) }));
+      const rows = (trendMetricRows || []).filter((row) => row.company === company);
+      const byDate = new Map(rows.map((row) => [String(row.date), row]));
+      const points = dates.map((date) => {
+        const row = byDate.get(date);
+        const countValue = Number(row?.count || 0);
+        const value = trendMetric === "risk"
+          ? Number(row?.risk_score || 0)
+          : trendMetric === "heat"
+            ? Number(row?.heat_score || 0)
+            : countValue;
+        return {
+          date,
+          value,
+          sampleSize: Number(row?.sample_size || countValue || 0),
+          qualityFlag: String(row?.quality_flag || (countValue < lowSampleThreshold ? "LOW_SAMPLE" : "OK")),
+        };
+      });
       const max = Math.max(...points.map((p) => p.value), 0);
       const hasData = points.some((p) => p.value > 0);
-      return { company, points, max, hasData };
+      const hasLowSample = points.some((p) => p.qualityFlag === "LOW_SAMPLE");
+      return { company, points, max, hasData, hasLowSample };
     });
-  }, [companiesForView, trendRows]);
+  }, [companiesForView, lowSampleThreshold, trendMetric, trendMetricRows, trendRows]);
 
   const hasAnyTrendData = useMemo(
     () => trendSeries.some((series) => series.hasData),
     [trendSeries]
+  );
+  const hasTrendLowSample = useMemo(
+    () => trendMetric !== "count" && trendSeries.some((series) => series.hasLowSample),
+    [trendMetric, trendSeries]
   );
 
   const keywordCards = useMemo(
@@ -613,12 +645,30 @@ export default function ComparePage() {
                         일별 보도량 추이 (최근 14일)
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
-                        파랑=정상, 황색=저건수, 회색=0건
+                        기사수/위험도/이슈량은 백엔드 산출값만 사용합니다.
                       </Typography>
+                      <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mb: 1 }}>
+                        {TREND_METRIC_OPTIONS.map((option) => (
+                          <Chip
+                            key={option.key}
+                            clickable
+                            label={option.label}
+                            onClick={() => setTrendMetric(option.key)}
+                            color={trendMetric === option.key ? "primary" : "default"}
+                            variant={trendMetric === option.key ? "filled" : "outlined"}
+                            sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
+                          />
+                        ))}
+                      </Stack>
+                      {hasTrendLowSample ? (
+                        <Alert severity="warning" sx={{ mb: 1.1, borderRadius: 1.5 }}>
+                          표본 부족 구간이 포함되어 Risk/Heat 해석 신뢰도가 낮습니다.
+                        </Alert>
+                      ) : null}
                       {!trendSeries.length ? (
-                        <EmptyState title="추이 데이터가 없습니다." subtitle="선택한 조건에서 시계열 데이터가 아직 생성되지 않았습니다." compact />
+                        <EmptyState title="추이 데이터가 없습니다." subtitle="운영자가 확인할 일자별 집계 데이터가 아직 생성되지 않았습니다." compact />
                       ) : !hasAnyTrendData ? (
-                        <EmptyState title="모든 회사가 0건입니다." subtitle="수집 주기 이후 자동 갱신에서 다시 확인됩니다." tone="warning" compact />
+                        <EmptyState title="모든 회사가 0건입니다." subtitle="현재 윈도우에는 수집 기사가 없어 추이를 해석할 수 없습니다." tone="warning" compact />
                       ) : (
                         <Stack spacing={1.45}>
                           {trendSeries.map((series) => (
@@ -629,8 +679,14 @@ export default function ComparePage() {
                                 </Typography>
                                 <Chip
                                   variant="outlined"
-                                  color={getVolumeState(series.max).chipColor}
-                                  label={`${getVolumeState(series.max).label} (최대 ${series.max}건)`}
+                                  color={series.hasLowSample && trendMetric !== "count" ? "warning" : getVolumeState(series.max).chipColor}
+                                  label={
+                                    trendMetric === "count"
+                                      ? `${getVolumeState(series.max).label} (최대 ${series.max}건)`
+                                      : trendMetric === "risk"
+                                        ? `Risk 최대 ${series.max.toFixed(1)}`
+                                        : `Heat 최대 ${series.max.toFixed(1)}`
+                                  }
                                   sx={{ height: 32, fontSize: 13, fontWeight: 700 }}
                                 />
                               </Stack>
@@ -641,16 +697,27 @@ export default function ComparePage() {
                                   sx={{ mt: 0.8, height: 72, alignItems: "end" }}
                                 >
                                   {series.points.map((p) => {
-                                    const pointState = getVolumeState(p.value);
+                                    const pointState = getVolumeState(p.sampleSize);
+                                    const barColor = p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count"
+                                      ? "#f59e0b"
+                                      : trendMetric === "risk"
+                                        ? "#dc3c4a"
+                                        : trendMetric === "heat"
+                                          ? "#2f67d8"
+                                          : pointState.barColor;
                                     return (
-                                      <Box key={`${series.company}-${p.date}`} title={`${p.date}: ${p.value}건`} sx={{ flex: 1 }}>
+                                      <Box
+                                        key={`${series.company}-${p.date}`}
+                                        title={`${p.date}: ${p.value}${trendMetric === "count" ? "건" : trendMetric === "risk" ? " Risk" : " Heat"}${p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count" ? " (표본 부족)" : ""}`}
+                                        sx={{ flex: 1 }}
+                                      >
                                         {p.value > 0 ? (
                                           <Box
                                             sx={{
                                               width: "100%",
                                               height: `${(p.value / series.max) * 100}%`,
                                               borderRadius: 0.5,
-                                              bgcolor: pointState.barColor,
+                                              bgcolor: barColor,
                                             }}
                                           />
                                         ) : (
@@ -659,7 +726,7 @@ export default function ComparePage() {
                                               width: "100%",
                                               height: 6,
                                               borderRadius: 0.5,
-                                              bgcolor: pointState.barColor,
+                                              bgcolor: barColor,
                                             }}
                                           />
                                         )}
@@ -670,7 +737,7 @@ export default function ComparePage() {
                               ) : (
                                 <EmptyState
                                   title={`${series.company} · 0건`}
-                                  subtitle="해당 기간 보도량 없음"
+                                  subtitle="해당 기간 집계 표본이 없어 추이를 표시할 수 없습니다."
                                   tone="warning"
                                   compact
                                 />

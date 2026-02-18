@@ -437,6 +437,10 @@ export default function NexonPage() {
     }
   };
   const riskValue = Number(riskScore?.risk_score || 0);
+  const riskConfidence = Number(riskScore?.confidence || 0);
+  const riskFormulaVersion = String(riskScore?.risk_formula_version || "unknown");
+  const isLowSample = String(riskScore?.data_quality_flag || "").toUpperCase() === "LOW_SAMPLE";
+  const heatValue = Number(riskScore?.issue_heat || 0);
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const alertInfo =
     alertLevel === "P1"
@@ -976,7 +980,27 @@ export default function NexonPage() {
                   <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
-                      <Typography variant="h4" sx={{ mt: 0.3, ...metricValueSx }}>{riskValue.toFixed(1)}</Typography>
+                      <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
+                        <Chip size="small" variant="outlined" label={`식 ${riskFormulaVersion}`} sx={{ fontSize: 12 }} />
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={riskConfidence < 0.4 ? "warning" : "default"}
+                          label={`신뢰 ${(riskConfidence * 100).toFixed(0)}%`}
+                          sx={{ fontSize: 12 }}
+                        />
+                      </Stack>
+                      {isLowSample ? (
+                        <Alert severity="warning" sx={{ mt: 0.8, borderRadius: 1.5 }}>
+                          표본이 부족해 현재 위험도 신뢰도가 낮습니다. 수치 해석보다 추세 확인을 우선하세요.
+                        </Alert>
+                      ) : null}
+                      <Typography
+                        variant={isLowSample ? "h5" : "h4"}
+                        sx={{ mt: 0.3, ...metricValueSx, opacity: isLowSample ? 0.82 : 1 }}
+                      >
+                        {riskValue.toFixed(1)}
+                      </Typography>
                       <Chip
                         label={riskMeaning.label}
                         size="small"
@@ -996,7 +1020,7 @@ export default function NexonPage() {
                         }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
+                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준 · Heat {heatValue.toFixed(1)}
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
@@ -1046,8 +1070,38 @@ export default function NexonPage() {
                         {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""} · 최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk vs Heat</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                        Risk는 악재 강도, Heat는 이슈량(관심도)으로 서로 다른 신호입니다.
+                      </Typography>
+                    </Paper>
                   </Stack>
                 </Box>
+
+                <Grid container spacing={{ xs: 1, md: 1.2 }} sx={{ mt: 1 }}>
+                  {["S", "V", "T", "M"].map((k) => {
+                    const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
+                    const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "볼륨 신호" : k === "T" ? "테마 신호" : "매체 신호";
+                    return (
+                      <Grid item xs={6} md={3} key={k}>
+                        <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1, sm: 1.1 } }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>{signalLabel}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                              {value.toFixed(2)}
+                            </Typography>
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={value * 100}
+                            sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
+                          />
+                        </Paper>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
 
                 <Paper variant="outlined" sx={{ ...panelSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
                   <Box sx={{ px: 1.2, pt: 0.6 }}>

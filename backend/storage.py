@@ -40,6 +40,11 @@ THEME_WEIGHTS: dict[str, float] = {
     "여론/논란": 0.7,
     "신작/성과": 0.4,
 }
+THEME_WEIGHTS_HEAT: dict[str, float] = dict(THEME_WEIGHTS)
+THEME_WEIGHTS_RISK: dict[str, float] = {
+    k: v for k, v in THEME_WEIGHTS.items() if k != "신작/성과"
+}
+RISK_FORMULA_VERSION = "v2"
 IP_RULES: dict[str, dict[str, Any]] = {
     "전체": {"slug": "all", "keywords": []},
     "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "메이플", "maplestory"]},
@@ -255,6 +260,7 @@ def init_db() -> None:
                 ts TEXT NOT NULL,
                 risk_raw REAL NOT NULL,
                 risk_score REAL NOT NULL,
+                issue_heat REAL NOT NULL DEFAULT 0,
                 s_comp REAL NOT NULL,
                 v_comp REAL NOT NULL,
                 t_comp REAL NOT NULL,
@@ -262,7 +268,8 @@ def init_db() -> None:
                 alert_level TEXT NOT NULL,
                 sample_size INTEGER NOT NULL,
                 uncertain_ratio REAL NOT NULL,
-                quality_flag TEXT NOT NULL DEFAULT 'OK'
+                quality_flag TEXT NOT NULL DEFAULT 'OK',
+                risk_formula_version TEXT NOT NULL DEFAULT 'v1'
             )
             """
         )
@@ -310,6 +317,10 @@ def init_db() -> None:
         risk_cols = {r["name"] for r in conn.execute("PRAGMA table_info(risk_timeseries)").fetchall()}
         if "quality_flag" not in risk_cols:
             conn.execute("ALTER TABLE risk_timeseries ADD COLUMN quality_flag TEXT NOT NULL DEFAULT 'OK'")
+        if "issue_heat" not in risk_cols:
+            conn.execute("ALTER TABLE risk_timeseries ADD COLUMN issue_heat REAL NOT NULL DEFAULT 0")
+        if "risk_formula_version" not in risk_cols:
+            conn.execute("ALTER TABLE risk_timeseries ADD COLUMN risk_formula_version TEXT NOT NULL DEFAULT 'v1'")
 
         conn.execute(
             """
@@ -1163,6 +1174,7 @@ def _upsert_risk_timeseries(
     ts: str,
     raw_risk: float,
     score: float,
+    issue_heat: float,
     s_comp: float,
     v_comp: float,
     t_comp: float,
@@ -1171,15 +1183,17 @@ def _upsert_risk_timeseries(
     sample_size: int,
     uncertain_ratio: float,
     quality_flag: str,
+    risk_formula_version: str,
 ) -> None:
     conn.execute(
         """
         INSERT INTO risk_timeseries (
-            ip_id, ts, risk_raw, risk_score, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio, quality_flag
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ip_id, ts, risk_raw, risk_score, issue_heat, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio, quality_flag, risk_formula_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(ip_id, ts) DO UPDATE SET
             risk_raw = excluded.risk_raw,
             risk_score = excluded.risk_score,
+            issue_heat = excluded.issue_heat,
             s_comp = excluded.s_comp,
             v_comp = excluded.v_comp,
             t_comp = excluded.t_comp,
@@ -1187,13 +1201,15 @@ def _upsert_risk_timeseries(
             alert_level = excluded.alert_level,
             sample_size = excluded.sample_size,
             uncertain_ratio = excluded.uncertain_ratio,
-            quality_flag = excluded.quality_flag
+            quality_flag = excluded.quality_flag,
+            risk_formula_version = excluded.risk_formula_version
         """,
         (
             str(ip_id),
             str(ts),
             float(raw_risk),
             float(score),
+            float(issue_heat),
             float(s_comp),
             float(v_comp),
             float(t_comp),
@@ -1202,6 +1218,7 @@ def _upsert_risk_timeseries(
             int(sample_size),
             float(uncertain_ratio),
             str(quality_flag),
+            str(risk_formula_version),
         ),
     )
 
@@ -1291,6 +1308,7 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
 
         weighted_scores = []
         uncertain_count = 0
+        negative_group_count = 0
         for gid in recent_groups:
             entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "uncertain", "confidence": 0.0})
             label = str(entry["label"])
@@ -1298,10 +1316,13 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             weight = confidence if label != "uncertain" else 0.3
             negative_value = max(0.0, -float(entry["score"]))
             weighted_scores.append(negative_value * weight)
+            if label == "negative":
+                negative_group_count += 1
             if label == "uncertain":
                 uncertain_count += 1
         S_t = float(sum(weighted_scores) / max(len(weighted_scores), 1))
         uncertain_ratio = float(uncertain_count / max(len(recent_groups), 1))
+        negative_ratio_window = float(negative_group_count / max(len(recent_groups), 1))
 
         hour_start = now - timedelta(hours=1)
         count_1h = sum(1 for r in scoped if r["dt"] >= hour_start)
@@ -1321,20 +1342,28 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         baseline_mean = float(sum(baseline_values) / max(len(baseline_values), 1))
         baseline_std = float(pd.Series(baseline_values).std(ddof=0)) if baseline_values else 0.0
         z_score = (float(count_1h) - baseline_mean) / max(baseline_std, 1.0)
-        V_t = float(_sigmoid(z_score))
+        V_heat = float(_sigmoid(z_score))
+        V_risk = float(V_heat * negative_ratio_window)
 
-        theme_counter: Counter[str] = Counter()
+        theme_counter_heat: Counter[str] = Counter()
+        theme_counter_risk: Counter[str] = Counter()
         for r in recent_group_items.values():
             for theme, keywords in RISK_THEME_RULES.items():
                 if any(k.lower() in r["text"] for k in keywords):
-                    theme_counter[theme] += 1
+                    theme_counter_heat[theme] += 1
+                    if theme in THEME_WEIGHTS_RISK:
+                        theme_counter_risk[theme] += 1
                     break
-        T_t = 0.0
+        T_heat = 0.0
+        T_risk = 0.0
         if recent_group_items:
             total_recent = float(len(recent_group_items))
-            for theme, cnt in theme_counter.items():
+            for theme, cnt in theme_counter_heat.items():
                 share = float(cnt) / total_recent
-                T_t += share * float(THEME_WEIGHTS.get(theme, 0.4))
+                T_heat += share * float(THEME_WEIGHTS_HEAT.get(theme, 0.4))
+            for theme, cnt in theme_counter_risk.items():
+                share = float(cnt) / total_recent
+                T_risk += share * float(THEME_WEIGHTS_RISK.get(theme, 0.0))
 
         outlet_counter: Counter[str] = Counter(r["outlet"] for r in recent)
         M_t = 0.0
@@ -1348,15 +1377,19 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
 
         if not scoped:
             S_t = 0.0
-            V_t = 0.0
-            T_t = 0.0
+            V_heat = 0.0
+            V_risk = 0.0
+            T_heat = 0.0
+            T_risk = 0.0
             M_t = 0.0
             uncertain_ratio = 0.0
+            negative_ratio_window = 0.0
             spread_ratio = 0.0
             z_score = 0.0
             count_1h = 0
 
-        raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
+        raw_issue_heat = 100.0 * (0.45 * V_heat + 0.35 * T_heat + 0.20 * M_t)
+        raw_risk = 100.0 * (0.50 * S_t + 0.25 * V_risk + 0.15 * T_risk + 0.10 * (M_t * negative_ratio_window))
         ip_id = (ip or "all").strip().lower()
         prev = conn.execute(
             """
@@ -1381,24 +1414,30 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                 smoothed = 0.9 * prev_risk + 0.1 * raw_risk
 
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
+        issue_heat = round(float(max(0.0, min(100.0, raw_issue_heat))), 1)
         alert = _alert_level(score)
         ts = now.strftime("%Y-%m-%d %H:%M:%S")
         sample_size = int(len(recent_groups))
         quality_flag = _risk_quality_flag(sample_size)
+        confidence = max(0.0, min(1.0, (sample_size / 20.0) * (1.0 - min(0.7, uncertain_ratio * 0.7))))
+        if quality_flag == "LOW_SAMPLE":
+            confidence = min(confidence, 0.25)
         _upsert_risk_timeseries(
             conn,
             ip_id=ip_id,
             ts=ts,
             raw_risk=float(raw_risk),
             score=float(score),
+            issue_heat=float(issue_heat),
             s_comp=float(S_t),
-            v_comp=float(V_t),
-            t_comp=float(T_t),
+            v_comp=float(V_risk),
+            t_comp=float(T_risk),
             m_comp=float(M_t),
             alert_level=alert,
             sample_size=sample_size,
             uncertain_ratio=float(uncertain_ratio),
             quality_flag=quality_flag,
+            risk_formula_version=RISK_FORMULA_VERSION,
         )
         conn.commit()
 
@@ -1410,10 +1449,14 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             "ema_alpha": float(ema_alpha) if prev_risk is not None else 1.0,
             "components": {
                 "S": round(float(S_t), 3),
-                "V": round(float(V_t), 3),
-                "T": round(float(T_t), 3),
+                "V": round(float(V_risk), 3),
+                "T": round(float(T_risk), 3),
                 "M": round(float(M_t), 3),
             },
+            "issue_heat": issue_heat,
+            "negative_ratio_window": round(float(negative_ratio_window), 3),
+            "confidence": round(float(confidence), 3),
+            "risk_formula_version": RISK_FORMULA_VERSION,
             "alert_level": alert,
             "alert": alert,
             "sample_size": sample_size,
@@ -1509,6 +1552,7 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
 
         weighted_scores = []
         uncertain_count = 0
+        negative_group_count = 0
         for gid in recent_groups:
             entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "uncertain", "confidence": 0.0})
             label = str(entry["label"])
@@ -1516,10 +1560,13 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
             weight = confidence if label != "uncertain" else 0.3
             negative_value = max(0.0, -float(entry["score"]))
             weighted_scores.append(negative_value * weight)
+            if label == "negative":
+                negative_group_count += 1
             if label == "uncertain":
                 uncertain_count += 1
         S_t = float(sum(weighted_scores) / max(len(weighted_scores), 1))
         uncertain_ratio = float(uncertain_count / max(len(recent_groups), 1))
+        negative_ratio_window = float(negative_group_count / max(len(recent_groups), 1))
 
         hour_start = now - timedelta(hours=1)
         count_1h = sum(1 for r in scoped if r["dt"] >= hour_start)
@@ -1539,20 +1586,28 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
         baseline_mean = float(sum(baseline_values) / max(len(baseline_values), 1))
         baseline_std = float(pd.Series(baseline_values).std(ddof=0)) if baseline_values else 0.0
         z_score = (float(count_1h) - baseline_mean) / max(baseline_std, 1.0)
-        V_t = float(_sigmoid(z_score))
+        V_heat = float(_sigmoid(z_score))
+        V_risk = float(V_heat * negative_ratio_window)
 
-        theme_counter: Counter[str] = Counter()
+        theme_counter_heat: Counter[str] = Counter()
+        theme_counter_risk: Counter[str] = Counter()
         for r in recent_group_items.values():
             for theme, keywords in RISK_THEME_RULES.items():
                 if any(k.lower() in r["text"] for k in keywords):
-                    theme_counter[theme] += 1
+                    theme_counter_heat[theme] += 1
+                    if theme in THEME_WEIGHTS_RISK:
+                        theme_counter_risk[theme] += 1
                     break
-        T_t = 0.0
+        T_heat = 0.0
+        T_risk = 0.0
         if recent_group_items:
             total_recent = float(len(recent_group_items))
-            for theme, cnt in theme_counter.items():
+            for theme, cnt in theme_counter_heat.items():
                 share = float(cnt) / total_recent
-                T_t += share * float(THEME_WEIGHTS.get(theme, 0.4))
+                T_heat += share * float(THEME_WEIGHTS_HEAT.get(theme, 0.4))
+            for theme, cnt in theme_counter_risk.items():
+                share = float(cnt) / total_recent
+                T_risk += share * float(THEME_WEIGHTS_RISK.get(theme, 0.0))
 
         outlet_counter: Counter[str] = Counter(r["outlet"] for r in recent)
         M_t = 0.0
@@ -1566,15 +1621,19 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
 
         if not scoped:
             S_t = 0.0
-            V_t = 0.0
-            T_t = 0.0
+            V_heat = 0.0
+            V_risk = 0.0
+            T_heat = 0.0
+            T_risk = 0.0
             M_t = 0.0
             uncertain_ratio = 0.0
+            negative_ratio_window = 0.0
             spread_ratio = 0.0
             z_score = 0.0
             count_1h = 0
 
-        raw_risk = 100.0 * (0.45 * S_t + 0.25 * V_t + 0.20 * T_t + 0.10 * M_t)
+        raw_issue_heat = 100.0 * (0.45 * V_heat + 0.35 * T_heat + 0.20 * M_t)
+        raw_risk = 100.0 * (0.50 * S_t + 0.25 * V_risk + 0.15 * T_risk + 0.10 * (M_t * negative_ratio_window))
         ip_id = (ip or "all").strip().lower()
         prev = conn.execute(
             """
@@ -1599,24 +1658,30 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
                 smoothed = 0.9 * prev_risk + 0.1 * raw_risk
 
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
+        issue_heat = round(float(max(0.0, min(100.0, raw_issue_heat))), 1)
         alert = _alert_level(score)
         ts = now.strftime("%Y-%m-%d %H:%M:%S")
         sample_size = int(len(recent_groups))
         quality_flag = _risk_quality_flag(sample_size)
+        confidence = max(0.0, min(1.0, (sample_size / 20.0) * (1.0 - min(0.7, uncertain_ratio * 0.7))))
+        if quality_flag == "LOW_SAMPLE":
+            confidence = min(confidence, 0.25)
         _upsert_risk_timeseries(
             conn,
             ip_id=ip_id,
             ts=ts,
             raw_risk=float(raw_risk),
             score=float(score),
+            issue_heat=float(issue_heat),
             s_comp=float(S_t),
-            v_comp=float(V_t),
-            t_comp=float(T_t),
+            v_comp=float(V_risk),
+            t_comp=float(T_risk),
             m_comp=float(M_t),
             alert_level=alert,
             sample_size=sample_size,
             uncertain_ratio=float(uncertain_ratio),
             quality_flag=quality_flag,
+            risk_formula_version=RISK_FORMULA_VERSION,
         )
         conn.commit()
 
@@ -1634,10 +1699,14 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
             "ema_alpha": float(ema_alpha) if prev_risk is not None else 1.0,
             "components": {
                 "S": round(float(S_t), 3),
-                "V": round(float(V_t), 3),
-                "T": round(float(T_t), 3),
+                "V": round(float(V_risk), 3),
+                "T": round(float(T_risk), 3),
                 "M": round(float(M_t), 3),
             },
+            "issue_heat": issue_heat,
+            "negative_ratio_window": round(float(negative_ratio_window), 3),
+            "confidence": round(float(confidence), 3),
+            "risk_formula_version": RISK_FORMULA_VERSION,
             "alert_level": alert,
             "alert": alert,
             "sample_size": sample_size,

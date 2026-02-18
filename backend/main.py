@@ -5,6 +5,7 @@ import re
 import sys
 import time
 import os
+import math
 import logging
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError, as_completed
@@ -27,6 +28,12 @@ if str(ROOT_DIR) not in sys.path:
 
 from backend.storage import (
     IP_RULES,
+    OUTLET_GAME_MEDIA,
+    OUTLET_TIER1,
+    RISK_FORMULA_VERSION,
+    RISK_THEME_RULES,
+    THEME_WEIGHTS_HEAT,
+    THEME_WEIGHTS_RISK,
     cleanup_live_articles,
     cleanup_risk_timeseries,
     cleanup_scheduler_logs,
@@ -1153,7 +1160,23 @@ def _build_interview_insights(df: pd.DataFrame, selected: list[str]) -> dict:
     }
 
 
+def _compare_sigmoid(x: float) -> float:
+    return float(1.0 / (1.0 + math.exp(-x)))
+
+
+def _compare_outlet_weight(outlet: str) -> float:
+    host = outlet.lower().strip()
+    if not host:
+        return 0.5
+    if host in OUTLET_TIER1:
+        return 1.0
+    if host in OUTLET_GAME_MEDIA:
+        return 0.7
+    return 0.5
+
+
 def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
+    low_sample_threshold = 5
     company_counts_raw = df.groupby("company").size().to_dict()
     company_counts = {company: int(company_counts_raw.get(company, 0)) for company in selected}
     total = int(len(df))
@@ -1163,6 +1186,111 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
     if not trend.empty:
         trend = trend.reset_index()
         trend_rows = trend.to_dict(orient="records")
+
+    # Compare trend metrics are generated on backend so frontend can render Risk/Heat
+    # without any client-side synthetic calculation.
+    trend_dates = [str(row.get("date", "")) for row in trend_rows if str(row.get("date", ""))]
+    per_day_metrics: list[dict[str, Any]] = []
+    if not df.empty and trend_dates:
+        metric_work = df[["company", "date", "sentiment", "title_clean", "description_clean", "originallink"]].copy()
+        metric_work["date"] = metric_work["date"].astype(str)
+        metric_work["sentiment"] = metric_work["sentiment"].apply(
+            lambda val: val if str(val or "") in SENTIMENT_BUCKETS else "중립"
+        )
+        metric_work["text"] = (
+            metric_work["title_clean"].fillna("").astype(str)
+            + " "
+            + metric_work["description_clean"].fillna("").astype(str)
+        ).str.lower()
+        metric_work["originallink"] = metric_work["originallink"].fillna("").astype(str)
+        metric_work["outlet_host"] = metric_work["originallink"].apply(
+            lambda u: (urlparse(u).hostname or "").lower().strip()
+        )
+        day_counts = (
+            metric_work.groupby(["company", "date"]).size().reset_index(name="count")
+        )
+        day_negative = (
+            metric_work[metric_work["sentiment"] == "부정"]
+            .groupby(["company", "date"])
+            .size()
+            .reset_index(name="negative_count")
+        )
+        count_lookup = {
+            (str(row["company"]), str(row["date"])): int(row["count"] or 0)
+            for _, row in day_counts.iterrows()
+        }
+        negative_lookup = {
+            (str(row["company"]), str(row["date"])): int(row["negative_count"] or 0)
+            for _, row in day_negative.iterrows()
+        }
+        max_count_by_company = {}
+        for company in selected:
+            max_count_by_company[company] = max(
+                [count_lookup.get((company, day), 0) for day in trend_dates] or [0]
+            )
+
+        for company in selected:
+            company_max = int(max_count_by_company.get(company, 0))
+            company_day_counts = [count_lookup.get((company, day), 0) for day in trend_dates]
+            baseline_mean = float(sum(company_day_counts) / max(len(company_day_counts), 1))
+            baseline_std = float(pd.Series(company_day_counts).std(ddof=0)) if company_day_counts else 0.0
+            for day in trend_dates:
+                day_df = metric_work.loc[(metric_work["company"] == company) & (metric_work["date"] == day)]
+                count = int(count_lookup.get((company, day), 0))
+                negative_count = int(negative_lookup.get((company, day), 0))
+                negative_ratio = round((negative_count / max(count, 1)) * 100, 1) if count > 0 else 0.0
+                negative_ratio_window = float(negative_count / max(count, 1)) if count > 0 else 0.0
+
+                z_score = (float(count) - baseline_mean) / max(baseline_std, 1.0)
+                v_heat = float(_compare_sigmoid(z_score))
+                if company_max > 0:
+                    v_heat = max(v_heat, float(count / max(company_max, 1)))
+                v_risk = float(v_heat * negative_ratio_window)
+
+                theme_counter_heat: dict[str, int] = {}
+                theme_counter_risk: dict[str, int] = {}
+                for text in day_df["text"].tolist():
+                    for theme, keywords in RISK_THEME_RULES.items():
+                        if any(kw.lower() in text for kw in keywords):
+                            theme_counter_heat[theme] = int(theme_counter_heat.get(theme, 0)) + 1
+                            if theme in THEME_WEIGHTS_RISK:
+                                theme_counter_risk[theme] = int(theme_counter_risk.get(theme, 0)) + 1
+                            break
+
+                t_heat = 0.0
+                t_risk = 0.0
+                if count > 0:
+                    for theme, cnt in theme_counter_heat.items():
+                        share = float(cnt) / float(count)
+                        t_heat += share * float(THEME_WEIGHTS_HEAT.get(theme, 0.4))
+                    for theme, cnt in theme_counter_risk.items():
+                        share = float(cnt) / float(count)
+                        t_risk += share * float(THEME_WEIGHTS_RISK.get(theme, 0.0))
+
+                m_t = 0.0
+                if count > 0:
+                    outlet_weights = [_compare_outlet_weight(str(host)) for host in day_df["outlet_host"].tolist()]
+                    m_t = float(sum(outlet_weights) / max(len(outlet_weights), 1))
+
+                s_t = float(negative_ratio_window)
+                raw_issue_heat = 100.0 * (0.45 * v_heat + 0.35 * t_heat + 0.20 * m_t)
+                raw_risk = 100.0 * (0.50 * s_t + 0.25 * v_risk + 0.15 * t_risk + 0.10 * (m_t * negative_ratio_window))
+                risk_score = round(float(max(0.0, min(100.0, raw_risk))), 1)
+                heat_score = round(float(max(0.0, min(100.0, raw_issue_heat))), 1)
+                quality_flag = "LOW_SAMPLE" if count < low_sample_threshold else "OK"
+                per_day_metrics.append(
+                    {
+                        "company": company,
+                        "date": day,
+                        "count": count,
+                        "negative_count": negative_count,
+                        "negative_ratio": negative_ratio,
+                        "risk_score": risk_score,
+                        "heat_score": heat_score,
+                        "sample_size": count,
+                        "quality_flag": quality_flag,
+                    }
+                )
 
     sentiment_rows = []
     sentiment_map: dict[tuple[str, str], int] = {}
@@ -1206,9 +1334,13 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "total_articles": total,
             "selected_companies": selected,
+            "risk_formula_version": f"compare-{RISK_FORMULA_VERSION}",
+            "heat_formula_version": f"compare-{RISK_FORMULA_VERSION}",
+            "low_sample_threshold": low_sample_threshold,
         },
         "company_counts": company_counts,
         "trend": trend_rows,
+        "trend_metrics": per_day_metrics,
         "sentiment_summary": sentiment_rows,
         "keywords": keyword_map,
         "latest_articles": _to_records(latest),
