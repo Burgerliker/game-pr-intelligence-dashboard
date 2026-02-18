@@ -1,5 +1,7 @@
 "use client";
 
+import { Box, CircularProgress, Typography } from "@mui/material";
+
 const TONE = {
   info: {
     bg: "#eff6ff",
@@ -25,46 +27,32 @@ export default function LoadingState({
   const palette = TONE[tone] || TONE.info;
 
   return (
-    <div
-      style={{
-        padding: "10px 14px",
+    <Box
+      sx={{
+        px: 1.4,
+        py: 1.2,
         minHeight: 44,
-        border: `1px solid ${palette.border}`,
-        borderRadius: 8,
-        backgroundColor: palette.bg,
+        border: "1px solid",
+        borderColor: palette.border,
+        borderRadius: 2,
+        bgcolor: palette.bg,
         display: "flex",
         alignItems: "center",
-        gap: 10,
+        gap: 1.1,
       }}
     >
-      <svg
-        style={{ width: 18, height: 18, color: palette.spinner, flexShrink: 0 }}
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <circle
-          cx="12" cy="12" r="10"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeOpacity="0.25"
-        />
-        <path
-          d="M12 2a10 10 0 0 1 10 10"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          style={{ transformOrigin: "center", animation: "spin 0.75s linear infinite" }}
-        />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </svg>
-      <div>
-        <p style={{ margin: 0, fontWeight: 700, color: palette.title, fontSize: 14, lineHeight: 1.35 }}>
+      <CircularProgress size={18} thickness={5} sx={{ color: palette.spinner }} />
+      <Box>
+        <Typography variant="body2" sx={{ fontWeight: 700, color: palette.title, lineHeight: 1.35 }}>
           {title}
-        </p>
-        <p style={{ margin: 0, color: palette.subtitle, fontSize: 13, lineHeight: 1.35, fontVariantNumeric: "tabular-nums" }}>
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{ color: palette.subtitle, fontSize: 13, lineHeight: 1.35, fontVariantNumeric: "tabular-nums" }}
+        >
           {subtitle}
-        </p>
-      </div>
-    </div>
+        </Typography>
+      </Box>
+    </Box>
   );
 }
