@@ -6,6 +6,7 @@ import sys
 import time
 import os
 import logging
+from threading import Lock
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -84,6 +85,8 @@ LIVE_COLLECT_PAGES = int(os.getenv("LIVE_COLLECT_PAGES", "3"))
 LIVE_COLLECT_QUERIES_PER_IP = int(os.getenv("LIVE_COLLECT_QUERIES_PER_IP", "2"))
 LIVE_COLLECT_INCLUDE_SIM = os.getenv("LIVE_COLLECT_INCLUDE_SIM", "1") == "1"
 COLLECT_ZERO_STREAK_WARN_THRESHOLD = int(os.getenv("COLLECT_ZERO_STREAK_WARN_THRESHOLD", "10"))
+COMPARE_LIVE_RATE_LIMIT_PER_MIN = int(os.getenv("COMPARE_LIVE_RATE_LIMIT_PER_MIN", "30"))
+COMPARE_LIVE_CACHE_TTL_SECONDS = int(os.getenv("COMPARE_LIVE_CACHE_TTL_SECONDS", "45"))
 ENABLE_COMPETITOR_AUTO_COLLECT = os.getenv("ENABLE_COMPETITOR_AUTO_COLLECT", "1") == "1"
 COMPETITOR_COLLECT_INTERVAL_SECONDS = int(os.getenv("COMPETITOR_COLLECT_INTERVAL_SECONDS", "3600"))
 COMPETITOR_COLLECT_ARTICLES = int(os.getenv("COMPETITOR_COLLECT_ARTICLES", "30"))
@@ -114,6 +117,7 @@ CORS_ALLOW_ORIGINS_RAW = os.getenv(
 )
 CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "1") == "1"
 APP_ENV = os.getenv("APP_ENV", "dev").strip().lower()
+REQUIRED_STARTUP_ENV_KEYS = ["LIVE_DB_PATH", "BACKTEST_DB_PATH", "CORS_ALLOW_ORIGINS", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"]
 
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 burst_managers: dict[str, BurstManager] = {
@@ -128,6 +132,18 @@ burst_managers: dict[str, BurstManager] = {
 last_burst_state: dict[str, dict[str, Any]] = {}
 scheduler_job_state: dict[str, dict[str, Any]] = {}
 collect_zero_insert_streak: dict[str, int] = {ip_id: 0 for ip_id in MONITOR_IPS}
+_last_zero_alert_signature: tuple[str, ...] = ()
+compare_live_rate_state: dict[str, list[float]] = {}
+compare_live_cache: dict[str, dict[str, Any]] = {}
+compare_live_cache_lock = Lock()
+compare_live_rate_lock = Lock()
+compare_live_metrics = {
+    "requests": 0,
+    "rate_limited": 0,
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "cache_fallback_hits": 0,
+}
 
 
 def _parse_csv_env(value: str) -> list[str]:
@@ -205,6 +221,10 @@ def on_startup() -> None:
             cors_validation_status,
             ",".join(cors_validation_warnings),
         )
+    missing_env = [key for key in REQUIRED_STARTUP_ENV_KEYS if not os.getenv(key, "").strip()]
+    if missing_env:
+        logger.error("startup required env missing: keys=%s", ",".join(missing_env))
+        raise RuntimeError(f"missing required env keys: {','.join(missing_env)}")
     init_db()
     repair_article_outlets(remove_placeholder=True)
     _start_monitoring_scheduler()
@@ -262,6 +282,93 @@ def _update_collect_zero_streak(ip_id: str, inserted: int) -> tuple[int, bool]:
             COLLECT_ZERO_STREAK_WARN_THRESHOLD,
         )
     return current, alert
+
+
+def _parse_companies(companies_raw: str) -> list[str]:
+    seen: set[str] = set()
+    selected: list[str] = []
+    for company in [c.strip() for c in (companies_raw or "").split(",") if c.strip()]:
+        if company not in COMPANIES:
+            continue
+        if company in seen:
+            continue
+        selected.append(company)
+        seen.add(company)
+    return selected
+
+
+def _compare_live_cache_key(selected: list[str], window_hours: int, limit: int) -> str:
+    return f"companies={','.join(selected)}|window_hours={int(window_hours)}|limit={int(limit)}"
+
+
+def _compare_live_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    if request.client and request.client.host:
+        return str(request.client.host)
+    return "unknown"
+
+
+def _check_compare_live_rate_limit(client_ip: str) -> int:
+    with compare_live_rate_lock:
+        compare_live_metrics["requests"] = int(compare_live_metrics.get("requests", 0)) + 1
+        now_ts = time.time()
+        window_start = now_ts - 60.0
+        reqs = [ts for ts in compare_live_rate_state.get(client_ip, []) if ts >= window_start]
+        limit = max(1, int(COMPARE_LIVE_RATE_LIMIT_PER_MIN))
+        if len(reqs) >= limit:
+            oldest = min(reqs) if reqs else now_ts
+            retry_after = max(1, int(round(60 - (now_ts - oldest))))
+            compare_live_rate_state[client_ip] = reqs
+            compare_live_metrics["rate_limited"] = int(compare_live_metrics.get("rate_limited", 0)) + 1
+            return retry_after
+        reqs.append(now_ts)
+        compare_live_rate_state[client_ip] = reqs
+        return 0
+
+
+def _increment_compare_live_metric(metric_key: str) -> None:
+    with compare_live_rate_lock:
+        compare_live_metrics[metric_key] = int(compare_live_metrics.get(metric_key, 0)) + 1
+
+
+def _build_compare_live_payload(selected: list[str], limit: int, window_hours: int) -> dict[str, Any]:
+    frames = []
+    for company in selected:
+        part = fetch_company_news_compare(company, total=int(limit))
+        if not part.empty:
+            frames.append(part)
+
+    if not frames:
+        raise RuntimeError(get_last_api_error() or "뉴스를 수집하지 못했습니다.")
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["company", "originallink", "title_clean"], keep="first").reset_index(drop=True)
+    parsed = pd.to_datetime(merged.get("pubDate_parsed"), errors="coerce", utc=True).dt.tz_convert(None)
+    window_start = datetime.utcnow() - timedelta(hours=max(1, int(window_hours)))
+    merged = merged.loc[parsed >= window_start].copy()
+    if merged.empty:
+        raise RuntimeError(f"window_hours={int(window_hours)} 조건에 해당하는 뉴스가 없습니다.")
+    merged = add_sentiment_column(merged)
+    save_articles(merged)
+    payload = _build_payload(merged, selected)
+    meta = dict(payload.get("meta") or {})
+    meta["window_hours"] = int(window_hours)
+    payload["meta"] = meta
+    return payload
+
+
+def _with_compare_live_meta(payload: dict[str, Any], *, cache_hit: bool, cache_fallback: bool) -> dict[str, Any]:
+    out = dict(payload or {})
+    meta = dict(out.get("meta") or {})
+    meta["cache_hit"] = bool(cache_hit)
+    meta["cache_fallback"] = bool(cache_fallback)
+    meta["cache_ttl_seconds"] = int(COMPARE_LIVE_CACHE_TTL_SECONDS)
+    out["meta"] = meta
+    return out
 
 
 def _run_monitor_tick(ip_id: str) -> None:
@@ -1003,6 +1110,7 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
 
 @app.get("/health")
 def health() -> dict:
+    global _last_zero_alert_signature
     db_path = get_active_db_path()
     db_name = db_path.name.lower()
     mode = "backtest" if "backtest" in db_name else "live"
@@ -1012,6 +1120,23 @@ def health() -> dict:
         for ip_id, streak in collect_zero_insert_streak.items()
         if int(streak) >= COLLECT_ZERO_STREAK_WARN_THRESHOLD
     ]
+    zero_alert_signature = tuple(sorted(zero_alert_ips))
+    if zero_alert_signature:
+        max_streak = max(int(collect_zero_insert_streak.get(ip_id, 0)) for ip_id in zero_alert_signature)
+        logger.warning(
+            "health zero_insert_streak_alert threshold=%s max_streak=%s alert_ips=%s",
+            COLLECT_ZERO_STREAK_WARN_THRESHOLD,
+            max_streak,
+            ",".join(zero_alert_signature),
+        )
+    if zero_alert_signature != _last_zero_alert_signature:
+        logger.info(
+            "health zero_insert_streak_state_changed threshold=%s previous=%s current=%s",
+            COLLECT_ZERO_STREAK_WARN_THRESHOLD,
+            ",".join(_last_zero_alert_signature),
+            ",".join(zero_alert_signature),
+        )
+        _last_zero_alert_signature = zero_alert_signature
     return {
         "ok": True,
         "pr_db_path": str(db_path),
@@ -1021,6 +1146,12 @@ def health() -> dict:
         "scheduler_running": bool(scheduler.running),
         "scheduler_job_count": len(scheduler.get_jobs()) if scheduler.running else 0,
         "scheduler_log_fallback_count": get_scheduler_log_fallback_count(),
+        "compare_live_rate_limit_per_min": int(COMPARE_LIVE_RATE_LIMIT_PER_MIN),
+        "compare_live_cache_ttl_seconds": int(COMPARE_LIVE_CACHE_TTL_SECONDS),
+        "compare_live_cache_entries": int(len(compare_live_cache)),
+        "compare_live_cache_hits": int(compare_live_metrics.get("cache_hits", 0)),
+        "compare_live_cache_misses": int(compare_live_metrics.get("cache_misses", 0)),
+        "compare_live_rate_limited": int(compare_live_metrics.get("rate_limited", 0)),
         "collect_zero_streak_threshold": int(COLLECT_ZERO_STREAK_WARN_THRESHOLD),
         "collect_zero_insert_streaks": {ip_id: int(streak) for ip_id, streak in collect_zero_insert_streak.items()},
         "collect_zero_alert_ips": zero_alert_ips,
@@ -1249,7 +1380,13 @@ def scheduler_status() -> dict:
                 "collect_strategy": state.get("collect_strategy", _get_collect_strategy(ip_id) if is_collect_job else None),
             }
         )
-    return {"running": bool(scheduler.running), "job_count": len(jobs), "jobs": jobs}
+    return {
+        "running": bool(scheduler.running),
+        "job_count": len(jobs),
+        "compare_live_rate_limit_per_min": int(COMPARE_LIVE_RATE_LIMIT_PER_MIN),
+        "compare_live_cache_ttl_seconds": int(COMPARE_LIVE_CACHE_TTL_SECONDS),
+        "jobs": jobs,
+    }
 
 
 @app.post("/api/debug/force-burst")
@@ -1364,8 +1501,64 @@ def backtest(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/compare-live")
+def compare_live(
+    request: Request,
+    companies: str = Query(default="넥슨,NC소프트,넷마블,크래프톤"),
+    window_hours: int = Query(default=24, ge=1, le=168),
+    limit: int = Query(default=40, ge=10, le=100),
+) -> dict:
+    selected = _parse_companies(companies)
+    if not selected:
+        raise HTTPException(status_code=400, detail="최소 1개 이상의 유효한 회사를 선택해 주세요.")
+
+    client_ip = _compare_live_client_ip(request)
+    retry_after = _check_compare_live_rate_limit(client_ip)
+    if retry_after > 0:
+        raise HTTPException(
+            status_code=429,
+            detail={"message": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", "retry_after": int(retry_after)},
+            headers={"Retry-After": str(int(retry_after))},
+        )
+
+    key = _compare_live_cache_key(selected, window_hours=window_hours, limit=limit)
+    now_ts = time.time()
+    with compare_live_cache_lock:
+        cached = compare_live_cache.get(key)
+        if cached and float(cached.get("expires_at", 0)) > now_ts:
+            _increment_compare_live_metric("cache_hits")
+            logger.info("compare_live cache hit key=%s", key)
+            return _with_compare_live_meta(dict(cached.get("payload") or {}), cache_hit=True, cache_fallback=False)
+
+    _increment_compare_live_metric("cache_misses")
+    logger.info("compare_live cache miss key=%s", key)
+    try:
+        payload = _build_compare_live_payload(selected=selected, limit=limit, window_hours=window_hours)
+        payload = _with_compare_live_meta(payload, cache_hit=False, cache_fallback=False)
+        with compare_live_cache_lock:
+            compare_live_cache[key] = {
+                "payload": payload,
+                "expires_at": now_ts + max(1, int(COMPARE_LIVE_CACHE_TTL_SECONDS)),
+                "last_success_payload": payload,
+                "last_success_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("compare_live fetch failed key=%s", key)
+        with compare_live_cache_lock:
+            cached = compare_live_cache.get(key)
+            fallback = dict(cached.get("last_success_payload") or {}) if cached else {}
+        if fallback:
+            _increment_compare_live_metric("cache_fallback_hits")
+            logger.warning("compare_live fallback cache used key=%s", key)
+            return _with_compare_live_meta(fallback, cache_hit=False, cache_fallback=True)
+        raise HTTPException(status_code=502, detail=get_last_api_error() or f"비교 라이브 조회 실패: {exc}") from exc
+
+
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest) -> dict:
+    if APP_ENV == "prod":
+        raise HTTPException(status_code=403, detail="운영 환경에서는 /api/compare-live 조회 전용 API만 허용됩니다.")
     if not ENABLE_MANUAL_COLLECTION:
         raise HTTPException(status_code=403, detail="수동 수집 API는 비활성화되어 있습니다.")
 
