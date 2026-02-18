@@ -7,7 +7,7 @@ import time
 import os
 import logging
 from threading import Lock
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -60,7 +60,7 @@ from services.naver_api import (
     search_news,
 )
 from utils.keywords import get_keyword_data
-from utils.sentiment import add_sentiment_column, get_model_id, get_sentiment_summary
+from utils.sentiment import add_sentiment_column, get_model_id
 
 
 class AnalyzeRequest(BaseModel):
@@ -144,6 +144,7 @@ compare_live_metrics = {
     "cache_misses": 0,
     "cache_fallback_hits": 0,
 }
+SENTIMENT_BUCKETS = ("긍정", "중립", "부정")
 
 
 def _parse_csv_env(value: str) -> list[str]:
@@ -348,7 +349,7 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
     merged = pd.concat(frames, ignore_index=True)
     merged = merged.drop_duplicates(subset=["company", "originallink", "title_clean"], keep="first").reset_index(drop=True)
     parsed = pd.to_datetime(merged.get("pubDate_parsed"), errors="coerce", utc=True).dt.tz_convert(None)
-    window_start = datetime.utcnow() - timedelta(hours=max(1, int(window_hours)))
+    window_start = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=max(1, int(window_hours)))
     merged = merged.loc[parsed >= window_start].copy()
     if merged.empty:
         raise RuntimeError(f"window_hours={int(window_hours)} 조건에 해당하는 뉴스가 없습니다.")
@@ -1073,7 +1074,8 @@ def _build_interview_insights(df: pd.DataFrame, selected: list[str]) -> dict:
 
 
 def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
-    company_counts = df.groupby("company").size().to_dict()
+    company_counts_raw = df.groupby("company").size().to_dict()
+    company_counts = {company: int(company_counts_raw.get(company, 0)) for company in selected}
     total = int(len(df))
 
     trend = get_daily_counts(df)
@@ -1082,7 +1084,33 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
         trend = trend.reset_index()
         trend_rows = trend.to_dict(orient="records")
 
-    sentiment = get_sentiment_summary(df)
+    sentiment_rows = []
+    sentiment_map: dict[tuple[str, str], int] = {}
+    if not df.empty:
+        sentiment_work = df[["company", "sentiment"]].copy()
+        sentiment_work["sentiment"] = sentiment_work["sentiment"].apply(
+            lambda val: val if str(val or "") in SENTIMENT_BUCKETS else "중립"
+        )
+        sentiment_counts = (
+            sentiment_work.groupby(["company", "sentiment"]).size().reset_index(name="count")
+        )
+        for _, row in sentiment_counts.iterrows():
+            key = (str(row.get("company", "")), str(row.get("sentiment", "")))
+            sentiment_map[key] = int(row.get("count", 0) or 0)
+    for company in selected:
+        company_total = int(company_counts.get(company, 0))
+        for sentiment_label in SENTIMENT_BUCKETS:
+            count = int(sentiment_map.get((company, sentiment_label), 0))
+            ratio = round(count / max(company_total, 1) * 100, 1) if company_total > 0 else 0.0
+            sentiment_rows.append(
+                {
+                    "company": company,
+                    "sentiment": sentiment_label,
+                    "count": count,
+                    "total": company_total,
+                    "ratio": ratio,
+                }
+            )
     keyword_map = {company: get_keyword_data(df, company=company, top_n=20) for company in selected}
 
     latest = (
@@ -1101,7 +1129,7 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
         },
         "company_counts": company_counts,
         "trend": trend_rows,
-        "sentiment_summary": _to_records(sentiment),
+        "sentiment_summary": sentiment_rows,
         "keywords": keyword_map,
         "latest_articles": _to_records(latest),
         "insights": _build_interview_insights(df, selected),
