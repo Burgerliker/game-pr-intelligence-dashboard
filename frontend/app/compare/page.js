@@ -642,13 +642,12 @@ export default function ComparePage() {
               </Stack>
 
               <Grid container spacing={{ xs: 1.2, md: 1.6 }}>
-                <Grid item xs={12} md={7}>
+                <Grid item xs={12} md={6}>
                   <Card
                     variant="outlined"
                     sx={{
                       borderRadius: 2.4,
                       borderColor: "rgba(15,23,42,.1)",
-                      height: "100%",
                     }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
@@ -766,13 +765,12 @@ export default function ComparePage() {
                   </Card>
                 </Grid>
 
-                <Grid item xs={12} md={5}>
+                <Grid item xs={12} md={6}>
                   <Card
                     variant="outlined"
                     sx={{
                       borderRadius: 2.4,
                       borderColor: "rgba(15,23,42,.1)",
-                      height: "100%",
                     }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
