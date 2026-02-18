@@ -65,7 +65,6 @@ def _label_kr(label_en: str) -> str:
 
 def analyze_sentiment_rule_v1(title: str, description: str = "") -> dict:
     text = f"{title or ''} {description or ''}".strip()
-    title_text = (title or "").strip()
 
     pos_score = sum(weight for keyword, weight in POS_DICT.items() if keyword in text)
     neg_score = sum(weight for keyword, weight in NEG_DICT.items() if keyword in text)
@@ -82,8 +81,6 @@ def analyze_sentiment_rule_v1(title: str, description: str = "") -> dict:
     if matched_keywords == 0:
         confidence *= 0.3
     if has_conflict:
-        confidence *= 0.5
-    if len(title_text) < 10:
         confidence *= 0.5
     confidence = round(max(0.0, min(1.0, confidence)), 2)
 
