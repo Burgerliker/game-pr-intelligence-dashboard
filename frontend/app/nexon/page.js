@@ -23,6 +23,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { AlertTriangle, ChevronLeft, ChevronRight, Info, RefreshCw } from "lucide-react";
 import { List as WindowList } from "react-window";
 import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
@@ -70,6 +71,9 @@ const IP_BANNER_STYLE = {
   bluearchive: { kicker: "BLUE ARCHIVE", accent: "#98b9ff", bg: "linear-gradient(135deg,#0a1122 0%,#132b5a 45%,#214f9b 100%)" },
   fconline: { kicker: "FC ONLINE", accent: "#93e7b2", bg: "linear-gradient(135deg,#08160f 0%,#123724 45%,#1c6f45 100%)" },
 };
+const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
+const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
+const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
 
 const MOCK_RISK = {
   meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
@@ -898,12 +902,12 @@ export default function NexonPage() {
                     }}
                     nextButton={
                       <Button size="small" sx={controlButtonSx} onClick={goNextBanner} disabled={currentBannerIndex >= bannerItems.length - 1}>
-                        다음
+                        다음 <ChevronRight {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: "4px" }} />
                       </Button>
                     }
                     backButton={
                       <Button size="small" sx={controlButtonSx} onClick={goPrevBanner} disabled={currentBannerIndex <= 0}>
-                        이전
+                        <ChevronLeft {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginRight: "4px" }} />이전
                       </Button>
                     }
                   />
@@ -914,7 +918,7 @@ export default function NexonPage() {
               </Stack>
 
               <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ rowGap: 0.8 }}>
-                <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} sx={statusChipSx} />
+                <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
                 <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
               </Stack>
@@ -929,11 +933,11 @@ export default function NexonPage() {
                 }}
               />
             </Box>
-            {notice ? <Alert severity={usingMock ? "warning" : "info"} sx={{ mt: 1.5 }}>{notice}</Alert> : null}
-            {modeMismatchWarning ? <Alert severity="warning" sx={{ mt: 1.5 }}>{modeMismatchWarning}</Alert> : null}
+            {notice ? <Alert severity={usingMock ? "warning" : "info"} icon={false} sx={{ mt: 1.5 }}><span>{usingMock ? <AlertTriangle {...iconProps()} style={inlineIconSx} /> : <Info {...iconProps()} style={inlineIconSx} />}{notice}</span></Alert> : null}
+            {modeMismatchWarning ? <Alert severity="warning" icon={false} sx={{ mt: 1.5 }}><span><AlertTriangle {...iconProps()} style={inlineIconSx} />{modeMismatchWarning}</span></Alert> : null}
             {healthDiagCode ? (
-              <Alert severity="info" sx={{ mt: 1.5 }}>
-                실시간 상태 정보가 일시적으로 누락되었습니다. 진단코드: {healthDiagCode}
+              <Alert severity="info" icon={false} sx={{ mt: 1.5 }}>
+                <span><Info {...iconProps()} style={inlineIconSx} />실시간 상태 정보가 일시적으로 누락되었습니다. 진단코드: {healthDiagCode}</span>
               </Alert>
             ) : null}
             <Box sx={{ mt: 1.5 }}>
@@ -1003,8 +1007,8 @@ export default function NexonPage() {
                         />
                       </Stack>
                       {isLowSample ? (
-                        <Alert severity="warning" sx={{ mt: 0.8, borderRadius: 1.5 }}>
-                          표본이 부족해 현재 위험도 신뢰도가 낮습니다. 수치 해석보다 추세 확인을 우선하세요.
+                        <Alert severity="warning" icon={false} sx={{ mt: 0.8, borderRadius: 1.5 }}>
+                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />표본이 부족해 현재 위험도 신뢰도가 낮습니다. 수치 해석보다 추세 확인을 우선하세요.</span>
                         </Alert>
                       ) : null}
                       <Typography
@@ -1053,7 +1057,7 @@ export default function NexonPage() {
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.3 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>왜 이렇게 나왔나요?</Typography>
                         <IconButton size="small" onClick={() => setShowMetricDetails((prev) => !prev)} aria-label="상세 지표 보기">
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>i</Typography>
+                          <Info {...iconProps({ size: 15 })} />
                         </IconButton>
                       </Stack>
                       <Typography variant="body2" color="text.secondary">

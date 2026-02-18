@@ -16,6 +16,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { AlertTriangle, ChevronRight, Info, RefreshCw } from "lucide-react";
 import { List } from "react-window";
 import {
   apiGet,
@@ -60,6 +61,9 @@ const TREND_METRIC_OPTIONS = [
 ];
 const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
 const INTERACTIVE_CHIP_SX = filterChipSx;
+const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
+const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
+const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -519,7 +523,12 @@ export default function ComparePage() {
                 sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
               >
                 <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={statusChipSx} />
-                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} sx={statusChipSx} />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />자동 갱신: {Math.round(refreshMs / 1000)}초</span>}
+                  sx={statusChipSx}
+                />
                 <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={statusChipSx} />
               </Stack>
             </Stack>
@@ -527,7 +536,7 @@ export default function ComparePage() {
 
           <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
             <Chip component={Link} href="/" clickable variant="outlined" label="메인" sx={INTERACTIVE_CHIP_SX} />
-            <Chip component={Link} href="/nexon" clickable variant="outlined" label="넥슨 IP 리스크" sx={INTERACTIVE_CHIP_SX} />
+            <Chip component={Link} href="/nexon" clickable variant="outlined" label={<span>넥슨 IP 리스크 <ChevronRight {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: "4px" }} /></span>} sx={INTERACTIVE_CHIP_SX} />
           </Stack>
 
           <ApiGuardBanner />
@@ -541,8 +550,8 @@ export default function ComparePage() {
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   조회 대상 회사
                 </Typography>
-                <Alert severity="info" sx={{ borderRadius: 2 }}>
-                  최근 {windowHours}시간 수집 기준입니다.
+                <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
+                  <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 수집 기준입니다.</span>
                 </Alert>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   {DEFAULT_COMPANIES.map((name) => (
@@ -569,8 +578,8 @@ export default function ComparePage() {
                   ))}
                 </Stack>
                 {retryAfterSec ? (
-                  <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                    호출 제한(HTTP 429): 요청량이 많습니다.
+                  <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
+                    <span><AlertTriangle {...iconProps()} style={inlineIconSx} />호출 제한(HTTP 429): 요청량이 많습니다.</span>
                     {` ${retryAfterSec}초 후 자동 재시도 예정 (${formatRetryAt(retryAfterSec)} KST)`}
                     {errorCode ? ` · 호출 제한 중 (${errorCode})` : ""}
                   </Alert>
@@ -682,13 +691,13 @@ export default function ComparePage() {
                         ))}
                       </Stack>
                       {!hasTrendMetricRows && trendMetric !== "count" ? (
-                        <Alert severity="info" sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          현재 서버 응답에 Risk/Heat 일자별 지표가 없어 기사수 추이로 대체 표시 중입니다.
+                        <Alert severity="info" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
+                          <span><Info {...iconProps()} style={inlineIconSx} />현재 서버 응답에 Risk/Heat 일자별 지표가 없어 기사수 추이로 대체 표시 중입니다.</span>
                         </Alert>
                       ) : null}
                       {hasTrendLowSample ? (
-                        <Alert severity="warning" sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          표본 부족 구간이 포함되어 Risk/Heat 해석 신뢰도가 낮습니다.
+                        <Alert severity="warning" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
+                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />표본 부족 구간이 포함되어 Risk/Heat 해석 신뢰도가 낮습니다.</span>
                         </Alert>
                       ) : null}
                       {!trendSeries.length ? (
