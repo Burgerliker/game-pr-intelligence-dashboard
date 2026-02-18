@@ -215,16 +215,16 @@ export default function HomePage() {
                 letterSpacing: ".02em",
               }}
             />
-            <Typography sx={{ fontSize: { xs: 38, md: 58 }, fontWeight: 800, lineHeight: 1.08, color: "#111827", letterSpacing: "-.02em" }}>
+            <Typography sx={{ fontSize: { xs: 36, md: 52 }, fontWeight: 800, lineHeight: 1.08, color: "#111827", letterSpacing: "-.02em" }}>
               PR 실시간 이슈 현황판
             </Typography>
-            <Typography sx={{ mt: 1, fontSize: { xs: 16, md: 20 }, color: "#6b7280", letterSpacing: "-.01em" }}>
+            <Typography sx={{ mt: 1, fontSize: { xs: 17, md: 22 }, color: "#6b7280", letterSpacing: "-.01em" }}>
               리스크 분석 포트폴리오
             </Typography>
             <Stack direction="row" spacing={1} justifyContent="center" useFlexGap flexWrap="wrap" sx={{ mt: 2 }}>
-              <Chip size="small" label={`최근 갱신 ${formatTime(lastUpdated)}`} variant="outlined" sx={{ bgcolor: "#fff" }} />
-              <Chip size="small" label={connStyle.text} variant="outlined" sx={{ bgcolor: connStyle.bg, borderColor: connStyle.border, color: connStyle.color, fontWeight: 700 }} />
-              <Chip size="small" label={modeStyle.text} variant="outlined" sx={{ bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color, fontWeight: 700 }} />
+              <Chip size="small" label={`최근 갱신 ${formatTime(lastUpdated)}`} variant="outlined" sx={{ bgcolor: "#fff", fontSize: 13 }} />
+              <Chip size="small" label={connStyle.text} variant="outlined" sx={{ bgcolor: connStyle.bg, borderColor: connStyle.border, color: connStyle.color, fontWeight: 700, fontSize: 13 }} />
+              <Chip size="small" label={modeStyle.text} variant="outlined" sx={{ bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color, fontWeight: 700, fontSize: 13 }} />
             </Stack>
             <ApiGuardBanner />
             {healthDiagCode ? (

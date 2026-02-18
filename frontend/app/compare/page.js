@@ -37,7 +37,7 @@ const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
 const DEFAULT_WINDOW_HOURS = 72;
 const LOW_SAMPLE_THRESHOLD = 5;
-const ARTICLE_ROW_HEIGHT = 56;
+const ARTICLE_ROW_HEIGHT = 62;
 const ARTICLE_LIST_MAX_HEIGHT = 500;
 const ARTICLE_LIST_MIN_HEIGHT = 112;
 const WINDOW_HOURS_OPTIONS = [
@@ -879,7 +879,7 @@ export default function ComparePage() {
                     <Box
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: "120px minmax(320px,1fr) 92px 140px",
+                        gridTemplateColumns: { xs: "92px minmax(220px,1fr) 78px 108px", sm: "108px minmax(280px,1fr) 84px 124px", md: "120px minmax(320px,1fr) 92px 140px" },
                         gap: 1,
                         px: 1.2,
                         pb: 0.8,
@@ -908,7 +908,7 @@ export default function ComparePage() {
                               style={style}
                               sx={{
                                 display: "grid",
-                                gridTemplateColumns: "120px minmax(320px,1fr) 92px 140px",
+                                gridTemplateColumns: { xs: "92px minmax(220px,1fr) 78px 108px", sm: "108px minmax(280px,1fr) 84px 124px", md: "120px minmax(320px,1fr) 92px 140px" },
                                 gap: 1,
                                 alignItems: "center",
                                 borderTop: "1px solid",

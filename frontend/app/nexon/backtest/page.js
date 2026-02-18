@@ -450,23 +450,23 @@ export default function NexonBacktestPage() {
                 <Chip label={`Events: ${Number(payload?.summary?.event_count || 0)}`} variant="outlined" />
                 <Chip label={`Dominant: ${payload?.summary?.dominant_component || "-"}`} variant="outlined" />
               </Stack>
-              <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: 740 }} />
+              <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: { xs: 560, sm: 620, md: 700 } }} />
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.2} sx={{ mt: 1.5 }}>
                 <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>볼륨 드라이버</Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary">
                     최근 {driverStats.volume.latest.toLocaleString()} · 최고 {driverStats.volume.peak.toLocaleString()}
                   </Typography>
                 </Paper>
                 <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>확산 드라이버</Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary">
                     최근 {driverStats.spread.latest.toFixed(3)} · 최고 {driverStats.spread.peak.toFixed(3)}
                   </Typography>
                 </Paper>
                 <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>불확실 드라이버</Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary">
                     최근 {driverStats.uncertain.latest.toFixed(3)} · 최고 {driverStats.uncertain.peak.toFixed(3)}
                   </Typography>
                 </Paper>

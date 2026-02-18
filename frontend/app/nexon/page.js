@@ -802,7 +802,7 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 210, sm: 240, md: 300 },
+                    height: { xs: 188, sm: 224, md: 280 },
                     p: { xs: 1.5, sm: 2.2, md: 2.8 },
                     borderRadius: 3,
                     color: "#eef4ff",
@@ -974,7 +974,7 @@ export default function NexonPage() {
                   }}
                 >
                   <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.3, ...metricValueSx }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
@@ -999,18 +999,18 @@ export default function NexonPage() {
                         최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                         최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2, fontVariantNumeric: "tabular-nums" }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.2, fontVariantNumeric: "tabular-nums" }}>
                         최근 7일 기준선: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
                         기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                         볼륨(Volume): {recent24hArticles.toLocaleString()}건
@@ -1028,7 +1028,7 @@ export default function NexonPage() {
                   </Stack>
 
                   <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <LabelWithTip label="경보 등급" tip={tipMap.alert} />
                       <Chip
                         label={`${alertInfo.label} (${alertLevel})`}
@@ -1039,7 +1039,7 @@ export default function NexonPage() {
                         {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 상태</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.45, fontVariantNumeric: "tabular-nums" }}>
                         {selectedBurstStatus?.mode === "burst" ? "BURST 수집" : "정상 수집"} · 주기 {selectedBurstStatus?.interval_seconds || 600}s
