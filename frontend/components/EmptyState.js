@@ -7,24 +7,41 @@ export default function EmptyState({
   subtitle = "",
   actionLabel = "",
   onAction = null,
+  tone = "neutral",
+  compact = false,
 }) {
+  const tonePalette =
+    tone === "warning"
+      ? {
+          bg: "#fff8eb",
+          border: "#f6d596",
+          title: "#8a5700",
+          subtitle: "#9a6c1d",
+        }
+      : {
+          bg: "#f8fafc",
+          border: "#cbd5e1",
+          title: "#334155",
+          subtitle: "#64748b",
+        };
+
   return (
     <Stack
-      spacing={0.8}
+      spacing={compact ? 0.5 : 0.8}
       sx={{
-        p: 2.2,
+        p: compact ? 1.4 : 2.2,
         borderRadius: 2,
         border: "1px dashed",
-        borderColor: "divider",
-        bgcolor: "#f8fafc",
-        textAlign: "center",
+        borderColor: tonePalette.border,
+        bgcolor: tonePalette.bg,
+        textAlign: compact ? "left" : "center",
       }}
     >
-      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, color: tonePalette.title }}>
         {title}
       </Typography>
       {subtitle ? (
-        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
+        <Typography variant="caption" sx={{ color: tonePalette.subtitle, whiteSpace: "pre-wrap" }}>
           {subtitle}
         </Typography>
       ) : null}

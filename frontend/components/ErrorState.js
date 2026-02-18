@@ -12,7 +12,12 @@ export default function ErrorState({
   return (
     <Alert
       severity="error"
-      sx={{ borderRadius: 2 }}
+      sx={{
+        borderRadius: 2,
+        border: "1px solid #f4b9be",
+        bgcolor: "#fff4f4",
+        "& .MuiAlert-icon": { mt: "2px" },
+      }}
       action={
         actionLabel && typeof onAction === "function" ? (
           <Button color="inherit" size="small" onClick={onAction}>
@@ -21,17 +26,17 @@ export default function ErrorState({
         ) : null
       }
     >
-      <Stack spacing={0.2}>
-        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+      <Stack spacing={0.35}>
+        <Typography variant="body2" sx={{ fontWeight: 700, color: "#7f1d1d" }}>
           {title}
         </Typography>
         {details ? (
-          <Typography variant="caption" sx={{ whiteSpace: "pre-wrap" }}>
+          <Typography variant="caption" sx={{ whiteSpace: "pre-wrap", color: "#9f2a2a" }}>
             {details}
           </Typography>
         ) : null}
         {diagnosticCode ? (
-          <Typography variant="caption" sx={{ opacity: 0.82 }}>
+          <Typography variant="caption" sx={{ color: "#7f1d1d", opacity: 0.86 }}>
             진단코드: {diagnosticCode}
           </Typography>
         ) : null}

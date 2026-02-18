@@ -6,21 +6,21 @@ export default function LoadingState({ title = "로딩 중", subtitle = "데이�
   return (
     <Box
       sx={{
-        p: 2,
-        border: "1px solid",
-        borderColor: "divider",
+        p: 2.2,
+        border: "1px solid #dbe4ef",
         borderRadius: 2,
+        bgcolor: "#f8fafc",
         display: "flex",
         alignItems: "center",
-        gap: 1.5,
+        gap: 1.2,
       }}
     >
-      <CircularProgress size={22} />
+      <CircularProgress size={20} thickness={5} />
       <Box>
-        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        <Typography variant="body2" sx={{ fontWeight: 700, color: "#334155" }}>
           {title}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{ color: "#64748b" }}>
           {subtitle}
         </Typography>
       </Box>
