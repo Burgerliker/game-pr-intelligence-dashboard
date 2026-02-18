@@ -9,6 +9,7 @@ import {
   Card,
   CardContent,
   Chip,
+  Collapse,
   Container,
   Divider,
   Grid,
@@ -145,6 +146,7 @@ export default function NexonPage() {
   const [articleError, setArticleError] = useState("");
   const [articleErrorCode, setArticleErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
+  const [showMetricDetails, setShowMetricDetails] = useState(false);
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
   const swipeStartXRef = useRef(null);
@@ -496,6 +498,17 @@ export default function NexonPage() {
     if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위험도는 낮지만 기사량 또는 확산도가 기준선보다 상승 중입니다.";
     return "기사량과 확산도가 안정적이라 현재 위험도는 낮은 상태입니다.";
   }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
+  const confidenceLabel = useMemo(() => {
+    if (!hasConfidence) return "신뢰도 정보 없음";
+    if (riskConfidence < 0.3) return `신뢰도 낮음 (${Math.round(riskConfidence * 100)}%)`;
+    if (riskConfidence < 0.7) return `신뢰도 보통 (${Math.round(riskConfidence * 100)}%)`;
+    return `신뢰도 높음 (${Math.round(riskConfidence * 100)}%)`;
+  }, [hasConfidence, riskConfidence]);
+  const quickSummary = useMemo(() => {
+    if (recent24hArticles < 5) return "기사가 적어 현재 점수는 참고용입니다.";
+    if (riskValue >= 45) return "즉시 모니터링이 필요한 구간입니다.";
+    return "현재는 급한 리스크 신호가 크지 않습니다.";
+  }, [recent24hArticles, riskValue]);
   const outletRisk = useMemo(() => {
     if (!outletRows.length) return null;
     return [...outletRows]
@@ -998,14 +1011,14 @@ export default function NexonPage() {
                 >
                   <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>현재 위험 상태</Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
-                        <Chip size="small" variant="outlined" label={riskFormulaVersion ? `식 ${riskFormulaVersion}` : "식 미제공"} sx={controlChipSx} />
+                        <Chip size="small" variant="outlined" label={riskFormulaVersion ? "판정 기준: 최신 모델" : "판정 기준: 기본 모델"} sx={controlChipSx} />
                         <Chip
                           size="small"
                           variant="outlined"
                           color={hasConfidence && riskConfidence < 0.4 ? "warning" : "default"}
-                          label={hasConfidence ? `신뢰 ${(riskConfidence * 100).toFixed(0)}%` : "신뢰 미제공"}
+                          label={confidenceLabel}
                           sx={controlChipSx}
                         />
                       </Stack>
@@ -1039,7 +1052,10 @@ export default function NexonPage() {
                         }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준 · Heat {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
+                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 기준 · 이슈 관심도 {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.55, fontWeight: 600 }}>
+                        {quickSummary}
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
@@ -1054,28 +1070,34 @@ export default function NexonPage() {
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.7, fontWeight: 700 }}>
-                        볼륨(Volume) · 최근 24시간 기사 수: {recent24hArticles.toLocaleString()}건 ({volumeHint})
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.3 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>왜 이렇게 나왔나요?</Typography>
+                        <IconButton size="small" onClick={() => setShowMetricDetails((prev) => !prev)} aria-label="상세 지표 보기">
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>i</Typography>
+                        </IconButton>
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        기사량: {recent24hArticles.toLocaleString()}건 ({volumeHint}) · 확산: {spreadValue.toFixed(2)} · 분류애매: {Math.round(uncertaintyValue * 100)}%
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                        기사량 자체를 의미합니다. 기사 수가 너무 적으면 위험도 신뢰도도 함께 낮아집니다.
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.65, fontWeight: 700 }}>
-                        확산도(Spread): {spreadValue.toFixed(2)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                        계산식: mention_count_window / group_count_window. {spreadHint}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.65, fontWeight: 700 }}>
-                        불확실도(Uncertainty): {uncertaintyValue.toFixed(2)} ({Math.round(uncertaintyValue * 100)}%)
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                        최근 이슈 그룹 중 감성 판정이 불확실한 비율입니다. {uncertaintyHint}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.7, lineHeight: 1.45 }}>
+                      <Typography variant="body2" sx={{ mt: 0.6, lineHeight: 1.45 }}>
                         {liveInterpretation}
                       </Typography>
+                      <Collapse in={showMetricDetails}>
+                        <Box sx={{ mt: 0.8, pt: 0.8, borderTop: "1px dashed", borderColor: "divider" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 700 }}>
+                            상세 설명
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
+                            기사량은 최근 24시간 기사 수입니다. 기사 수가 적으면 점수 신뢰도가 낮아질 수 있습니다.
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
+                            확산은 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
+                            분류애매는 감성 판단이 어려운 기사 비율입니다. {uncertaintyHint}
+                          </Typography>
+                        </Box>
+                      </Collapse>
                     </Paper>
                   </Stack>
 
@@ -1101,35 +1123,45 @@ export default function NexonPage() {
                     <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk vs Heat</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
-                        Risk는 악재 강도, Heat는 이슈량(관심도)으로 서로 다른 신호입니다.
+                        Risk는 "부정 신호 강도", Heat는 "언급량/관심도"입니다. 언급이 많아도 부정이 적으면 Risk는 낮을 수 있습니다.
                       </Typography>
                     </Paper>
                   </Stack>
                 </Box>
 
-                <Grid container spacing={{ xs: 1, md: 1.2 }} sx={{ mt: 1 }}>
-                  {["S", "V", "T", "M"].map((k) => {
-                    const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
-                    const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "볼륨 신호" : k === "T" ? "테마 신호" : "매체 신호";
-                    return (
-                      <Grid item xs={6} md={3} key={k}>
-                        <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1, sm: 1.1 } }}>
-                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700 }}>{signalLabel}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                              {value.toFixed(2)}
-                            </Typography>
-                          </Stack>
-                          <LinearProgress
-                            variant="determinate"
-                            value={value * 100}
-                            sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
-                          />
-                        </Paper>
-                      </Grid>
-                    );
-                  })}
-                </Grid>
+                <Box sx={{ mt: 1 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="caption" color="text.secondary">상세 구성요소(S/V/T/M)</Typography>
+                    <Button size="small" onClick={() => setShowMetricDetails((prev) => !prev)}>
+                      {showMetricDetails ? "접기" : "보기"}
+                    </Button>
+                  </Stack>
+                  <Collapse in={showMetricDetails}>
+                    <Grid container spacing={{ xs: 1, md: 1.2 }} sx={{ mt: 0.4 }}>
+                      {["S", "V", "T", "M"].map((k) => {
+                        const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
+                        const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "볼륨 신호" : k === "T" ? "테마 신호" : "매체 신호";
+                        return (
+                          <Grid item xs={6} md={3} key={k}>
+                            <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1, sm: 1.1 } }}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700 }}>{signalLabel}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {value.toFixed(2)}
+                                </Typography>
+                              </Stack>
+                              <LinearProgress
+                                variant="determinate"
+                                value={value * 100}
+                                sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
+                              />
+                            </Paper>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Collapse>
+                </Box>
 
                 <Paper variant="outlined" sx={{ ...panelSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
                   <Box sx={{ px: 1.2, pt: 0.6 }}>
