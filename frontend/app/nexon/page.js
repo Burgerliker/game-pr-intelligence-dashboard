@@ -687,11 +687,11 @@ export default function NexonPage() {
               <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
-                    fontSize: { xs: "clamp(1.3rem, 4.8vw, 1.7rem)", sm: "clamp(1.5rem, 3.1vw, 2rem)", md: "clamp(1.8rem, 2.2vw, 2.2rem)" },
-                    fontWeight: 700,
+                    fontSize: { xs: 20, md: 20 },
+                    fontWeight: 800,
                     color: "#0f172a",
-                    letterSpacing: "-.02em",
-                    lineHeight: 1.08,
+                    letterSpacing: "-.01em",
+                    lineHeight: 1.1,
                     wordBreak: "keep-all",
                   }}
                 >
