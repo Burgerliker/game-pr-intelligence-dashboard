@@ -19,7 +19,11 @@ LAST_API_ERROR = ""
 # 비교 대상 회사 설정
 COMPANIES = {
     "넥슨": {"query": "넥슨", "color": "#0066FF"},
-    "NC소프트": {"query": "NC소프트 OR 엔씨소프트 OR NCSOFT OR 리니지 OR 쓰론 앤 리버티", "color": "#FF6B35"},
+    "NC소프트": {
+        "query": "엔씨소프트",
+        "queries": ["엔씨소프트", "NC소프트", "NCSOFT", "리니지", "쓰론 앤 리버티"],
+        "color": "#FF6B35",
+    },
     "넷마블": {"query": "넷마블", "color": "#28A745"},
     "크래프톤": {"query": "크래프톤", "color": "#9B59B6"},
 }
@@ -219,23 +223,31 @@ def fetch_company_news_compare(company: str, total: int = 100) -> pd.DataFrame:
         return pd.DataFrame()
 
     all_items = []
-    fetched = 0
-    start = 1
+    query_list = [q.strip() for q in config.get("queries", []) if str(q).strip()]
+    if not query_list:
+        query_list = [str(config.get("query", "")).strip()]
+    query_list = [q for q in query_list if q]
+    if not query_list:
+        return pd.DataFrame()
 
-    while fetched < total:
-        batch_size = min(100, total - fetched)
-        items = search_news(config["query"], display=batch_size, start=start)
-        if not items:
-            break
-        all_items.extend(items)
-        fetched += len(items)
-        start += len(items)
-        if len(items) < batch_size:
-            break
+    per_query_target = max(10, int(total / max(len(query_list), 1)))
+    for query in query_list:
+        fetched = 0
+        start = 1
+        while fetched < per_query_target:
+            batch_size = min(100, per_query_target - fetched)
+            items = search_news(query, display=batch_size, start=start, sort="date")
+            if not items:
+                break
+            all_items.extend(items)
+            fetched += len(items)
+            start += len(items)
+            if len(items) < batch_size:
+                break
 
     df = _to_company_dataframe(all_items, company=company)
     df = _dedupe_news(df)
-    return df
+    return df.head(total).reset_index(drop=True)
 
 
 def fetch_nexon_cluster_news(total: int = 300) -> pd.DataFrame:
