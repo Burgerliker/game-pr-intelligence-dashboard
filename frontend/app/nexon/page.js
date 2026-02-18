@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -22,11 +22,11 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import LoadingState from "../../components/LoadingState";
-import ErrorState from "../../components/ErrorState";
+import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
 import LabelWithTip from "../../components/LabelWithTip";
-import { apiGet, getDiagnosticCode, getErrorMessage } from "../../lib/api";
+import { apiGet, getDiagnosticCode } from "../../lib/api";
+import { buildDiagnosticScope, toRequestErrorState } from "../../lib/pageStatus";
 import {
   createEmptyCluster,
   createEmptyRisk,
@@ -36,6 +36,12 @@ import {
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
 const NEXON_LOGO = "/nexon-logo.png";
+const ARTICLE_PAGE_SIZE = 20;
+const DIAG_SCOPE = {
+  health: buildDiagnosticScope("NEX", "HEALTH"),
+  dashboard: buildDiagnosticScope("NEX", "DASH"),
+  article: buildDiagnosticScope("NEX", "ART"),
+};
 const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
@@ -138,7 +144,6 @@ export default function NexonPage() {
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
   const articleSentinelRef = useRef(null);
-  const ARTICLE_PAGE_SIZE = 20;
   const swipeStartXRef = useRef(null);
   const ipCacheRef = useRef(new Map());
   const requestSeqRef = useRef(0);
@@ -151,11 +156,15 @@ export default function NexonPage() {
   const themeChartInstRef = useRef(null);
   const keywordChartInstRef = useRef(null);
   const [chartsReady, setChartsReady] = useState(false);
-  const formatUpdatedAt = (date = new Date()) => {
+  const formatUpdatedAt = useCallback((date = new Date()) => {
     const d = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(d.getTime())) return "-";
     return d.toLocaleTimeString("ko-KR", { hour12: false });
-  };
+  }, []);
+  const getHealthDiagnosticCode = useCallback(
+    (healthError) => (healthError ? getDiagnosticCode(healthError, DIAG_SCOPE.health) : ""),
+    []
+  );
   const tipMap = {
     burst: "최근 임계치 이벤트 발생 로그입니다.",
     svtm: "S/V/T/M은 감성·볼륨·테마·매체 신호입니다.",
@@ -226,7 +235,7 @@ export default function NexonPage() {
       setBurstStatus(burstStatusPayload || null);
       setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
       setHealth(healthState.data || null);
-      setHealthDiagCode(healthState.error ? getDiagnosticCode(healthState.error, "HEALTH") : "");
+      setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
       setNotice(resolvedNotice);
       setLastUpdatedAt(refreshedAt);
 
@@ -237,7 +246,7 @@ export default function NexonPage() {
         burstStatus: burstStatusPayload || null,
         burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
         health: healthState.data || null,
-        healthDiagCode: healthState.error ? getDiagnosticCode(healthState.error, "HEALTH") : "",
+        healthDiagCode: getHealthDiagnosticCode(healthState.error),
         usingMock: resolvedUsingMock,
         notice: resolvedNotice,
         lastUpdatedAt: refreshedAt,
@@ -257,8 +266,12 @@ export default function NexonPage() {
         setNotice("실데이터 호출에 실패했습니다. 백엔드 주소/API 상태를 확인해주세요.");
       }
       setLastUpdatedAt("-");
-      setError(getErrorMessage(e, "대시보드 API 요청에 실패했습니다."));
-      setErrorCode(getDiagnosticCode(e, "NEX-DASH"));
+      const nextError = toRequestErrorState(e, {
+        scope: DIAG_SCOPE.dashboard,
+        fallback: "대시보드 API 요청에 실패했습니다.",
+      });
+      setError(nextError.message);
+      setErrorCode(nextError.code);
     } finally {
       if (requestSeq !== requestSeqRef.current) return;
       setLoading(false);
@@ -296,8 +309,12 @@ export default function NexonPage() {
     } catch (e) {
       if (e?.name === "AbortError") return;
       if (reqSeq !== articleReqSeqRef.current) return;
-      setArticleError(getErrorMessage(e, "기사 목록 API 호출에 실패했습니다."));
-      setArticleErrorCode(getDiagnosticCode(e, "NEX-ART"));
+      const nextError = toRequestErrorState(e, {
+        scope: DIAG_SCOPE.article,
+        fallback: "기사 목록 API 호출에 실패했습니다.",
+      });
+      setArticleError(nextError.message);
+      setArticleErrorCode(nextError.code);
       if (reset) {
         setArticleItems([]);
         setArticleTotal(0);
@@ -392,8 +409,7 @@ export default function NexonPage() {
         if (rs) setRiskScore(rs);
         if (bs) setBurstStatus(bs);
         if (healthState.data) setHealth(healthState.data);
-        if (healthState.error) setHealthDiagCode(getDiagnosticCode(healthState.error, "HEALTH"));
-        else setHealthDiagCode("");
+        setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
         if (rs || bs || healthState.data) setLastUpdatedAt(formatUpdatedAt());
       } catch {
         // noop
@@ -500,6 +516,12 @@ export default function NexonPage() {
       borderColor: "rgba(15,59,102,.24)",
       bgcolor: "#fbfdff",
     },
+  };
+  const metricValueSx = {
+    fontWeight: 800,
+    fontVariantNumeric: "tabular-nums",
+    letterSpacing: "-.01em",
+    lineHeight: 1.08,
   };
 
   useEffect(() => {
@@ -885,29 +907,34 @@ export default function NexonPage() {
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
-            {loading ? (
-              <Box sx={{ mt: 1.5 }}>
-                <LoadingState title="IP 데이터를 동기화하는 중" subtitle="리스크/이슈 묶음/집중 수집 상태를 갱신하고 있습니다." />
-              </Box>
-            ) : null}
+            <Box sx={{ mt: 1.5 }}>
+              <PageStatusView
+                loading={{
+                  show: loading,
+                  title: "IP 데이터를 동기화하는 중",
+                  subtitle: "리스크/이슈 묶음/집중 수집 상태를 갱신하고 있습니다.",
+                }}
+              />
+            </Box>
             {notice ? <Alert severity={usingMock ? "warning" : "info"} sx={{ mt: 1.5 }}>{notice}</Alert> : null}
             {modeMismatchWarning ? <Alert severity="warning" sx={{ mt: 1.5 }}>{modeMismatchWarning}</Alert> : null}
             {healthDiagCode ? (
               <Alert severity="info" sx={{ mt: 1.5 }}>
-                실시간 상태 정보가 일시적으로 누락되었습니다. 운영자 진단코드: {healthDiagCode}
+                실시간 상태 정보가 일시적으로 누락되었습니다. 진단코드: {healthDiagCode}
               </Alert>
             ) : null}
-            {error ? (
-              <Box sx={{ mt: 1.5 }}>
-                <ErrorState
-                  title="대시보드 데이터를 불러오지 못했습니다."
-                  details={error}
-                  diagnosticCode={errorCode}
-                  actionLabel="재시도"
-                  onAction={() => loadDashboard(ip)}
-                />
-              </Box>
-            ) : null}
+            <Box sx={{ mt: 1.5 }}>
+              <PageStatusView
+                error={{
+                  show: Boolean(error),
+                  title: "대시보드 데이터를 불러오지 못했습니다.",
+                  details: error,
+                  diagnosticCode: errorCode,
+                  actionLabel: "재시도",
+                  onAction: () => loadDashboard(ip),
+                }}
+              />
+            </Box>
           </CardContent>
         </Card>
 
@@ -925,7 +952,7 @@ export default function NexonPage() {
                 ) : (
                   <Typography variant="body2" color="text.secondary">{item.k}</Typography>
                 )}
-                <Typography variant="h5" sx={{ mt: 0.8, fontWeight: 800 }}>{item.v}</Typography>
+                <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
                 <Typography variant="caption" color="text.secondary">{item.s}</Typography>
               </CardContent></Card>
             </Grid>
@@ -943,48 +970,48 @@ export default function NexonPage() {
                   sx={{
                     display: "grid",
                     gridTemplateColumns: { xs: "1fr", md: "1fr", lg: "1.2fr .8fr" },
-                    gap: { xs: 1.5, sm: 1.9, md: 2.3, lg: 2.6 },
+                    gap: { xs: 1.2, sm: 1.6, md: 1.9, lg: 2.2 },
                     alignItems: "start",
                   }}
                 >
-                  <Stack spacing={{ xs: 1.6, sm: 2, md: 2.3 }}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
+                  <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
-                      <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
+                      <Typography variant="h4" sx={{ mt: 0.3, ...metricValueSx }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
                         label={riskMeaning.label}
                         size="small"
                         color={riskMeaning.color}
                         variant="outlined"
-                        sx={{ mt: 0.7 }}
+                        sx={{ mt: 0.5 }}
                       />
                       <LinearProgress
                         variant="determinate"
                         value={Math.max(0, Math.min(100, riskValue))}
                         sx={{
-                          mt: 1.2,
+                          mt: 0.9,
                           height: 10,
                           borderRadius: 999,
                           bgcolor: "#edf2fb",
                           "& .MuiLinearProgress-bar": { bgcolor: riskGaugeColor },
                         }}
                       />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
                         최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                         최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2, fontVariantNumeric: "tabular-nums" }}>
                         최근 7일 기준선: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
                         기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                         볼륨(Volume): {recent24hArticles.toLocaleString()}건
@@ -995,25 +1022,25 @@ export default function NexonPage() {
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                         불확실도(Uncertainty): {uncertaintyValue.toFixed(2)}
                       </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.8 }}>
+                      <Typography variant="body2" sx={{ mt: 0.7, lineHeight: 1.45 }}>
                         {liveInterpretation}
                       </Typography>
                     </Paper>
                   </Stack>
 
-                  <Stack spacing={{ xs: 1.6, sm: 2, md: 2.3 }}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
+                  <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
                       <LabelWithTip label="경보 등급" tip={tipMap.alert} />
                       <Chip
                         label={`${alertInfo.label} (${alertLevel})`}
                         color={alertInfo.color}
-                        sx={{ mt: 0.7, fontWeight: 700 }}
+                        sx={{ mt: 0.55, fontWeight: 700 }}
                       />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
                         {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.6, sm: 1.9, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
                         <Box
@@ -1028,20 +1055,20 @@ export default function NexonPage() {
                           {selectedBurstStatus?.mode === "burst" ? "BURST 모드" : "정상 수집"}
                         </Typography>
                       </Stack>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
                         주기 {selectedBurstStatus?.interval_seconds || 600}s
                         {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
                         최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.35, sm: 1.55, md: 1.7 } }}>
                       <LabelWithTip label="위험도 구성요소" tip={tipMap.svtm} />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
                         감성 {Number(riskScore?.components?.S || 0).toFixed(2)} · 기사량 {Number(riskScore?.components?.V || 0).toFixed(2)}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
                         테마 {Number(riskScore?.components?.T || 0).toFixed(2)} · 매체 {Number(riskScore?.components?.M || 0).toFixed(2)}
                       </Typography>
                     </Paper>
@@ -1054,10 +1081,12 @@ export default function NexonPage() {
                     const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "기사량 신호" : k === "T" ? "테마 신호" : "매체 신호";
                     return (
                       <Grid item xs={12} sm={6} md={3} key={k}>
-                        <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.1, sm: 1.3, md: 1.4 } }}>
+                        <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1, sm: 1.15, md: 1.25 } }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
                             <LabelWithTip label={signalLabel} tip={tipMap.svtm} variant="caption" />
-                            <Typography variant="caption" color="text.secondary">{value.toFixed(2)}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                              {value.toFixed(2)}
+                            </Typography>
                           </Stack>
                           <LinearProgress
                             variant="determinate"
@@ -1081,28 +1110,35 @@ export default function NexonPage() {
                           <ListItemText
                             primary={`${String(evt.occurred_at).slice(5, 16)} · ${evt.ip_name} · ${String(evt.event_type).toUpperCase()}`}
                             secondary={evt.trigger_reason}
+                            primaryTypographyProps={{ variant: "body2" }}
+                            secondaryTypographyProps={{ variant: "caption" }}
                           />
                         </ListItem>
                       ))
                     ) : (
-                      <ListItem>
-                        <ListItemText primary="아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)" />
-                      </ListItem>
+                      <Box sx={{ p: 1 }}>
+                        <PageStatusView
+                          empty={{
+                            show: true,
+                            title: "버스트 이벤트 없음",
+                            subtitle: "아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)",
+                            compact: true,
+                          }}
+                        />
+                      </Box>
                     )}
                   </List>
                 </Paper>
               </Box>
             ) : (
-              <Stack spacing={0.5}>
-                <Typography variant="body2" color="text.secondary">
-                  위험도 데이터가 아직 없습니다.
-                </Typography>
-                {!filteredBurstEvents.length ? (
-                  <Typography variant="caption" color="text.secondary">
-                    아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)
-                  </Typography>
-                ) : null}
-              </Stack>
+              <PageStatusView
+                empty={{
+                  show: true,
+                  title: "위험도 데이터가 아직 없습니다.",
+                  subtitle: !filteredBurstEvents.length ? "아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)" : "",
+                  tone: "warning",
+                }}
+              />
             )}
           </CardContent>
         </Card>
@@ -1269,18 +1305,28 @@ export default function NexonPage() {
               </Typography>
             ) : null}
             {!articleLoading && articleItems.length === 0 ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
-                아직 표시할 수집 기사가 없습니다.
-              </Typography>
+              <Box sx={{ mt: 1.2 }}>
+                <PageStatusView
+                  empty={{
+                    show: true,
+                    title: "수집 기사 없음",
+                    subtitle: "현재 조건에서 표시할 기사가 없습니다.",
+                    compact: true,
+                  }}
+                />
+              </Box>
             ) : null}
             {articleError ? (
               <Box sx={{ mt: 1 }}>
-                <ErrorState
-                  title="기사 목록을 불러오지 못했습니다."
-                  details={articleError}
-                  diagnosticCode={articleErrorCode}
-                  actionLabel="다시 시도"
-                  onAction={() => loadMoreArticles(ip, true)}
+                <PageStatusView
+                  error={{
+                    show: true,
+                    title: "기사 목록을 불러오지 못했습니다.",
+                    details: articleError,
+                    diagnosticCode: articleErrorCode,
+                    actionLabel: "다시 시도",
+                    onAction: () => loadMoreArticles(ip, true),
+                  }}
                 />
               </Box>
             ) : null}

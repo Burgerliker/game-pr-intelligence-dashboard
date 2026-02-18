@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Box, Button, Chip, Container, Divider, Paper, Stack, Typography } from "@mui/material";
-import { apiGet, getDiagnosticCode, getErrorMessage } from "../lib/api";
-import LoadingState from "../components/LoadingState";
-import ErrorState from "../components/ErrorState";
+import { apiGet, getDiagnosticCode } from "../lib/api";
 import ApiGuardBanner from "../components/ApiGuardBanner";
+import PageStatusView from "../components/PageStatusView";
+import {
+  buildDiagnosticScope,
+  shouldShowEmptyState,
+  toRequestErrorState,
+} from "../lib/pageStatus";
+
+const DIAG_SCOPE = {
+  init: buildDiagnosticScope("HOME", "INIT"),
+  health: buildDiagnosticScope("HOME", "HEALTH"),
+};
 
 function formatTime(value) {
   if (!value) return "-";
@@ -70,7 +79,7 @@ export default function HomePage() {
         setHealth(healthState.data);
         setRisk(riskRes);
         if (healthState.error) {
-          setHealthDiagCode(getDiagnosticCode(healthState.error, "HEALTH"));
+          setHealthDiagCode(getDiagnosticCode(healthState.error, DIAG_SCOPE.health));
         }
         if (healthState.data || riskRes) {
           setLastUpdated(new Date().toISOString());
@@ -80,8 +89,12 @@ export default function HomePage() {
         }
       } catch (e) {
         if (!active) return;
-        setError(getErrorMessage(e, "초기 상태 데이터를 가져오지 못했습니다."));
-        setErrorCode(getDiagnosticCode(e, "HOME-INIT"));
+        const nextError = toRequestErrorState(e, {
+          scope: DIAG_SCOPE.init,
+          fallback: "초기 상태 데이터를 가져오지 못했습니다.",
+        });
+        setError(nextError.message);
+        setErrorCode(nextError.code);
       } finally {
         if (active) setLoading(false);
       }
@@ -132,6 +145,11 @@ export default function HomePage() {
   const riskStyle = riskTone(stats.riskValue);
   const connStyle = connectionTone(Boolean(health || risk));
   const modeStyle = modeTone(health?.mode);
+  const shouldShowHomeEmpty = shouldShowEmptyState({
+    loading,
+    error,
+    hasData: Boolean(health || risk),
+  });
 
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 6 }, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif" }}>
@@ -208,17 +226,35 @@ export default function HomePage() {
               <Chip size="small" label={connStyle.text} variant="outlined" sx={{ bgcolor: connStyle.bg, borderColor: connStyle.border, color: connStyle.color, fontWeight: 700 }} />
               <Chip size="small" label={modeStyle.text} variant="outlined" sx={{ bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color, fontWeight: 700 }} />
             </Stack>
-            {loading ? (
-              <LoadingState title="상태 데이터 동기화 중" subtitle="운영 연동 상태를 확인하고 있습니다." />
-            ) : null}
             <ApiGuardBanner />
             {healthDiagCode ? (
-              <ErrorState
-                title="실시간 상태를 일시적으로 확인하지 못했습니다."
-                details={`서비스는 계속 사용할 수 있습니다.\n운영자 진단코드: ${healthDiagCode}`}
+              <PageStatusView
+                error={{
+                  show: true,
+                  title: "실시간 상태를 일시적으로 확인하지 못했습니다.",
+                  details: "서비스는 계속 사용할 수 있습니다.",
+                  diagnosticCode: healthDiagCode,
+                }}
               />
             ) : null}
-            {error ? <ErrorState title="초기 데이터 로드 실패" details={error} diagnosticCode={errorCode} /> : null}
+            <PageStatusView
+              loading={{
+                show: loading,
+                title: "상태 데이터 동기화 중",
+                subtitle: "운영 연동 상태를 확인하고 있습니다.",
+              }}
+              error={{
+                show: Boolean(error),
+                title: "초기 데이터 로드 실패",
+                details: error,
+                diagnosticCode: errorCode,
+              }}
+              empty={{
+                show: shouldShowHomeEmpty,
+                title: "표시할 상태 데이터가 없습니다.",
+                subtitle: "잠시 후 다시 확인해주세요.",
+              }}
+            />
           </Stack>
 
           <Box

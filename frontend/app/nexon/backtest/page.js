@@ -4,10 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, Chip, Container, Paper, Stack, Typography } from "@mui/material";
 import ApiGuardBanner from "../../../components/ApiGuardBanner";
-import LoadingState from "../../../components/LoadingState";
-import ErrorState from "../../../components/ErrorState";
-import { apiGet, getDiagnosticCode, getErrorMessage } from "../../../lib/api";
+import PageStatusView from "../../../components/PageStatusView";
+import { apiGet } from "../../../lib/api";
 import { normalizeBacktestPayload } from "../../../lib/normalizeBacktest";
+import {
+  buildDiagnosticScope,
+  shouldShowEmptyState,
+  toRequestErrorState,
+} from "../../../lib/pageStatus";
 
 const FIXED_PARAMS = {
   ip: "maplestory",
@@ -19,6 +23,9 @@ const FIXED_CASE = "maple_idle_probability_2026";
 const BURST_START = "2026-01-28T00:00:00";
 const BURST_END = "2026-01-29T23:59:59";
 const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
+const DIAG_SCOPE = {
+  data: buildDiagnosticScope("NEX-BACKTEST", "DATA"),
+};
 
 export default function NexonBacktestPage() {
   const chartRef = useRef(null);
@@ -49,8 +56,12 @@ export default function NexonBacktestPage() {
         setHealth(healthRes);
       } catch (e) {
         if (e?.name === "AbortError") return;
-        setError(getErrorMessage(e, "백테스트 데이터를 불러오지 못했습니다."));
-        setErrorCode(getDiagnosticCode(e, "NEX-BACKTEST"));
+        const nextError = toRequestErrorState(e, {
+          scope: DIAG_SCOPE.data,
+          fallback: "백테스트 데이터를 불러오지 못했습니다.",
+        });
+        setError(nextError.message);
+        setErrorCode(nextError.code);
       } finally {
         setLoading(false);
       }
@@ -63,6 +74,11 @@ export default function NexonBacktestPage() {
   const hasSeries = normalized.timestamps.length > 0;
   const dbLabel = health?.db_file_name || health?.db_path || "-";
   const modeMismatchWarning = health?.mode === "live" ? "현재 백테스트 페이지가 운영 DB를 참조 중입니다." : "";
+  const shouldShowBacktestEmpty = shouldShowEmptyState({
+    loading,
+    error,
+    hasData: hasSeries,
+  });
   const detailsByTs = useMemo(() => {
     const out = new Map();
     for (const row of payload?.timeseries || []) {
@@ -388,25 +404,35 @@ export default function NexonBacktestPage() {
             백테스트는 임계치 기반 이벤트(히스테리시스 없음)로 계산합니다. 실시간 모드는 집중 수집 전환 로직을 사용합니다.
           </Alert>
 
-          {loading ? <Box sx={{ mt: 2 }}><LoadingState title="백테스트 로딩 중" subtitle="리스크 타임라인을 계산하고 있습니다." /></Box> : null}
-          {error ? (
-            <Box sx={{ mt: 2 }}>
-              <ErrorState
-                title="백테스트 데이터를 불러오지 못했습니다."
-                details={`${String(error)}\nPR_DB_PATH 및 백엔드 실행 상태를 확인해주세요.`}
-                diagnosticCode={errorCode}
-                actionLabel="다시 시도"
-                onAction={() => setReloadSeq((prev) => prev + 1)}
-              />
-            </Box>
-          ) : null}
-          {!loading && !error && !hasSeries ? (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              백테스트 데이터가 없습니다. 백엔드를 `PR_DB_PATH=backend/data/articles_backtest.db`로 실행했는지 확인하고, `/health`의 DB 배지를 확인해주세요.
-            </Alert>
-          ) : null}
+          <Box sx={{ mt: 2 }}>
+            <PageStatusView
+              loading={{
+                show: loading,
+                title: "백테스트 로딩 중",
+                subtitle: "리스크 타임라인을 계산하고 있습니다.",
+              }}
+              error={{
+                show: Boolean(error),
+                title: "백테스트 데이터를 불러오지 못했습니다.",
+                details: `${String(error)}\nPR_DB_PATH 및 백엔드 실행 상태를 확인해주세요.`,
+                diagnosticCode: errorCode,
+                actionLabel: "다시 시도",
+                onAction: () => setReloadSeq((prev) => prev + 1),
+              }}
+            />
+          </Box>
+          <Box sx={{ mt: 2 }}>
+            <PageStatusView
+              empty={{
+                show: shouldShowBacktestEmpty,
+                title: "백테스트 데이터가 없습니다.",
+                subtitle:
+                  "백엔드를 `PR_DB_PATH=backend/data/articles_backtest.db`로 실행했는지 확인하고, /health의 DB 배지를 확인해주세요.",
+              }}
+            />
+          </Box>
 
-          {!loading && !error && hasSeries ? (
+          {!shouldShowBacktestEmpty && !error && hasSeries ? (
             <>
               <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap", rowGap: 1 }}>
                 <Chip label={`Max Risk: ${Number(payload?.summary?.max_risk || 0).toFixed(1)}`} color="error" variant="outlined" />
