@@ -1,6 +1,5 @@
 "use client";
 
-import { Stack } from "@mui/material";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import LoadingState from "./LoadingState";
@@ -13,7 +12,7 @@ export default function PageStatusView({ loading, error, empty, spacing = 1.2 })
   if (!showLoading && !showError && !showEmpty) return null;
 
   return (
-    <Stack spacing={spacing} sx={{ width: "100%" }}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: spacing * 8 }}>
       {showLoading ? (
         <LoadingState
           title={loading?.title || "로딩 중"}
@@ -41,6 +40,6 @@ export default function PageStatusView({ loading, error, empty, spacing = 1.2 })
           compact={Boolean(empty?.compact)}
         />
       ) : null}
-    </Stack>
+    </div>
   );
 }
