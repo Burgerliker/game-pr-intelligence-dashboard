@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
-  Button,
   Card,
   CardContent,
   Chip,
@@ -14,7 +13,6 @@ import {
   Grid,
   LinearProgress,
   Paper,
-  Slider,
   Stack,
   Table,
   TableBody,
@@ -23,39 +21,83 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { apiGet, apiPost, getErrorMessage } from "../../lib/api";
+import {
+  apiGet,
+  getDiagnosticCode,
+  getErrorMessage,
+  getRetryAfterSeconds,
+} from "../../lib/api";
 import LoadingState from "../../components/LoadingState";
 import ErrorState from "../../components/ErrorState";
 import EmptyState from "../../components/EmptyState";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
 
-const PAGE_SIZE = 40;
-const COMPARE_COLLECTION_DISABLED = true;
 const SENTIMENTS = ["긍정", "중립", "부정"];
+const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"];
+const DEFAULT_REFRESH_MS = 60000;
+const MIN_REFRESH_MS = 10000;
+const REQUEST_DEBOUNCE_MS = 350;
 
-function ratioToWidth(v) {
-  const n = Number(v || 0);
-  return `${Math.max(0, Math.min(100, n))}%`;
+function getRefreshIntervalMs() {
+  const configured = Number(process.env.NEXT_PUBLIC_COMPARE_REFRESH_MS || "");
+  if (Number.isFinite(configured) && configured >= MIN_REFRESH_MS) {
+    return Math.floor(configured);
+  }
+  return DEFAULT_REFRESH_MS;
+}
+
+function formatKstTimestamp(value) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleString("ko-KR", {
+    hour12: false,
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function clampRetrySeconds(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.max(1, Math.ceil(n));
+}
+
+function formatRetryAt(seconds) {
+  const sec = clampRetrySeconds(seconds);
+  if (!sec) return "-";
+  return new Date(Date.now() + sec * 1000).toLocaleTimeString("ko-KR", {
+    hour12: false,
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 export default function ComparePage() {
-  const [companies, setCompanies] = useState(["넥슨", "NC소프트", "넷마블", "크래프톤"]);
-  const [articleCount, setArticleCount] = useState(40);
-  const [loading, setLoading] = useState(false);
+  const refreshMs = getRefreshIntervalMs();
+  const [selectedCompanies, setSelectedCompanies] = useState(DEFAULT_COMPANIES);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
   const [data, setData] = useState(null);
   const [filterCompany, setFilterCompany] = useState("전체");
   const [filterSentiment, setFilterSentiment] = useState("전체");
-  const [dataSource, setDataSource] = useState("live");
-  const [articleRows, setArticleRows] = useState([]);
-  const [articleOffset, setArticleOffset] = useState(0);
-  const [articleTotal, setArticleTotal] = useState(0);
-  const [articleHasMore, setArticleHasMore] = useState(false);
-  const [articleLoading, setArticleLoading] = useState(false);
-  const [hasBootstrapped, setHasBootstrapped] = useState(false);
-  const sentinelRef = useRef(null);
-  const articleReqSeqRef = useRef(0);
-  const articleAbortRef = useRef(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState("");
+  const [retryAfterSec, setRetryAfterSec] = useState(null);
+
+  const inFlightRef = useRef(false);
+  const compareReqSeqRef = useRef(0);
+  const compareAbortRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
+  const retryAfterRef = useRef(0);
 
   const total = data?.meta?.total_articles ?? 0;
   const companyCounts = data?.company_counts ?? {};
@@ -63,89 +105,106 @@ export default function ComparePage() {
   const trendRows = data?.trend ?? [];
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
-  const selectedFromData = data?.meta?.selected_companies ?? [];
+  const selectedFromData = data?.meta?.selected_companies ?? selectedCompanies;
 
-  const toggleCompany = (name) => {
-    setCompanies((prev) => (prev.includes(name) ? prev.filter((v) => v !== name) : [...prev, name]));
-  };
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
 
-  const loadArticles = async ({ reset = false, companyOverride, sentimentOverride } = {}) => {
-    const companyVal = companyOverride ?? filterCompany;
-    const sentimentVal = sentimentOverride ?? filterSentiment;
-    const nextOffset = reset ? 0 : articleOffset;
-    const reqSeq = ++articleReqSeqRef.current;
-    if (articleAbortRef.current) articleAbortRef.current.abort();
+  const clearScheduledFetch = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  const fetchCompare = useCallback(async () => {
+    if (!selectedCompanies.length || inFlightRef.current) return;
+    if (typeof document !== "undefined" && document.hidden) return;
+    inFlightRef.current = true;
+
+    const reqSeq = ++compareReqSeqRef.current;
+    compareAbortRef.current?.abort();
     const controller = new AbortController();
-    articleAbortRef.current = controller;
-    const query = new URLSearchParams({
-      company: companyVal,
-      sentiment: sentimentVal,
-      limit: String(PAGE_SIZE),
-      offset: String(nextOffset),
-    });
+    compareAbortRef.current = controller;
 
-    setArticleLoading(true);
+    setLoading(true);
+
     try {
-      const payload = await apiGet(`/api/articles?${query.toString()}`, { signal: controller.signal });
-      if (reqSeq !== articleReqSeqRef.current) return;
-      setArticleRows((prev) => (reset ? payload.items : [...prev, ...payload.items]));
-      setArticleOffset((reset ? 0 : nextOffset) + payload.items.length);
-      setArticleTotal(payload.total || 0);
-      setArticleHasMore(Boolean(payload.has_more));
+      const query = new URLSearchParams({
+        companies: selectedCompanies.join(","),
+        window_hours: "24",
+        limit: "40",
+      });
+      const payload = await apiGet(`/api/compare-live?${query.toString()}`, {
+        signal: controller.signal,
+      });
+      if (reqSeq !== compareReqSeqRef.current) return;
+      setData(payload);
+      setError("");
+      setErrorCode("");
+      setRetryAfterSec(null);
+      setLastUpdatedAt(payload?.meta?.generated_at || new Date().toISOString());
     } catch (e) {
       if (e?.name === "AbortError") return;
-      if (reqSeq !== articleReqSeqRef.current) return;
-      setError(getErrorMessage(e, "기사 목록을 불러오지 못했습니다."));
-    } finally {
-      if (reqSeq === articleReqSeqRef.current) setArticleLoading(false);
-    }
-  };
+      if (reqSeq !== compareReqSeqRef.current) return;
 
-  const runAnalyze = async () => {
-    if (COMPARE_COLLECTION_DISABLED) {
-      setError("경쟁사 비교 수집 기능은 현재 비활성화되어 있습니다.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const payload = await apiPost("/api/analyze", {
-        companies,
-        articles_per_company: articleCount,
-      });
-      setData(payload);
-      setDataSource("live");
-      setFilterCompany("전체");
-      setFilterSentiment("전체");
-      await loadArticles({ reset: true, companyOverride: "전체", sentimentOverride: "전체" });
-    } catch (e) {
-      setError(getErrorMessage(e, "비교 분석 요청에 실패했습니다."));
+      const isRateLimit = Number(e?.status) === 429;
+      const retrySeconds = clampRetrySeconds(getRetryAfterSeconds(e));
+      if (isRateLimit) {
+        const waitLabel = retrySeconds ? ` (약 ${retrySeconds}초 후 재시도)` : "";
+        setError(`요청이 많아 잠시 후 다시 시도${waitLabel}`);
+        setRetryAfterSec(retrySeconds);
+        retryAfterRef.current = Number(retrySeconds || 0);
+        stopPolling();
+        clearScheduledFetch();
+        setErrorCode(getDiagnosticCode(e, "CMP-RATE"));
+      } else {
+        setError(getErrorMessage(e, "경쟁사 조회에 실패했습니다."));
+        setRetryAfterSec(null);
+        retryAfterRef.current = 0;
+        setErrorCode(getDiagnosticCode(e, "CMP-LIVE"));
+      }
     } finally {
-      setLoading(false);
-      setHasBootstrapped(true);
+      if (reqSeq === compareReqSeqRef.current) {
+        inFlightRef.current = false;
+        setLoading(false);
+      }
     }
-  };
+  }, [clearScheduledFetch, selectedCompanies, stopPolling]);
 
-  const loadDemo = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const payload = await apiPost("/api/demo");
-      if (articleAbortRef.current) articleAbortRef.current.abort();
-      setData(payload);
-      setDataSource("demo");
-      setArticleRows([]);
-      setArticleOffset(0);
-      setArticleTotal(0);
-      setArticleHasMore(false);
-      setFilterCompany("전체");
-      setFilterSentiment("전체");
-    } catch (e) {
-      setError(getErrorMessage(e, "데모 데이터를 불러오지 못했습니다."));
-    } finally {
-      setLoading(false);
-      setHasBootstrapped(true);
-    }
+  const scheduleFetch = useCallback(
+    (delayMs = REQUEST_DEBOUNCE_MS, { force = false, allowDuringRateLimit = false } = {}) => {
+      if (!force && typeof document !== "undefined" && document.hidden) return;
+      if (!allowDuringRateLimit && retryAfterRef.current > 0) return;
+      clearScheduledFetch();
+      debounceTimerRef.current = setTimeout(() => {
+        fetchCompare();
+      }, delayMs);
+    },
+    [clearScheduledFetch, fetchCompare]
+  );
+
+  const startPolling = useCallback(() => {
+    stopPolling();
+    if (typeof document !== "undefined" && document.hidden) return;
+    if (retryAfterRef.current > 0) return;
+    pollTimerRef.current = setInterval(() => {
+      scheduleFetch(0);
+    }, refreshMs);
+  }, [refreshMs, scheduleFetch, stopPolling]);
+
+  const toggleSelectedCompany = (name) => {
+    setSelectedCompanies((prev) => {
+      if (prev.includes(name)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((v) => v !== name);
+      }
+      return [...prev, name];
+    });
   };
 
   const trendSeries = useMemo(() => {
@@ -177,38 +236,64 @@ export default function ComparePage() {
     [keywordsMap, selectedFromData]
   );
 
-  const filteredDemoArticles = useMemo(() => {
+  const displayedArticles = useMemo(() => {
     let rows = (data?.latest_articles || []).slice();
     if (filterCompany !== "전체") rows = rows.filter((r) => r.company === filterCompany);
     if (filterSentiment !== "전체") rows = rows.filter((r) => r.sentiment === filterSentiment);
     return rows.slice(0, 100);
   }, [data, filterCompany, filterSentiment]);
 
-  const displayedArticles = dataSource === "live" ? articleRows : filteredDemoArticles;
+  useEffect(() => {
+    scheduleFetch(0, { force: true });
+    startPolling();
+    return () => {
+      stopPolling();
+      clearScheduledFetch();
+      compareAbortRef.current?.abort();
+    };
+  }, [clearScheduledFetch, scheduleFetch, startPolling, stopPolling]);
 
   useEffect(() => {
-    if (!data || dataSource !== "live") return;
-    loadArticles({ reset: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCompany, filterSentiment, dataSource]);
+    scheduleFetch();
+    startPolling();
+  }, [selectedCompanies, scheduleFetch, startPolling]);
 
   useEffect(() => {
-    if (dataSource !== "live") return;
-    const node = sentinelRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && articleHasMore && !articleLoading) loadArticles();
-      },
-      { rootMargin: "120px" }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articleHasMore, articleLoading, dataSource]);
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+        clearScheduledFetch();
+        compareAbortRef.current?.abort();
+        return;
+      }
+      if (retryAfterRef.current > 0) return;
+      scheduleFetch(0, { force: true });
+      startPolling();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [clearScheduledFetch, scheduleFetch, startPolling, stopPolling]);
 
-  useEffect(() => () => articleAbortRef.current?.abort(), []);
+  useEffect(() => {
+    retryAfterRef.current = Number(retryAfterSec || 0);
+  }, [retryAfterSec]);
+
+  useEffect(() => {
+    if (!retryAfterSec || retryAfterSec <= 0) return undefined;
+    const timer = setInterval(() => {
+      setRetryAfterSec((prev) => {
+        if (!prev || prev <= 1) {
+          retryAfterRef.current = 0;
+          scheduleFetch(0, { force: true, allowDuringRateLimit: true });
+          startPolling();
+          return null;
+        }
+        retryAfterRef.current = prev - 1;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [retryAfterSec, scheduleFetch, startPolling]);
 
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 5 } }}>
@@ -231,92 +316,122 @@ export default function ComparePage() {
               spacing={1.2}
             >
               <Stack direction="row" spacing={1} alignItems="center">
-                <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
-                <Typography sx={{ fontSize: 20, fontWeight: 800, color: "#0f172a", letterSpacing: "-.01em" }}>경쟁사 비교 현황판</Typography>
+                <Box
+                  sx={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 1.2,
+                    background:
+                      "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)",
+                  }}
+                />
+                <Typography
+                  sx={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    letterSpacing: "-.01em",
+                  }}
+                >
+                  경쟁사 비교 현황판
+                </Typography>
               </Stack>
-              <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
-                <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
-                <Button component={Link} href="/nexon" variant="outlined" size="small">넥슨 IP 리스크</Button>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
+              >
+                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} />
+                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} />
+                <Chip size="small" color="primary" variant="outlined" label="조회 전용" />
               </Stack>
             </Stack>
           </Paper>
+
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+            <Chip component={Link} href="/" clickable variant="outlined" label="메인" />
+            <Chip component={Link} href="/nexon" clickable variant="outlined" label="넥슨 IP 리스크" />
+          </Stack>
+
           <ApiGuardBanner />
 
-          <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "rgba(15,23,42,.1)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}>
+          <Card
+            variant="outlined"
+            sx={{ borderRadius: 3, borderColor: "rgba(15,23,42,.1)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}
+          >
             <CardContent>
-              <Stack spacing={1.5}>
-                {COMPARE_COLLECTION_DISABLED ? <Alert severity="info">보호 모드: 수집 버튼은 잠금 상태입니다. 데모 데이터로 화면 확인만 가능합니다.</Alert> : null}
-                {error ? <ErrorState title="요청 처리 실패" details={error} /> : null}
-
+              <Stack spacing={1.3}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  조회 대상 회사
+                </Typography>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {["넥슨", "NC소프트", "넷마블", "크래프톤"].map((name) => (
+                  {DEFAULT_COMPANIES.map((name) => (
                     <Chip
                       key={name}
                       label={name}
-                      onClick={() => toggleCompany(name)}
-                      color={companies.includes(name) ? "primary" : "default"}
-                      variant={companies.includes(name) ? "filled" : "outlined"}
+                      onClick={() => toggleSelectedCompany(name)}
+                      color={selectedCompanies.includes(name) ? "primary" : "default"}
+                      variant={selectedCompanies.includes(name) ? "filled" : "outlined"}
                     />
                   ))}
                 </Stack>
-
-                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
-                  <Box sx={{ minWidth: 280, maxWidth: 360, width: "100%" }}>
-                    <Typography variant="body2" color="text.secondary">회사당 기사 수: {articleCount}</Typography>
-                    <Slider
-                      min={10}
-                      max={100}
-                      step={10}
-                      value={articleCount}
-                      onChange={(_, v) => setArticleCount(Number(v))}
-                    />
-                  </Box>
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="contained" onClick={runAnalyze} disabled={COMPARE_COLLECTION_DISABLED || loading || companies.length === 0}>
-                      {loading ? "처리 중..." : "수집 시작"}
-                    </Button>
-                    <Button variant="outlined" onClick={loadDemo} disabled={loading}>데모 데이터</Button>
-                  </Stack>
-                </Stack>
+                {retryAfterSec ? (
+                  <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                    호출 제한(HTTP 429): 요청량이 많습니다.
+                    {` ${retryAfterSec}초 후 자동 재시도 예정 (${formatRetryAt(retryAfterSec)} KST)`}
+                    {errorCode ? ` · 호출 제한 중 (${errorCode})` : ""}
+                  </Alert>
+                ) : null}
+                {error && Number(retryAfterSec || 0) === 0 ? (
+                  <ErrorState title="조회 실패" details={error} diagnosticCode={errorCode} />
+                ) : null}
+                {loading ? <LoadingState title="경쟁사 비교 데이터 조회 중" subtitle="최신 기사와 지표를 갱신하고 있습니다." /> : null}
               </Stack>
             </CardContent>
           </Card>
 
-          {!data ? (
-            loading ? (
-              <LoadingState title="비교 데이터 로딩 중" subtitle="요청 결과를 정리하고 있습니다." />
-            ) : (
-              <EmptyState
-                title="비교 데이터가 아직 없습니다."
-                subtitle={
-                  hasBootstrapped
-                    ? "요청이 실패했거나 결과가 비어 있습니다. 다시 시도해 주세요."
-                    : "데모 데이터 버튼으로 즉시 화면을 확인할 수 있습니다."
-                }
-                actionLabel="데모 데이터 불러오기"
-                onAction={loadDemo}
-              />
-            )
-          ) : (
+          {!data && !loading && !error ? (
+            <EmptyState title="표시할 비교 데이터가 없습니다." subtitle="잠시 후 자동으로 다시 조회합니다." />
+          ) : null}
+
+          {data ? (
             <>
               <Grid container spacing={1.4}>
                 {Object.entries(companyCounts).map(([name, count]) => (
                   <Grid item xs={6} md={4} key={name}>
-                    <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                    <Card
+                      variant="outlined"
+                      sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+                    >
                       <CardContent>
-                        <Typography variant="body2" color="text.secondary">{name}</Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 800 }}>{Number(count).toLocaleString()}</Typography>
-                        <Typography variant="caption" color="text.secondary">보도 건수</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {name}
+                        </Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                          {Number(count).toLocaleString()}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          보도 건수
+                        </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                 ))}
                 <Grid item xs={6} md={4}>
-                  <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+                  <Card
+                    variant="outlined"
+                    sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+                  >
                     <CardContent>
-                      <Typography variant="body2" color="text.secondary">총합</Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 800 }}>{Number(total).toLocaleString()}</Typography>
-                      <Typography variant="caption" color="text.secondary">전체 기사</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        총합
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                        {Number(total).toLocaleString()}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        전체 기사
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -324,17 +439,40 @@ export default function ComparePage() {
 
               <Grid container spacing={1.4}>
                 <Grid item xs={12} md={6}>
-                  <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%" }}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      borderRadius: 2.4,
+                      borderColor: "rgba(15,23,42,.1)",
+                      height: "100%",
+                    }}
+                  >
                     <CardContent>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>일별 보도량 추이 (최근 14일)</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
+                        일별 보도량 추이 (최근 14일)
+                      </Typography>
                       <Stack spacing={1.2}>
                         {trendSeries.map((series) => (
                           <Box key={series.company}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{series.company}</Typography>
-                            <Stack direction="row" spacing={0.3} sx={{ mt: 0.8, height: 56, alignItems: "end" }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {series.company}
+                            </Typography>
+                            <Stack
+                              direction="row"
+                              spacing={0.3}
+                              sx={{ mt: 0.8, height: 56, alignItems: "end" }}
+                            >
                               {series.points.map((p) => (
                                 <Box key={`${series.company}-${p.date}`} title={`${p.date}: ${p.value}건`} sx={{ flex: 1 }}>
-                                  <Box sx={{ width: "100%", height: `${(p.value / series.max) * 100}%`, minHeight: 2, borderRadius: 0.5, bgcolor: "#2f67d8" }} />
+                                  <Box
+                                    sx={{
+                                      width: "100%",
+                                      height: `${(p.value / series.max) * 100}%`,
+                                      minHeight: 2,
+                                      borderRadius: 0.5,
+                                      bgcolor: "#2f67d8",
+                                    }}
+                                  />
                                 </Box>
                               ))}
                             </Stack>
@@ -346,24 +484,45 @@ export default function ComparePage() {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%" }}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      borderRadius: 2.4,
+                      borderColor: "rgba(15,23,42,.1)",
+                      height: "100%",
+                    }}
+                  >
                     <CardContent>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>감성 분석</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
+                        감성 분석
+                      </Typography>
                       <Stack spacing={1.4}>
                         {selectedFromData.map((company) => {
                           const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0 };
                           return (
                             <Box key={company}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>{company}</Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
+                                {company}
+                              </Typography>
                               {SENTIMENTS.map((s) => (
-                                <Stack key={`${company}-${s}`} direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                                  <Typography variant="caption" sx={{ width: 30 }}>{s}</Typography>
+                                <Stack
+                                  key={`${company}-${s}`}
+                                  direction="row"
+                                  spacing={1}
+                                  alignItems="center"
+                                  sx={{ mb: 0.5 }}
+                                >
+                                  <Typography variant="caption" sx={{ width: 30 }}>
+                                    {s}
+                                  </Typography>
                                   <LinearProgress
                                     variant="determinate"
                                     value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
                                     sx={{ flex: 1, height: 8, borderRadius: 99, bgcolor: "#edf2fb" }}
                                   />
-                                  <Typography variant="caption" sx={{ width: 48, textAlign: "right" }}>{Number(row[s] || 0).toFixed(1)}%</Typography>
+                                  <Typography variant="caption" sx={{ width: 48, textAlign: "right" }}>
+                                    {Number(row[s] || 0).toFixed(1)}%
+                                  </Typography>
                                 </Stack>
                               ))}
                             </Box>
@@ -375,17 +534,29 @@ export default function ComparePage() {
                 </Grid>
               </Grid>
 
-              <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+              <Card
+                variant="outlined"
+                sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+              >
                 <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>회사별 키워드</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
+                    회사별 키워드
+                  </Typography>
                   <Grid container spacing={1.1}>
                     {keywordCards.map((card) => (
                       <Grid item xs={12} md={6} key={card.company}>
                         <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>{card.company}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
+                            {card.company}
+                          </Typography>
                           <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
                             {card.items.map((it) => (
-                              <Chip key={`${card.company}-${it.keyword}`} size="small" variant="outlined" label={`${it.keyword} · ${it.count}`} />
+                              <Chip
+                                key={`${card.company}-${it.keyword}`}
+                                size="small"
+                                variant="outlined"
+                                label={`${it.keyword} · ${it.count}`}
+                              />
                             ))}
                           </Stack>
                         </Paper>
@@ -395,16 +566,27 @@ export default function ComparePage() {
                 </CardContent>
               </Card>
 
-              <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+              <Card
+                variant="outlined"
+                sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+              >
                 <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>핵심 인사이트</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
+                    핵심 인사이트
+                  </Typography>
                   <Grid container spacing={1.1}>
                     <Grid item xs={12} md={6}>
                       <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%" }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>Top 5 이슈</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
+                          Top 5 이슈
+                        </Typography>
                         <Stack spacing={0.8}>
                           {(insights.top_issues || []).map((item, idx) => (
-                            <Typography key={`${item.company}-${item.keyword}-${idx}`} variant="caption" color="text.secondary">
+                            <Typography
+                              key={`${item.company}-${item.keyword}-${idx}`}
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               <b>{item.company}</b> · {item.keyword} ({item.count}건, {item.share_pct}%)
                             </Typography>
                           ))}
@@ -413,10 +595,16 @@ export default function ComparePage() {
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%" }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>실행 제안</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
+                          실행 제안
+                        </Typography>
                         <Stack spacing={0.8}>
                           {(insights.actions || []).map((item) => (
-                            <Typography key={`${item.company}-${item.priority}`} variant="caption" color="text.secondary">
+                            <Typography
+                              key={`${item.company}-${item.priority}`}
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               <b>{item.company}</b> ({item.priority}) {item.action}
                             </Typography>
                           ))}
@@ -427,26 +615,42 @@ export default function ComparePage() {
                 </CardContent>
               </Card>
 
-              <Card variant="outlined" sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}>
+              <Card
+                variant="outlined"
+                sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+              >
                 <CardContent>
-                  <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1.2} sx={{ mb: 1.2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 800 }}>최신 기사 목록</Typography>
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    justifyContent="space-between"
+                    spacing={1.2}
+                    sx={{ mb: 1.2 }}
+                  >
+                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                      최신 기사 목록
+                    </Typography>
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                       <Chip
                         size="small"
                         label={`회사: ${filterCompany}`}
                         variant="outlined"
-                        onClick={() => setFilterCompany(filterCompany === "전체" ? (selectedFromData[0] || "전체") : "전체")}
+                        onClick={() =>
+                          setFilterCompany(
+                            filterCompany === "전체" ? selectedFromData[0] || "전체" : "전체"
+                          )
+                        }
                       />
                       <Chip
                         size="small"
                         label={`감성: ${filterSentiment}`}
                         variant="outlined"
-                        onClick={() => setFilterSentiment(filterSentiment === "전체" ? "부정" : "전체")}
+                        onClick={() =>
+                          setFilterSentiment(filterSentiment === "전체" ? "부정" : "전체")
+                        }
                       />
                       <Chip
                         size="small"
-                        label={dataSource === "live" ? `불러온 기사: ${displayedArticles.length} / ${articleTotal}` : `필터 결과: ${displayedArticles.length}`}
+                        label={`필터 결과: ${displayedArticles.length}`}
                         variant="outlined"
                       />
                     </Stack>
@@ -469,7 +673,12 @@ export default function ComparePage() {
                               <TableCell>{a.company}</TableCell>
                               <TableCell>
                                 {a.url ? (
-                                  <a href={a.url} target="_blank" rel="noreferrer" style={{ color: "#0f3b66", textDecoration: "none" }}>
+                                  <a
+                                    href={a.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ color: "#0f3b66", textDecoration: "none" }}
+                                  >
                                     {a.title}
                                   </a>
                                 ) : (
@@ -490,26 +699,14 @@ export default function ComparePage() {
                       </TableBody>
                     </Table>
                   </Box>
-
-                  <Box ref={sentinelRef} sx={{ mt: 1.2 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      {dataSource === "live"
-                        ? articleLoading
-                          ? "기사 불러오는 중..."
-                          : articleHasMore
-                            ? "아래로 스크롤하면 계속 불러옵니다."
-                            : "마지막 기사입니다."
-                        : ""}
-                    </Typography>
-                  </Box>
                 </CardContent>
               </Card>
             </>
-          )}
+          ) : null}
 
           <Divider sx={{ my: 1 }} />
           <Typography variant="caption" color="text.secondary" align="center">
-            포트폴리오 비교 화면 · 데이터 상태에 따라 결과가 달라질 수 있습니다.
+            포트폴리오 비교 화면 · compare는 조회 전용이며 자동 갱신으로 최신 상태를 유지합니다.
           </Typography>
         </Stack>
       </Container>

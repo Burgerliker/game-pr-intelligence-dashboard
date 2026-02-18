@@ -71,12 +71,13 @@ export function buildApiUrl(path) {
 }
 
 class HttpError extends Error {
-  constructor(message, status, url, body) {
+  constructor(message, status, url, body, retryAfter = null) {
     super(message);
     this.name = "HttpError";
     this.status = status;
     this.url = url;
     this.body = body;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -100,20 +101,35 @@ function isRetriableNetworkError(error) {
   );
 }
 
-async function extractErrorMessage(res) {
-  const text = await res.text();
-  if (!text) return `요청 실패 (${res.status})`;
+function parseRetryAfter(value) {
+  if (!value) return null;
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber) && asNumber > 0) return Math.ceil(asNumber);
+  const asDate = new Date(value);
+  if (Number.isNaN(asDate.getTime())) return null;
+  const sec = Math.ceil((asDate.getTime() - Date.now()) / 1000);
+  return sec > 0 ? sec : null;
+}
+
+function extractErrorMessageFromPayload(data, status) {
+  if (!data || typeof data !== "object") return `요청 실패 (${status})`;
+  const detail = data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object") {
+    const fromDetail = detail?.message || detail?.error || detail?.reason;
+    if (typeof fromDetail === "string" && fromDetail.trim()) return fromDetail;
+  }
+  const base = data?.message || data?.error || data?.reason;
+  if (typeof base === "string" && base.trim()) return base;
+  return `요청 실패 (${status})`;
+}
+
+function parseErrorPayload(text) {
+  if (!text) return { data: null, raw: "" };
   try {
-    const data = JSON.parse(text);
-    return (
-      data?.detail ||
-      data?.message ||
-      data?.error ||
-      data?.reason ||
-      `요청 실패 (${res.status})`
-    );
+    return { data: JSON.parse(text), raw: text };
   } catch {
-    return text;
+    return { data: null, raw: text };
   }
 }
 
@@ -142,8 +158,20 @@ async function request(path, options = {}) {
       });
 
       if (!res.ok) {
-        const message = await extractErrorMessage(res);
-        throw new HttpError(message, res.status, url, message);
+        const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
+        const rawText = await res.text();
+        const parsed = parseErrorPayload(rawText);
+        const message =
+          parsed.data != null
+            ? extractErrorMessageFromPayload(parsed.data, res.status)
+            : (rawText || `요청 실패 (${res.status})`);
+        throw new HttpError(
+          message,
+          res.status,
+          url,
+          { raw: parsed.raw, data: parsed.data },
+          retryAfter
+        );
       }
 
       if (res.status === 204) return null;
@@ -186,6 +214,15 @@ export function getDiagnosticCode(error, scope = "GEN") {
   if (error?.name === "AbortError") return `${normalizedScope}-ABORT`;
   if (error instanceof TypeError) return `${normalizedScope}-NETWORK`;
   return `${normalizedScope}-UNKNOWN`;
+}
+
+export function getRetryAfterSeconds(error) {
+  if (!error) return null;
+  const topLevel = Number(error?.retryAfter);
+  if (Number.isFinite(topLevel) && topLevel > 0) return Math.ceil(topLevel);
+  const retryFromDetail = Number(error?.body?.data?.detail?.retry_after);
+  if (Number.isFinite(retryFromDetail) && retryFromDetail > 0) return Math.ceil(retryFromDetail);
+  return null;
 }
 
 export async function apiGet(path, options = {}) {

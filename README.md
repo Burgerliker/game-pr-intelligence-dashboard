@@ -42,6 +42,7 @@ bash scripts/smoke_test.sh --mode backtest --base http://localhost:8001
 - `--health-url https://api.example.com/api/health`로 health 대상 지정
 - `--frontend-origin https://dashboard.example.com`로 CORS 포함 여부 검증
 - 실패 시 `OPS-E###` 코드와 함께 즉시 종료(비정상 1)
+- 외부 관측 QA 표준(health/scheduler/CORS, Go/No-Go): `docs/ops-external-smoke-standard.md`
 
 접속:
 - Live UI: `http://localhost:3000/nexon`
@@ -58,6 +59,8 @@ bash scripts/smoke_test.sh --mode backtest --base http://localhost:8001
 - `CORS_ALLOW_ORIGINS`: 허용 오리진을 쉼표(`,`)로 명시 (와일드카드 `*` 지양)
 - `CORS_ALLOW_CREDENTIALS`: `1` 또는 `0` (쿠키/인증 필요 시만 `1`)
 - `ENABLE_DEBUG_ENDPOINTS=0`, `ENABLE_MANUAL_COLLECTION=0` 기본 유지
+- `COMPARE_LIVE_RATE_LIMIT_PER_MIN`: 경쟁사 실시간 조회 분당 요청 제한(기본 `30`)
+- `COMPARE_LIVE_CACHE_TTL_SECONDS`: 경쟁사 실시간 조회 캐시 TTL(기본 `45`)
 
 ### 장애 대응 런북(운영 확인 경로)
 ```bash
@@ -78,11 +81,17 @@ sudo tail -n 200 /var/log/nginx/error.log
 
 ## 주요 API
 - `GET /health`: 서버 상태 + 현재 DB 경로/파일명
-- `POST /api/analyze`: 경쟁사 비교 수집/분석
+- `GET /api/compare-live?companies=넥슨,NC소프트,넷마블,크래프톤&window_hours=24&limit=40`: 경쟁사 실시간 조회(캐시+rate limit)
 - `POST /api/nexon-cluster-source`: 넥슨 군집용 수집/분석
 - `GET /api/risk-dashboard`: 날짜/IP 기반 리스크 지표
 - `GET /api/ip-clusters`: 날짜/IP 기반 군집 요약
 - `GET /api/project-snapshot`: 외부 API 호출 없이 DB 데이터만으로 분석 스냅샷 생성
+
+### compare-live 운영 규칙
+- `window_hours`는 수집된 기사 `pubDate`를 UTC 기준 최근 N시간으로 필터링합니다.
+- 동일 파라미터 요청은 TTL 캐시를 우선 사용합니다.
+- 외부 API 실패 시 최근 성공 캐시가 있으면 fallback 응답을 반환합니다.
+- 분당 제한 초과 시 `429`를 반환하며 응답/헤더의 `retry_after`/`Retry-After`를 따라 재시도하세요.
 
 ## DB 기반 분석 산출물(외부 API 미호출)
 이미 DB에 적재된 데이터로 포트폴리오용 JSON/CSV를 생성합니다.
@@ -149,10 +158,12 @@ Jenkinsfile과 Docker 구성 파일이 포함되어 있어 로컬 CI 실습이 �
 
 - `NEXT_PUBLIC_API_BASE_URL`: 운영 백엔드 API Origin (예: `https://api.example.com`)
 - `NEXT_PUBLIC_SHOW_BACKTEST`: 운영은 `false` 권장
+- `NEXT_PUBLIC_COMPARE_REFRESH_MS`: compare 자동 갱신 주기(ms), 기본 `60000`
 
 중요:
 - `NEXT_PUBLIC_API_BASE_URL` 미설정 시 프론트는 현재 Origin으로 fallback합니다.
 - Vercel 배포에서는 `localhost`를 API 주소로 사용하지 않도록 환경변수를 명시하세요.
+- `/compare`는 조회 전용 화면입니다(수동 수집 버튼 없음, 진입 시 자동 조회 + 주기 갱신).
 
 ## 잠재 리스크 분리 (EC2 Docker 경로)
 EC2 자동배포는 `EC2_APP_DIR` 경로 하드코딩/오입력 리스크가 있으므로 Vercel 프론트 배포와 분리해 관리하세요.
