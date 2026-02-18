@@ -980,8 +980,9 @@ export default function NexonPage() {
             { k: "최고 위험 테마", v: topRisk?.theme || "-", s: `Risk ${topRisk?.risk_score ?? "-"}` },
             { k: "이슈 묶음 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 주제 묶음", tip: tipMap.cluster },
           ].map((item) => (
-            <Grid item xs={12} sm={6} md={3} key={item.k}>
-              <Card variant="outlined" sx={sectionCardSx}><CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 } }}>
+            <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
+              <Card variant="outlined" sx={{ ...sectionCardSx, width: "100%", height: "100%" }}>
+                <CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 }, width: "100%", minWidth: 0 }}>
                 {item.tip ? (
                   <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
                 ) : (
@@ -989,7 +990,8 @@ export default function NexonPage() {
                 )}
                 <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
                 <Typography variant="caption" color="text.secondary">{item.s}</Typography>
-              </CardContent></Card>
+                </CardContent>
+              </Card>
             </Grid>
           ))}
         </Grid>
