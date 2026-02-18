@@ -61,15 +61,15 @@ const DIAG_SCOPE = {
 const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
-    accent: "#7db0ff",
-    bg: "linear-gradient(135deg,#0b1220 0%,#102445 48%,#16396b 100%)",
-    glow: "radial-gradient(circle at 82% 18%, rgba(125,176,255,.28) 0%, rgba(125,176,255,0) 56%)",
+    accent: "#8fb6ff",
+    bg: "linear-gradient(120deg,#0b1220 0%,#10284b 46%,#1d4272 100%)",
+    glow: "radial-gradient(circle at 84% 16%, rgba(143,182,255,.22) 0%, rgba(143,182,255,0) 58%)",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#ffcb7d", bg: "linear-gradient(135deg,#1a1205 0%,#3d2506 45%,#7f4a0a 100%)" },
-  dnf: { kicker: "DNF", accent: "#ff9aa8", bg: "linear-gradient(135deg,#1b0b10 0%,#41111f 45%,#7d1934 100%)" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#7de5ff", bg: "linear-gradient(135deg,#071419 0%,#0e2d36 45%,#1c5461 100%)" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#98b9ff", bg: "linear-gradient(135deg,#0a1122 0%,#132b5a 45%,#214f9b 100%)" },
-  fconline: { kicker: "FC ONLINE", accent: "#93e7b2", bg: "linear-gradient(135deg,#08160f 0%,#123724 45%,#1c6f45 100%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#ffd08a", bg: "linear-gradient(120deg,#1c1206 0%,#4b2b08 44%,#9a6730 100%)" },
+  dnf: { kicker: "DNF", accent: "#ffb5bf", bg: "linear-gradient(120deg,#1c0b12 0%,#4b1226 44%,#8d2742 100%)" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#95ebff", bg: "linear-gradient(120deg,#08161c 0%,#123845 44%,#2a6774 100%)" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#adc5ff", bg: "linear-gradient(120deg,#0b1225 0%,#18366a 44%,#2f5fa8 100%)" },
+  fconline: { kicker: "FC ONLINE", accent: "#a2f0c0", bg: "linear-gradient(120deg,#0b1812 0%,#18432c 44%,#2b7652 100%)" },
 };
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
@@ -816,15 +816,15 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 164, sm: 196, md: 228 },
+                    height: { xs: 160, sm: 188, md: 212 },
                     p: { xs: 1.5, sm: 2.2, md: 2.8 },
                     borderRadius: 3,
                     color: "#eef4ff",
                     position: "relative",
                     overflow: "hidden",
-                    border: "1px solid rgba(255,255,255,0.2)",
+                    border: "1px solid rgba(148,163,184,.24)",
                     background: currentBanner.visual.bg,
-                    boxShadow: "0 20px 34px rgba(15,23,42,0.30)",
+                    boxShadow: "0 14px 28px rgba(15,23,42,.22)",
                     transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
                   }}
                 >
@@ -832,7 +832,8 @@ export default function NexonPage() {
                     sx={{
                       position: "absolute",
                       inset: 0,
-                      background: currentBanner.visual.glow || "radial-gradient(circle at 82% 18%, rgba(255,255,255,.28) 0%, rgba(255,255,255,0) 52%)",
+                      background:
+                        `${currentBanner.visual.glow || "radial-gradient(circle at 82% 18%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 58%)"}, linear-gradient(110deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,0) 45%)`,
                       pointerEvents: "none",
                     }}
                   />
@@ -844,36 +845,24 @@ export default function NexonPage() {
                     height={64}
                     sx={{
                       position: "absolute",
-                      right: { xs: 10, sm: 14, md: 18 },
-                      top: { xs: 8, sm: 10, md: 16 },
-                      width: { xs: 42, sm: 54, md: 64 },
-                      opacity: 0.75,
-                      filter: "grayscale(100%) brightness(2.6)",
+                      right: { xs: 10, sm: 14, md: 16 },
+                      top: { xs: 10, sm: 12, md: 14 },
+                      width: { xs: 38, sm: 48, md: 56 },
+                      p: { xs: 0.4, md: 0.6 },
+                      borderRadius: 1.2,
+                      bgcolor: "rgba(248,250,252,.82)",
+                      border: "1px solid rgba(226,232,240,.75)",
+                      opacity: 0.92,
+                      filter: "grayscale(100%) contrast(1.05)",
                     }}
                   />
-                  <Typography
-                    sx={{
-                      position: "absolute",
-                      right: 18,
-                      bottom: 10,
-                      fontSize: 64,
-                      fontWeight: 900,
-                      lineHeight: 0.9,
-                      letterSpacing: "-.02em",
-                      color: "rgba(255,255,255,.08)",
-                      userSelect: "none",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    {currentBanner.visual.kicker.split(" ")[0]}
-                  </Typography>
-                  <Typography sx={{ fontSize: 14, letterSpacing: ".08em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                  <Typography sx={{ fontSize: 13, letterSpacing: ".09em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
-                  <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 28, sm: 34, md: 38 }, fontWeight: 900, lineHeight: 1.04 }}>
+                  <Typography sx={{ mt: 0.6, pr: { xs: 6, sm: 8, md: 9 }, fontSize: { xs: 30, sm: 34, md: 40 }, fontWeight: 900, lineHeight: 1.02, letterSpacing: "-.02em" }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.82)" }}>
+                  <Typography sx={{ mt: 0.55, pr: { xs: 6, sm: 8, md: 10 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.9)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
                   </Typography>
                 </Paper>
