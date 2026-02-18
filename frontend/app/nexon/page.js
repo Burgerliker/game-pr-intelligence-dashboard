@@ -435,6 +435,23 @@ export default function NexonPage() {
     borderColor: "rgba(15,23,42,0.10)",
     boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
     bgcolor: "#fff",
+    transition: "transform .24s ease, box-shadow .24s ease, border-color .24s ease",
+    "&:hover": {
+      transform: "translateY(-2px)",
+      boxShadow: "0 18px 32px rgba(15,23,42,0.10)",
+      borderColor: "rgba(15,59,102,.22)",
+    },
+  };
+  const panelSx = {
+    borderRadius: 2.2,
+    borderColor: "rgba(15,23,42,.12)",
+    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
+    "&:hover": {
+      transform: "translateY(-1px)",
+      boxShadow: "0 8px 18px rgba(15,23,42,.08)",
+      borderColor: "rgba(15,59,102,.24)",
+      bgcolor: "#fbfdff",
+    },
   };
 
   useEffect(() => {
@@ -842,7 +859,7 @@ export default function NexonPage() {
                   }}
                 >
                   <Stack spacing={2.2}>
-                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 점수</Typography>
                       <Typography variant="h4" sx={{ mt: 0.4, fontWeight: 800 }}>{riskValue.toFixed(1)}</Typography>
                       <Chip
@@ -867,7 +884,7 @@ export default function NexonPage() {
                         최근 {Number(riskScore?.meta?.window_hours || 24)}시간 롤링 윈도우 기준
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                       </Typography>
@@ -878,7 +895,7 @@ export default function NexonPage() {
                         기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>지표 해석</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                         볼륨(Volume): {recent24hArticles.toLocaleString()}건
@@ -896,7 +913,7 @@ export default function NexonPage() {
                   </Stack>
 
                   <Stack spacing={2.2}>
-                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
                         label={alertLevel}
@@ -907,7 +924,7 @@ export default function NexonPage() {
                         불확실 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 모드</Typography>
                       <Stack direction="row" alignItems="center" spacing={0.8} sx={{ mt: 0.8 }}>
                         <Box
@@ -930,7 +947,7 @@ export default function NexonPage() {
                         최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ p: 2.2 }}>
+                    <Paper variant="outlined" sx={{ ...panelSx, p: 2.2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
                         S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
@@ -947,7 +964,7 @@ export default function NexonPage() {
                     const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
                     return (
                       <Grid item xs={12} sm={6} md={3} key={k}>
-                        <Paper variant="outlined" sx={{ p: { xs: 1.1, sm: 1.3, md: 1.4 } }}>
+                        <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.1, sm: 1.3, md: 1.4 } }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700 }}>
                               {k === "S" ? "감성(S)" : k === "V" ? "볼륨(V)" : k === "T" ? "테마(T)" : "매체(M)"}
@@ -965,7 +982,7 @@ export default function NexonPage() {
                   })}
                 </Grid>
 
-                <Paper variant="outlined" sx={{ mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
+                <Paper variant="outlined" sx={{ ...panelSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
                   <List dense disablePadding>
                     {filteredBurstEvents.length ? (
                       filteredBurstEvents.slice(0, 5).map((evt, idx) => (
