@@ -62,14 +62,14 @@ const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
     accent: "#8fb6ff",
-    bg: "linear-gradient(120deg,#0b1220 0%,#10284b 46%,#1d4272 100%)",
-    glow: "radial-gradient(circle at 84% 16%, rgba(143,182,255,.22) 0%, rgba(143,182,255,0) 58%)",
+    bg: "linear-gradient(135deg,#0f172a 0%,#111827 55%,#1f2937 100%)",
+    glow: "radial-gradient(circle at 84% 14%, rgba(143,182,255,.20) 0%, rgba(143,182,255,0) 60%)",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#ffd08a", bg: "linear-gradient(120deg,#1c1206 0%,#4b2b08 44%,#9a6730 100%)" },
-  dnf: { kicker: "DNF", accent: "#ffb5bf", bg: "linear-gradient(120deg,#1c0b12 0%,#4b1226 44%,#8d2742 100%)" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#95ebff", bg: "linear-gradient(120deg,#08161c 0%,#123845 44%,#2a6774 100%)" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#adc5ff", bg: "linear-gradient(120deg,#0b1225 0%,#18366a 44%,#2f5fa8 100%)" },
-  fconline: { kicker: "FC ONLINE", accent: "#a2f0c0", bg: "linear-gradient(120deg,#0b1812 0%,#18432c 44%,#2b7652 100%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "linear-gradient(135deg,#111827 0%,#1f2937 55%,#374151 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(245,193,108,.20) 0%, rgba(245,193,108,0) 60%)" },
+  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "linear-gradient(135deg,#111827 0%,#1f2937 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(255,157,176,.18) 0%, rgba(255,157,176,0) 60%)" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 55%,#374151 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(141,229,255,.18) 0%, rgba(141,229,255,0) 60%)" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "linear-gradient(135deg,#0f172a 0%,#1e293b 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(166,188,255,.18) 0%, rgba(166,188,255,0) 60%)" },
+  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(159,232,194,.18) 0%, rgba(159,232,194,0) 60%)" },
 };
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
@@ -816,15 +816,15 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 160, sm: 188, md: 212 },
-                    p: { xs: 1.5, sm: 2.2, md: 2.8 },
-                    borderRadius: 3,
-                    color: "#eef4ff",
+                    height: { xs: 156, sm: 182, md: 204 },
+                    p: { xs: 1.5, sm: 2, md: 2.2 },
+                    borderRadius: 2.4,
+                    color: "#eef2ff",
                     position: "relative",
                     overflow: "hidden",
-                    border: "1px solid rgba(148,163,184,.24)",
+                    border: "1px solid rgba(148,163,184,.22)",
                     background: currentBanner.visual.bg,
-                    boxShadow: "0 14px 28px rgba(15,23,42,.22)",
+                    boxShadow: "0 10px 22px rgba(15,23,42,.18)",
                     transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
                   }}
                 >
@@ -833,8 +833,19 @@ export default function NexonPage() {
                       position: "absolute",
                       inset: 0,
                       background:
-                        `${currentBanner.visual.glow || "radial-gradient(circle at 82% 18%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 58%)"}, linear-gradient(110deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,0) 45%)`,
+                        `${currentBanner.visual.glow || "radial-gradient(circle at 84% 14%, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 60%)"}, linear-gradient(110deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,0) 48%)`,
                       pointerEvents: "none",
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      width: 4,
+                      height: "100%",
+                      bgcolor: currentBanner.visual.accent,
+                      opacity: 0.9,
                     }}
                   />
                   <Box
@@ -845,24 +856,24 @@ export default function NexonPage() {
                     height={64}
                     sx={{
                       position: "absolute",
-                      right: { xs: 10, sm: 14, md: 16 },
-                      top: { xs: 10, sm: 12, md: 14 },
-                      width: { xs: 38, sm: 48, md: 56 },
-                      p: { xs: 0.4, md: 0.6 },
-                      borderRadius: 1.2,
-                      bgcolor: "rgba(248,250,252,.82)",
-                      border: "1px solid rgba(226,232,240,.75)",
-                      opacity: 0.92,
-                      filter: "grayscale(100%) contrast(1.05)",
+                      right: { xs: 10, sm: 12, md: 14 },
+                      top: { xs: 10, sm: 10, md: 12 },
+                      width: { xs: 34, sm: 42, md: 50 },
+                      p: { xs: 0.3, md: 0.45 },
+                      borderRadius: 1,
+                      bgcolor: "rgba(248,250,252,.88)",
+                      border: "1px solid rgba(226,232,240,.7)",
+                      opacity: 0.88,
+                      filter: "grayscale(100%) contrast(1.04)",
                     }}
                   />
-                  <Typography sx={{ fontSize: 13, letterSpacing: ".09em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                  <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
-                  <Typography sx={{ mt: 0.6, pr: { xs: 6, sm: 8, md: 9 }, fontSize: { xs: 30, sm: 34, md: 40 }, fontWeight: 900, lineHeight: 1.02, letterSpacing: "-.02em" }}>
+                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 30, sm: 32, md: 36 }, fontWeight: 900, lineHeight: 1.03, letterSpacing: "-.02em" }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 0.55, pr: { xs: 6, sm: 8, md: 10 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.9)" }}>
+                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 13, md: 14 }, color: "rgba(237,245,255,.86)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
                   </Typography>
                 </Paper>
