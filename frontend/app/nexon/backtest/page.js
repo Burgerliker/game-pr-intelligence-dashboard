@@ -198,7 +198,7 @@ export default function NexonBacktestPage() {
           },
           {
             type: "value",
-            name: "S/V/T/M",
+            name: "요소 기여도",
             gridIndex: 2,
             min: 0,
             max: 1.2,
@@ -364,7 +364,7 @@ export default function NexonBacktestPage() {
             </Alert>
           ) : null}
           <Alert severity="info" sx={{ mt: 1.5 }}>
-            백테스트는 임계치 기반 이벤트(히스테리시스 없음)로 계산합니다. 실시간 모드는 버스트 히스테리시스 로직을 사용합니다.
+            백테스트는 임계치 기반 이벤트(히스테리시스 없음)로 계산합니다. 실시간 모드는 집중 수집 전환 로직을 사용합니다.
           </Alert>
 
           {loading ? <Box sx={{ mt: 2 }}><LoadingState title="백테스트 로딩 중" subtitle="리스크 타임라인을 계산하고 있습니다." /></Box> : null}

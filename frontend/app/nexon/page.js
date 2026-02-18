@@ -383,6 +383,12 @@ export default function NexonPage() {
   );
   const riskValue = Number(riskScore?.risk_score || 0);
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
+  const alertInfo =
+    alertLevel === "P1"
+      ? { label: "심각", desc: "위험도 70 이상", color: "error" }
+      : alertLevel === "P2"
+        ? { label: "주의", desc: "위험도 45~69", color: "warning" }
+        : { label: "관심", desc: "위험도 0~44", color: "success" };
   const riskGaugeColor = riskValue >= 70 ? "#dc3c4a" : riskValue >= 45 ? "#e89c1c" : "#11a36a";
   const riskMeaning = useMemo(() => {
     if (riskValue >= 70) return { label: "심각", color: "error" };
@@ -678,8 +684,7 @@ export default function NexonPage() {
           <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between" spacing={1.2}>
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
-              <Box>
-                <Typography variant="caption" color="text.secondary">실시간 모니터링</Typography>
+              <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
                     fontSize: { xs: "clamp(1.6rem, 6vw, 2rem)", sm: "clamp(1.9rem, 4.5vw, 2.4rem)", md: "clamp(2.1rem, 3.2vw, 2.8rem)" },
@@ -776,7 +781,7 @@ export default function NexonPage() {
                     {currentBanner.name}
                   </Typography>
                   <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 12, md: 13 }, color: "rgba(237,245,255,.82)" }}>
-                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 군집 · 버스트 모니터"}
+                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
                   </Typography>
                 </Paper>
               ) : null}
@@ -824,7 +829,7 @@ export default function NexonPage() {
             </Stack>
             {loading ? (
               <Box sx={{ mt: 1.5 }}>
-                <LoadingState title="IP 데이터를 동기화하는 중" subtitle="리스크/군집/버스트 상태를 갱신하고 있습니다." />
+                <LoadingState title="IP 데이터를 동기화하는 중" subtitle="리스크/이슈 묶음/집중 수집 상태를 갱신하고 있습니다." />
               </Box>
             ) : null}
             {notice ? <Alert severity={usingMock ? "warning" : "info"} sx={{ mt: 1.5 }}>{notice}</Alert> : null}
@@ -842,7 +847,7 @@ export default function NexonPage() {
             { k: "선택 IP", v: riskData?.meta?.ip || "-", s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}` },
             { k: "총 기사 수", v: Number(riskData?.meta?.total_articles || 0).toLocaleString(), s: "필터 기준" },
             { k: "최고 위험 테마", v: topRisk?.theme || "-", s: `Risk ${topRisk?.risk_score ?? "-"}` },
-            { k: "군집 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "상위 6개" },
+            { k: "이슈 묶음 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 주제 묶음" },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={3} key={item.k}>
               <Card variant="outlined" sx={sectionCardSx}><CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 } }}>
@@ -927,12 +932,12 @@ export default function NexonPage() {
                     <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
                       <Chip
-                        label={alertLevel}
-                        color={alertLevel === "P1" ? "error" : alertLevel === "P2" ? "warning" : "success"}
+                        label={`${alertInfo.label} (${alertLevel})`}
+                        color={alertInfo.color}
                         sx={{ mt: 0.7, fontWeight: 700 }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                        불확실 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
+                        {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
@@ -961,10 +966,10 @@ export default function NexonPage() {
                     <Paper variant="outlined" sx={{ ...panelSx, p: 2.2 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
-                        S {Number(riskScore?.components?.S || 0).toFixed(2)} · V {Number(riskScore?.components?.V || 0).toFixed(2)}
+                        감성 {Number(riskScore?.components?.S || 0).toFixed(2)} · 기사량 {Number(riskScore?.components?.V || 0).toFixed(2)}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                        T {Number(riskScore?.components?.T || 0).toFixed(2)} · M {Number(riskScore?.components?.M || 0).toFixed(2)}
+                        테마 {Number(riskScore?.components?.T || 0).toFixed(2)} · 매체 {Number(riskScore?.components?.M || 0).toFixed(2)}
                       </Typography>
                     </Paper>
                   </Stack>
@@ -978,7 +983,7 @@ export default function NexonPage() {
                         <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.1, sm: 1.3, md: 1.4 } }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                              {k === "S" ? "감성(S)" : k === "V" ? "볼륨(V)" : k === "T" ? "테마(T)" : "매체(M)"}
+                              {k === "S" ? "감성 신호" : k === "V" ? "기사량 신호" : k === "T" ? "테마 신호" : "매체 신호"}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">{value.toFixed(2)}</Typography>
                           </Stack>
@@ -1006,7 +1011,7 @@ export default function NexonPage() {
                       ))
                     ) : (
                       <ListItem>
-                        <ListItemText primary="아직 버스트 이벤트가 없습니다. (실시간 신호 대기 중)" />
+                        <ListItemText primary="아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)" />
                       </ListItem>
                     )}
                   </List>
@@ -1019,7 +1024,7 @@ export default function NexonPage() {
                 </Typography>
                 {!filteredBurstEvents.length ? (
                   <Typography variant="caption" color="text.secondary">
-                    아직 버스트 이벤트가 없습니다. (실시간 신호 대기 중)
+                    아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)
                   </Typography>
                 ) : null}
               </Stack>
@@ -1103,7 +1108,7 @@ export default function NexonPage() {
         </CardContent></Card>
 
         <Card variant="outlined" sx={sectionCardSx}><CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>IP 군집 결과</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>이슈 묶음 분석</Typography>
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>
             {(clusterData?.top_outlets || []).map((o) => (
               <Chip key={o.outlet} label={`${o.outlet} ${o.article_count}건`} size="small" variant="outlined" />
