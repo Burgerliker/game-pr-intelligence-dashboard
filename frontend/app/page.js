@@ -285,7 +285,8 @@ export default function HomePage() {
                     bgcolor: active ? card.hoverBg : "#ffffff",
                     color: active ? card.hoverText : "#111827",
                     boxShadow: active ? "0 16px 30px rgba(15,23,42,.12)" : "0 8px 18px rgba(15,23,42,.04)",
-                    transition: "all .75s cubic-bezier(.22,.61,.36,1)",
+                    transition:
+                      "transform .75s cubic-bezier(.22,.61,.36,1), box-shadow .75s cubic-bezier(.22,.61,.36,1), border-color .75s cubic-bezier(.22,.61,.36,1), background-color .75s cubic-bezier(.22,.61,.36,1), color .75s cubic-bezier(.22,.61,.36,1)",
                     transform: active ? "translateY(-6px)" : "translateY(0)",
                     "&::before": {
                       content: '""',
@@ -294,7 +295,8 @@ export default function HomePage() {
                       background: card.hoverOverlay,
                       opacity: active ? 1 : 0,
                       transform: active ? "translateX(0)" : "translateX(-8%)",
-                      transition: "all .9s cubic-bezier(.2,.65,.2,1)",
+                      transition:
+                        "opacity .9s cubic-bezier(.2,.65,.2,1), transform .9s cubic-bezier(.2,.65,.2,1)",
                     },
                   }}
                 >
@@ -311,7 +313,8 @@ export default function HomePage() {
                       placeItems: "center",
                       position: "relative",
                       zIndex: 1,
-                      transition: "all .75s cubic-bezier(.22,.61,.36,1)",
+                      transition:
+                        "transform .75s cubic-bezier(.22,.61,.36,1), background-color .75s cubic-bezier(.22,.61,.36,1), color .75s cubic-bezier(.22,.61,.36,1)",
                       transform: active ? "scale(1.03)" : "scale(1)",
                     }}
                   >
@@ -353,7 +356,8 @@ export default function HomePage() {
                       borderColor: active ? "#dbe7f2" : `${card.accent}66`,
                       position: "relative",
                       zIndex: 1,
-                      transition: "all .65s cubic-bezier(.22,.61,.36,1)",
+                      transition:
+                        "transform .65s cubic-bezier(.22,.61,.36,1), background-color .65s cubic-bezier(.22,.61,.36,1), color .65s cubic-bezier(.22,.61,.36,1), border-color .65s cubic-bezier(.22,.61,.36,1)",
                       "&:hover": {
                         bgcolor: active ? "#f4f8ff" : "#f3f4f6",
                         transform: "translateY(-1px)",

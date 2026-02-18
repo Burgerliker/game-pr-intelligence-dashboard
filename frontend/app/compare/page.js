@@ -39,6 +39,7 @@ const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"]
 const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
+const ARTICLE_RENDER_STEP = 30;
 const DEFAULT_WINDOW_HOURS = 72;
 const LOW_SAMPLE_THRESHOLD = 5;
 const WINDOW_HOURS_OPTIONS = [
@@ -135,6 +136,7 @@ export default function ComparePage() {
   const [data, setData] = useState(null);
   const [filterCompany, setFilterCompany] = useState("전체");
   const [filterSentiment, setFilterSentiment] = useState("전체");
+  const [articleRenderCount, setArticleRenderCount] = useState(ARTICLE_RENDER_STEP);
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const [retryAfterSec, setRetryAfterSec] = useState(null);
   const [selectedWindowHours, setSelectedWindowHours] = useState(DEFAULT_WINDOW_HOURS);
@@ -316,8 +318,12 @@ export default function ComparePage() {
     let rows = (data?.latest_articles || []).slice();
     if (filterCompany !== "전체") rows = rows.filter((r) => r.company === filterCompany);
     if (filterSentiment !== "전체") rows = rows.filter((r) => r.sentiment === filterSentiment);
-    return rows.slice(0, 100);
+    return rows;
   }, [data, filterCompany, filterSentiment]);
+  const visibleArticles = useMemo(
+    () => displayedArticles.slice(0, articleRenderCount),
+    [articleRenderCount, displayedArticles]
+  );
 
   useEffect(() => {
     scheduleFetch(0, { force: true });
@@ -339,6 +345,45 @@ export default function ComparePage() {
       setFilterCompany("전체");
     }
   }, [companiesForView, filterCompany]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const queryCompany = params.get("company");
+      const querySentiment = params.get("sentiment");
+      if (queryCompany && (queryCompany === "전체" || companiesForView.includes(queryCompany))) {
+        setFilterCompany((prev) => (prev === queryCompany ? prev : queryCompany));
+      }
+      if (querySentiment && (querySentiment === "전체" || SENTIMENTS.includes(querySentiment))) {
+        setFilterSentiment((prev) => (prev === querySentiment ? prev : querySentiment));
+      }
+      if (!queryCompany) setFilterCompany("전체");
+      if (!querySentiment) setFilterSentiment("전체");
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, [companiesForView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (filterCompany === "전체") params.delete("company");
+    else params.set("company", filterCompany);
+    if (filterSentiment === "전체") params.delete("sentiment");
+    else params.set("sentiment", filterSentiment);
+    const nextQuery = params.toString();
+    const nextPath = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    if (nextPath !== currentPath) {
+      window.history.replaceState({}, "", nextPath);
+    }
+  }, [filterCompany, filterSentiment]);
+
+  useEffect(() => {
+    setArticleRenderCount(ARTICLE_RENDER_STEP);
+  }, [data, filterCompany, filterSentiment]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -845,8 +890,8 @@ export default function ComparePage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {displayedArticles.length ? (
-                          displayedArticles.map((a, idx) => (
+                        {visibleArticles.length ? (
+                          visibleArticles.map((a, idx) => (
                             <TableRow key={`${a.url}-${idx}`} hover>
                               <TableCell>{a.company}</TableCell>
                               <TableCell>
@@ -877,6 +922,20 @@ export default function ComparePage() {
                       </TableBody>
                     </Table>
                   </Box>
+                  {displayedArticles.length > visibleArticles.length ? (
+                    <Stack direction="row" justifyContent="center" sx={{ mt: 1.1 }}>
+                      <Chip
+                        clickable
+                        variant="outlined"
+                        label={`기사 더 보기 (${visibleArticles.length}/${displayedArticles.length})`}
+                        onClick={() =>
+                          setArticleRenderCount((prev) =>
+                            Math.min(prev + ARTICLE_RENDER_STEP, displayedArticles.length)
+                          )
+                        }
+                      />
+                    </Stack>
+                  ) : null}
                 </CardContent>
               </Card>
             </>

@@ -37,6 +37,7 @@ const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
 const NEXON_LOGO = "/nexon-logo.png";
 const ARTICLE_PAGE_SIZE = 20;
+const ARTICLE_RENDER_STEP = 40;
 const DIAG_SCOPE = {
   health: buildDiagnosticScope("NEX", "HEALTH"),
   dashboard: buildDiagnosticScope("NEX", "DASH"),
@@ -138,6 +139,7 @@ export default function NexonPage() {
   const [articleOffset, setArticleOffset] = useState(0);
   const [articleHasMore, setArticleHasMore] = useState(false);
   const [articleLoading, setArticleLoading] = useState(false);
+  const [articleRenderCount, setArticleRenderCount] = useState(ARTICLE_RENDER_STEP);
   const [articleError, setArticleError] = useState("");
   const [articleErrorCode, setArticleErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
@@ -336,6 +338,7 @@ export default function NexonPage() {
     setArticleLoading(false);
     setArticleError("");
     setArticleErrorCode("");
+    setArticleRenderCount(ARTICLE_RENDER_STEP);
     loadMoreArticles(ip, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip]);
@@ -438,6 +441,10 @@ export default function NexonPage() {
   const filteredBurstEvents = useMemo(
     () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
     [burstEvents, ip]
+  );
+  const visibleArticleItems = useMemo(
+    () => articleItems.slice(0, articleRenderCount),
+    [articleItems, articleRenderCount]
   );
   const riskValue = Number(riskScore?.risk_score || 0);
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
@@ -814,7 +821,7 @@ export default function NexonPage() {
                     border: "1px solid rgba(255,255,255,0.2)",
                     background: currentBanner.visual.bg,
                     boxShadow: "0 20px 34px rgba(15,23,42,0.30)",
-                    transition: "all .2s ease",
+                    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
                   }}
                 >
                   <Box
@@ -829,6 +836,8 @@ export default function NexonPage() {
                     component="img"
                     src={NEXON_LOGO}
                     alt="NEXON"
+                    width={64}
+                    height={64}
                     sx={{
                       position: "absolute",
                       right: { xs: 10, sm: 14, md: 18 },
@@ -1258,7 +1267,7 @@ export default function NexonPage() {
               </Typography>
             </Stack>
             <Stack spacing={1}>
-              {articleItems.map((a) => (
+              {visibleArticleItems.map((a) => (
                 <Paper key={`${a.id}-${a.url}`} variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
                   <Stack direction="row" justifyContent="space-between" spacing={1}>
                     <Typography
@@ -1293,10 +1302,24 @@ export default function NexonPage() {
                 </Paper>
               ))}
             </Stack>
-            <Box ref={articleSentinelRef} sx={{ height: 1 }} />
+            {articleItems.length > visibleArticleItems.length ? (
+              <Stack direction="row" justifyContent="center" sx={{ mt: 1.1 }}>
+                <Chip
+                  clickable
+                  variant="outlined"
+                  label={`기사 더 보기 (${visibleArticleItems.length}/${articleItems.length})`}
+                  onClick={() =>
+                    setArticleRenderCount((prev) =>
+                      Math.min(prev + ARTICLE_RENDER_STEP, articleItems.length)
+                    )
+                  }
+                />
+              </Stack>
+            ) : null}
+            {articleRenderCount >= articleItems.length ? <Box ref={articleSentinelRef} sx={{ height: 1 }} /> : null}
             {articleLoading ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
-                기사 목록을 불러오는 중...
+                기사 목록을 불러오는 중…
               </Typography>
             ) : null}
             {!articleLoading && !articleHasMore && articleItems.length > 0 ? (
