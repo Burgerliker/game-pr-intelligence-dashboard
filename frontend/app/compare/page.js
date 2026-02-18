@@ -14,13 +14,9 @@ import {
   LinearProgress,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
+import { List } from "react-window";
 import {
   apiGet,
   getRetryAfterSeconds,
@@ -39,9 +35,11 @@ const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"]
 const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
-const ARTICLE_RENDER_STEP = 30;
 const DEFAULT_WINDOW_HOURS = 72;
 const LOW_SAMPLE_THRESHOLD = 5;
+const ARTICLE_ROW_HEIGHT = 56;
+const ARTICLE_LIST_MAX_HEIGHT = 500;
+const ARTICLE_LIST_MIN_HEIGHT = 112;
 const WINDOW_HOURS_OPTIONS = [
   { hours: 24, label: "하루" },
   { hours: 72, label: "3일" },
@@ -136,7 +134,6 @@ export default function ComparePage() {
   const [data, setData] = useState(null);
   const [filterCompany, setFilterCompany] = useState("전체");
   const [filterSentiment, setFilterSentiment] = useState("전체");
-  const [articleRenderCount, setArticleRenderCount] = useState(ARTICLE_RENDER_STEP);
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const [retryAfterSec, setRetryAfterSec] = useState(null);
   const [selectedWindowHours, setSelectedWindowHours] = useState(DEFAULT_WINDOW_HOURS);
@@ -320,10 +317,11 @@ export default function ComparePage() {
     if (filterSentiment !== "전체") rows = rows.filter((r) => r.sentiment === filterSentiment);
     return rows;
   }, [data, filterCompany, filterSentiment]);
-  const visibleArticles = useMemo(
-    () => displayedArticles.slice(0, articleRenderCount),
-    [articleRenderCount, displayedArticles]
-  );
+  const articleListHeight = useMemo(() => {
+    const estimated = displayedArticles.length * ARTICLE_ROW_HEIGHT;
+    if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
+    return Math.max(ARTICLE_LIST_MIN_HEIGHT, Math.min(ARTICLE_LIST_MAX_HEIGHT, estimated));
+  }, [displayedArticles.length]);
 
   useEffect(() => {
     scheduleFetch(0, { force: true });
@@ -380,10 +378,6 @@ export default function ComparePage() {
       window.history.replaceState({}, "", nextPath);
     }
   }, [filterCompany, filterSentiment]);
-
-  useEffect(() => {
-    setArticleRenderCount(ARTICLE_RENDER_STEP);
-  }, [data, filterCompany, filterSentiment]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -880,62 +874,82 @@ export default function ComparePage() {
                   </Stack>
 
                   <Box sx={{ overflowX: "auto" }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>회사</TableCell>
-                          <TableCell>제목</TableCell>
-                          <TableCell>감성</TableCell>
-                          <TableCell>날짜</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {visibleArticles.length ? (
-                          visibleArticles.map((a, idx) => (
-                            <TableRow key={`${a.url}-${idx}`} hover>
-                              <TableCell>{a.company}</TableCell>
-                              <TableCell>
-                                {a.url ? (
-                                  <a
-                                    href={a.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ color: "#0f3b66", textDecoration: "none" }}
-                                  >
-                                    {a.title}
-                                  </a>
-                                ) : (
-                                  a.title
-                                )}
-                              </TableCell>
-                              <TableCell>{a.sentiment}</TableCell>
-                              <TableCell>{a.date}</TableCell>
-                            </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={4} sx={{ color: "text.secondary" }}>
-                              조건에 맞는 기사가 없습니다.
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </Box>
-                  {displayedArticles.length > visibleArticles.length ? (
-                    <Stack direction="row" justifyContent="center" sx={{ mt: 1.1 }}>
-                      <Chip
-                        clickable
-                        variant="outlined"
-                        label={`기사 더 보기 (${visibleArticles.length}/${displayedArticles.length})`}
-                        onClick={() =>
-                          setArticleRenderCount((prev) =>
-                            Math.min(prev + ARTICLE_RENDER_STEP, displayedArticles.length)
-                          )
-                        }
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "120px minmax(320px,1fr) 92px 140px",
+                        gap: 1,
+                        px: 1.2,
+                        pb: 0.8,
+                        color: "text.secondary",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Box>회사</Box>
+                      <Box>제목</Box>
+                      <Box>감성</Box>
+                      <Box>날짜</Box>
+                    </Box>
+                    {displayedArticles.length ? (
+                      <List
+                        rowCount={displayedArticles.length}
+                        rowHeight={ARTICLE_ROW_HEIGHT}
+                        overscanCount={6}
+                        defaultHeight={ARTICLE_LIST_MIN_HEIGHT}
+                        style={{ height: articleListHeight, width: "100%" }}
+                        rowProps={{ items: displayedArticles }}
+                        rowComponent={({ index, style, items }) => {
+                          const a = items[index];
+                          return (
+                            <Box
+                              style={style}
+                              sx={{
+                                display: "grid",
+                                gridTemplateColumns: "120px minmax(320px,1fr) 92px 140px",
+                                gap: 1,
+                                alignItems: "center",
+                                borderTop: "1px solid",
+                                borderColor: "rgba(15,23,42,.08)",
+                                px: 1.2,
+                                fontSize: 13,
+                                "&:hover": { bgcolor: "rgba(15,59,102,.04)" },
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {a.company || "-"}
+                              </Typography>
+                              <Typography
+                                component={a.url ? "a" : "span"}
+                                href={a.url || undefined}
+                                target={a.url ? "_blank" : undefined}
+                                rel={a.url ? "noreferrer" : undefined}
+                                sx={{
+                                  minWidth: 0,
+                                  color: "#0f3b66",
+                                  textDecoration: "none",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  "&:hover": { textDecoration: a.url ? "underline" : "none" },
+                                }}
+                              >
+                                {a.title || "(제목 없음)"}
+                              </Typography>
+                              <Typography variant="body2">{a.sentiment || "-"}</Typography>
+                              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                                {a.date || "-"}
+                              </Typography>
+                            </Box>
+                          );
+                        }}
                       />
-                    </Stack>
-                  ) : null}
+                    ) : (
+                      <Box sx={{ py: 2, px: 1.2, color: "text.secondary" }}>
+                        조건에 맞는 기사가 없습니다.
+                      </Box>
+                    )}
+                  </Box>
                 </CardContent>
               </Card>
             </>

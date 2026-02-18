@@ -22,6 +22,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { List as WindowList } from "react-window";
 import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
 import LabelWithTip from "../../components/LabelWithTip";
@@ -37,7 +38,9 @@ const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
 const NEXON_LOGO = "/nexon-logo.png";
 const ARTICLE_PAGE_SIZE = 20;
-const ARTICLE_RENDER_STEP = 40;
+const ARTICLE_ROW_HEIGHT = 122;
+const ARTICLE_LIST_MAX_HEIGHT = 640;
+const ARTICLE_LIST_MIN_HEIGHT = 244;
 const DIAG_SCOPE = {
   health: buildDiagnosticScope("NEX", "HEALTH"),
   dashboard: buildDiagnosticScope("NEX", "DASH"),
@@ -139,13 +142,11 @@ export default function NexonPage() {
   const [articleOffset, setArticleOffset] = useState(0);
   const [articleHasMore, setArticleHasMore] = useState(false);
   const [articleLoading, setArticleLoading] = useState(false);
-  const [articleRenderCount, setArticleRenderCount] = useState(ARTICLE_RENDER_STEP);
   const [articleError, setArticleError] = useState("");
   const [articleErrorCode, setArticleErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
-  const articleSentinelRef = useRef(null);
   const swipeStartXRef = useRef(null);
   const ipCacheRef = useRef(new Map());
   const requestSeqRef = useRef(0);
@@ -338,26 +339,9 @@ export default function NexonPage() {
     setArticleLoading(false);
     setArticleError("");
     setArticleErrorCode("");
-    setArticleRenderCount(ARTICLE_RENDER_STEP);
     loadMoreArticles(ip, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip]);
-
-  useEffect(() => {
-    const target = articleSentinelRef.current;
-    if (!target) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (!first?.isIntersecting) return;
-        loadMoreArticles(ip, false);
-      },
-      { rootMargin: "280px 0px 280px 0px", threshold: 0 }
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ip, articleHasMore, articleLoading]);
 
   useEffect(() => () => articleAbortRef.current?.abort(), []);
 
@@ -442,10 +426,17 @@ export default function NexonPage() {
     () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
     [burstEvents, ip]
   );
-  const visibleArticleItems = useMemo(
-    () => articleItems.slice(0, articleRenderCount),
-    [articleItems, articleRenderCount]
-  );
+  const articleListHeight = useMemo(() => {
+    const estimated = articleItems.length * ARTICLE_ROW_HEIGHT;
+    if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
+    return Math.max(ARTICLE_LIST_MIN_HEIGHT, Math.min(ARTICLE_LIST_MAX_HEIGHT, estimated));
+  }, [articleItems.length]);
+  const handleArticleRowsRendered = (visibleRows) => {
+    if (!articleHasMore || articleLoading) return;
+    if (visibleRows.stopIndex >= articleItems.length - 5) {
+      loadMoreArticles(ip, false);
+    }
+  };
   const riskValue = Number(riskScore?.risk_score || 0);
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const alertInfo =
@@ -1267,56 +1258,70 @@ export default function NexonPage() {
               </Typography>
             </Stack>
             <Stack spacing={1}>
-              {visibleArticleItems.map((a) => (
-                <Paper key={`${a.id}-${a.url}`} variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
-                  <Stack direction="row" justifyContent="space-between" spacing={1}>
-                    <Typography
-                      component={a.url ? "a" : "span"}
-                      href={a.url || undefined}
-                      target={a.url ? "_blank" : undefined}
-                      rel={a.url ? "noreferrer" : undefined}
-                      sx={{
-                        fontWeight: 700,
-                        color: "#10284a",
-                        textDecoration: "none",
-                        "&:hover": { textDecoration: a.url ? "underline" : "none" },
-                      }}
-                    >
-                      {a.title || "(제목 없음)"}
-                    </Typography>
-                    <Chip
-                      size="small"
-                      label={a.sentiment || "중립"}
-                      color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
-                      variant="outlined"
-                    />
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                    {a.date || "-"} · {a.outlet || "unknown"}
-                  </Typography>
-                  {a.description ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
-                      {a.description}
-                    </Typography>
-                  ) : null}
-                </Paper>
-              ))}
-            </Stack>
-            {articleItems.length > visibleArticleItems.length ? (
-              <Stack direction="row" justifyContent="center" sx={{ mt: 1.1 }}>
-                <Chip
-                  clickable
-                  variant="outlined"
-                  label={`기사 더 보기 (${visibleArticleItems.length}/${articleItems.length})`}
-                  onClick={() =>
-                    setArticleRenderCount((prev) =>
-                      Math.min(prev + ARTICLE_RENDER_STEP, articleItems.length)
-                    )
-                  }
+              {articleItems.length ? (
+                <WindowList
+                  rowCount={articleItems.length}
+                  rowHeight={ARTICLE_ROW_HEIGHT}
+                  overscanCount={6}
+                  defaultHeight={ARTICLE_LIST_MIN_HEIGHT}
+                  style={{ height: articleListHeight, width: "100%" }}
+                  rowProps={{ items: articleItems }}
+                  onRowsRendered={handleArticleRowsRendered}
+                  rowComponent={({ index, style, items, ariaAttributes }) => {
+                    const a = items[index];
+                    return (
+                      <Box style={style} sx={{ px: 0.2, py: 0.45 }} {...ariaAttributes}>
+                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                          <Stack direction="row" justifyContent="space-between" spacing={1}>
+                            <Typography
+                              component={a.url ? "a" : "span"}
+                              href={a.url || undefined}
+                              target={a.url ? "_blank" : undefined}
+                              rel={a.url ? "noreferrer" : undefined}
+                              sx={{
+                                minWidth: 0,
+                                fontWeight: 700,
+                                color: "#10284a",
+                                textDecoration: "none",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                "&:hover": { textDecoration: a.url ? "underline" : "none" },
+                              }}
+                            >
+                              {a.title || "(제목 없음)"}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={a.sentiment || "중립"}
+                              color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
+                              variant="outlined"
+                            />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
+                            {a.date || "-"} · {a.outlet || "unknown"}
+                          </Typography>
+                          {a.description ? (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                mt: 0.6,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {a.description}
+                            </Typography>
+                          ) : null}
+                        </Paper>
+                      </Box>
+                    );
+                  }}
                 />
-              </Stack>
-            ) : null}
-            {articleRenderCount >= articleItems.length ? <Box ref={articleSentinelRef} sx={{ height: 1 }} /> : null}
+              ) : null}
+            </Stack>
             {articleLoading ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
                 기사 목록을 불러오는 중…
