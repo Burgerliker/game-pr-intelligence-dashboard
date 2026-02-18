@@ -606,12 +606,12 @@ export default function ComparePage() {
             <>
               <Grid container spacing={{ xs: 1.1, md: 1.6 }}>
                 {companyCards.map(({ company, count, state }) => (
-                  <Grid item xs={6} md={4} xl={2} key={company}>
+                  <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
                     <Card
                       variant="outlined"
-                      sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%" }}
+                      sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%", width: "100%" }}
                     >
-                      <CardContent sx={{ p: { xs: 1.2, md: 1.45 } }}>
+                      <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.4 }}>
                           {company}
                         </Typography>
@@ -631,12 +631,12 @@ export default function ComparePage() {
                     </Card>
                   </Grid>
                 ))}
-                <Grid item xs={6} md={4} xl={2}>
+                <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
-                    sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%" }}
+                    sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%", width: "100%" }}
                   >
-                    <CardContent sx={{ p: { xs: 1.2, md: 1.45 } }}>
+                    <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
                       <Typography variant="body2" color="text.secondary">
                         총합
                       </Typography>
@@ -657,12 +657,13 @@ export default function ComparePage() {
               </Stack>
 
               <Grid container spacing={{ xs: 1.2, md: 1.6 }}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
                     sx={{
                       borderRadius: 2.4,
                       borderColor: "rgba(15,23,42,.1)",
+                      width: "100%",
                     }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
@@ -789,12 +790,13 @@ export default function ComparePage() {
                   </Card>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
                     sx={{
                       borderRadius: 2.4,
                       borderColor: "rgba(15,23,42,.1)",
+                      width: "100%",
                     }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
@@ -870,8 +872,8 @@ export default function ComparePage() {
                   </Typography>
                   <Grid container spacing={1.1}>
                     {keywordCards.map((card) => (
-                      <Grid item xs={12} md={6} key={card.company}>
-                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                      <Grid item xs={12} md={6} key={card.company} sx={{ display: "flex", minWidth: 0 }}>
+                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, width: "100%", height: "100%" }}>
                           <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                             {card.company}
                           </Typography>
@@ -902,8 +904,8 @@ export default function ComparePage() {
                     핵심 인사이트
                   </Typography>
                   <Grid container spacing={1.1}>
-                    <Grid item xs={12} md={6}>
-                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%" }}>
+                    <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
+                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           Top 5 이슈
                         </Typography>
@@ -920,8 +922,8 @@ export default function ComparePage() {
                         </Stack>
                       </Paper>
                     </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%" }}>
+                    <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
+                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           실행 제안
                         </Typography>
