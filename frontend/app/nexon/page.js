@@ -65,7 +65,7 @@ const IP_BANNER_STYLE = {
     bg: "linear-gradient(135deg,#0f172a 0%,#111827 55%,#1f2937 100%)",
     glow: "radial-gradient(circle at 84% 14%, rgba(143,182,255,.20) 0%, rgba(143,182,255,0) 60%)",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "linear-gradient(135deg,#111827 0%,#1f2937 55%,#374151 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(245,193,108,.20) 0%, rgba(245,193,108,0) 60%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 52%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(245,193,108,.18) 0%, rgba(245,193,108,0) 60%)" },
   dnf: { kicker: "DNF", accent: "#ff9db0", bg: "linear-gradient(135deg,#111827 0%,#1f2937 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(255,157,176,.18) 0%, rgba(255,157,176,0) 60%)" },
   arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 55%,#374151 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(141,229,255,.18) 0%, rgba(141,229,255,0) 60%)" },
   bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "linear-gradient(135deg,#0f172a 0%,#1e293b 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(166,188,255,.18) 0%, rgba(166,188,255,0) 60%)" },
@@ -541,6 +541,14 @@ export default function NexonPage() {
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 운영 페이지가 백테스트 DB를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
+  const bannerMetricChipSx = {
+    ...statusChipSx,
+    minHeight: 28,
+    fontSize: 12,
+    bgcolor: "rgba(255,255,255,.08)",
+    borderColor: "rgba(255,255,255,.22)",
+    color: "rgba(241,245,249,.95)",
+  };
 
   useEffect(() => {
     let active = true;
@@ -858,13 +866,10 @@ export default function NexonPage() {
                       position: "absolute",
                       right: { xs: 10, sm: 12, md: 14 },
                       top: { xs: 10, sm: 10, md: 12 },
-                      width: { xs: 34, sm: 42, md: 50 },
-                      p: { xs: 0.3, md: 0.45 },
-                      borderRadius: 1,
-                      bgcolor: "rgba(248,250,252,.88)",
-                      border: "1px solid rgba(226,232,240,.7)",
-                      opacity: 0.88,
-                      filter: "grayscale(100%) contrast(1.04)",
+                      width: { xs: 30, sm: 36, md: 42 },
+                      p: { xs: 0.15, md: 0.25 },
+                      opacity: 0.65,
+                      filter: "grayscale(100%) contrast(1.02)",
                     }}
                   />
                   <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
@@ -876,10 +881,28 @@ export default function NexonPage() {
                   <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 13, md: 14 }, color: "rgba(237,245,255,.86)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
                   </Typography>
+                  <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap" sx={{ mt: 1.1 }}>
+                    <Chip
+                      variant="outlined"
+                      label={`위험도 ${riskValue.toFixed(1)}`}
+                      sx={{
+                        ...bannerMetricChipSx,
+                        borderColor:
+                          alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
+                      }}
+                    />
+                    <Chip variant="outlined" label={`24h 기사 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`이슈 묶음 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                  </Stack>
                 </Paper>
               ) : null}
 
-              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ rowGap: 0.8 }}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", md: "center" }}
+                spacing={1}
+              >
                 <Paper
                   variant="outlined"
                   sx={{
@@ -914,9 +937,11 @@ export default function NexonPage() {
                     }
                   />
                 </Paper>
-                <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
-                <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
-                <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
+                  <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
+                </Stack>
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
