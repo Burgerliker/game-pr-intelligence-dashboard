@@ -322,6 +322,19 @@ def init_db() -> None:
             WHERE sentiment_label = 'uncertain'
             """
         )
+        # 기사 라벨도 3-class 한글 라벨로 정규화(수집 기사 목록 표시값 정합성)
+        conn.execute(
+            """
+            UPDATE articles
+            SET sentiment = CASE
+                WHEN sentiment IN ('긍정', '중립', '부정') THEN sentiment
+                WHEN lower(COALESCE(sentiment, '')) = 'positive' THEN '긍정'
+                WHEN lower(COALESCE(sentiment, '')) = 'negative' THEN '부정'
+                WHEN sentiment = '불확실' OR lower(COALESCE(sentiment, '')) IN ('neutral', 'uncertain') THEN '중립'
+                ELSE '중립'
+            END
+            """
+        )
         risk_cols = {r["name"] for r in conn.execute("PRAGMA table_info(risk_timeseries)").fetchall()}
         if "quality_flag" not in risk_cols:
             conn.execute("ALTER TABLE risk_timeseries ADD COLUMN quality_flag TEXT NOT NULL DEFAULT 'OK'")
@@ -390,6 +403,22 @@ def _normalize_url(url: str) -> str:
         keep.append((k, v))
     keep.sort()
     return urlunparse(("https", host, path, "", urlencode(keep), ""))
+
+
+def _normalize_sentiment_label(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "중립"
+    if raw in ("긍정", "중립", "부정"):
+        return raw
+    lowered = raw.lower()
+    if lowered == "positive":
+        return "긍정"
+    if lowered == "negative":
+        return "부정"
+    if lowered in ("neutral", "uncertain") or raw == "불확실":
+        return "중립"
+    return "중립"
 
 
 def _to_hash(company: str, originallink: str, link: str, title: str, date: str) -> str:
@@ -608,7 +637,7 @@ def save_articles(df: pd.DataFrame) -> int:
                     pub_date = ""
             date = str(row.get("date", "") or "")
             analyzed = analyze_sentiment_rule_v1(title, desc)
-            sentiment = str(row.get("sentiment", "") or "") or analyzed["sentiment_kr"]
+            sentiment = _normalize_sentiment_label(str(row.get("sentiment", "") or "") or analyzed["sentiment_kr"])
             is_test = 1 if int(row.get("is_test", 0) or 0) else 0
             outlet = _extract_outlet(originallink, link)
             content_hash = _to_hash(company, originallink, link, title, date)
@@ -708,7 +737,11 @@ def get_articles(
             [*params, int(limit), int(offset)],
         ).fetchall()
 
-        items = [dict(r) for r in rows]
+        items = []
+        for r in rows:
+            item = dict(r)
+            item["sentiment"] = _normalize_sentiment_label(item.get("sentiment"))
+            items.append(item)
         return {
             "items": items,
             "total": int(total),
@@ -760,7 +793,7 @@ def get_nexon_articles(
                 "company": str(r["company"] or ""),
                 "title": str(r["title_clean"] or ""),
                 "description": str(r["description_clean"] or ""),
-                "sentiment": str(r["sentiment"] or "중립"),
+                "sentiment": _normalize_sentiment_label(r["sentiment"]),
                 "date": str(r["date"] or ""),
                 "outlet": _resolve_outlet_value(str(r["outlet"] or ""), str(r["originallink"] or ""), str(r["link"] or "")),
                 "url": str(r["url"] or ""),

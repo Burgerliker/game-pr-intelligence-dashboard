@@ -2,25 +2,54 @@
 
 import { Box, CircularProgress, Typography } from "@mui/material";
 
-export default function LoadingState({ title = "로딩 중", subtitle = "데이터를 불러오고 있습니다." }) {
+const TONE = {
+  info: {
+    bg: "#eff6ff",
+    border: "#bfdbfe",
+    title: "#1e3a8a",
+    subtitle: "#334155",
+    spinner: "#2563eb",
+  },
+  warning: {
+    bg: "#fff9eb",
+    border: "#f9d48f",
+    title: "#8a5b00",
+    subtitle: "#8b6b2d",
+    spinner: "#d97706",
+  },
+};
+
+export default function LoadingState({
+  title = "로딩 중",
+  subtitle = "데이터를 불러오고 있습니다.",
+  tone = "info",
+}) {
+  const palette = TONE[tone] || TONE.info;
+
   return (
     <Box
       sx={{
-        p: 2.2,
-        border: "1px solid #dbe4ef",
+        px: 1.4,
+        py: 1.2,
+        minHeight: 44,
+        border: "1px solid",
+        borderColor: palette.border,
         borderRadius: 2,
-        bgcolor: "#f8fafc",
+        bgcolor: palette.bg,
         display: "flex",
         alignItems: "center",
-        gap: 1.2,
+        gap: 1.1,
       }}
     >
-      <CircularProgress size={20} thickness={5} />
+      <CircularProgress size={18} thickness={5} sx={{ color: palette.spinner }} />
       <Box>
-        <Typography variant="body2" sx={{ fontWeight: 700, color: "#334155" }}>
+        <Typography variant="body2" sx={{ fontWeight: 700, color: palette.title, lineHeight: 1.35 }}>
           {title}
         </Typography>
-        <Typography variant="caption" sx={{ color: "#64748b" }}>
+        <Typography
+          variant="body2"
+          sx={{ color: palette.subtitle, fontSize: 13, lineHeight: 1.35, fontVariantNumeric: "tabular-nums" }}
+        >
           {subtitle}
         </Typography>
       </Box>

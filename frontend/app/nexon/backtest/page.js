@@ -12,6 +12,14 @@ import {
   shouldShowEmptyState,
   toRequestErrorState,
 } from "../../../lib/pageStatus";
+import {
+  navButtonSx,
+  pageContainerSx,
+  pageShellSx,
+  panelPaperSx,
+  sectionCardSx,
+  statusChipSx,
+} from "../../../lib/uiTokens";
 
 const FIXED_PARAMS = {
   ip: "maplestory",
@@ -367,26 +375,26 @@ export default function NexonBacktestPage() {
   }
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 4 } }}>
-    <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
+    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 4 } }}>
+    <Container maxWidth="xl" sx={pageContainerSx}>
       <Stack spacing={1.5}>
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, position: "sticky", top: 10, zIndex: 20, background: "#f8fafc", borderColor: "#e5e7eb", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
+        <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5, position: "sticky", top: 10, zIndex: 20, background: "#f8fafc", borderColor: "#e5e7eb", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ flexWrap: "wrap", rowGap: 1 }}>
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1 }}>
-              <Chip label="IP: maplestory" variant="outlined" />
-              <Chip label={`Case: ${FIXED_CASE}`} variant="outlined" />
-              <Chip label="Period: 2025-11-01 ~ 2026-02-10" variant="outlined" />
-              <Chip label="Step: 6h" variant="outlined" />
+              <Chip label="IP: maplestory" variant="outlined" sx={statusChipSx} />
+              <Chip label={`Case: ${FIXED_CASE}`} variant="outlined" sx={statusChipSx} />
+              <Chip label="Period: 2025-11-01 ~ 2026-02-10" variant="outlined" sx={statusChipSx} />
+              <Chip label="Step: 6h" variant="outlined" sx={statusChipSx} />
             </Stack>
             <Stack direction="row" spacing={1}>
-              <Button component={Link} href="/nexon" variant="outlined" size="small">넥슨 대시보드</Button>
-              <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
+              <Button component={Link} href="/nexon" variant="outlined" size="small" sx={navButtonSx}>넥슨 대시보드</Button>
+              <Button component={Link} href="/" variant="outlined" size="small" sx={navButtonSx}>메인</Button>
             </Stack>
           </Stack>
         </Paper>
         <ApiGuardBanner />
 
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, borderColor: "rgba(15,23,42,.10)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}>
+        <Paper variant="outlined" sx={{ ...sectionCardSx, p: 1.5 }}>
           <Typography variant="h6" sx={{ fontWeight: 800 }}>백테스트 타임라인</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             maplestory 내부 이슈(case: maple_idle_probability_2026) 기준 리스크 반응
@@ -435,36 +443,38 @@ export default function NexonBacktestPage() {
           {!shouldShowBacktestEmpty && !error && hasSeries ? (
             <>
               <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap", rowGap: 1 }}>
-                <Chip label={`Max Risk: ${Number(payload?.summary?.max_risk || 0).toFixed(1)}`} color="error" variant="outlined" />
-                <Chip label={`Avg Risk: ${Number(payload?.summary?.avg_risk || 0).toFixed(1)}`} variant="outlined" />
+                <Chip label={`Max Risk: ${Number(payload?.summary?.max_risk || 0).toFixed(1)}`} color="error" variant="outlined" sx={statusChipSx} />
+                <Chip label={`Avg Risk: ${Number(payload?.summary?.avg_risk || 0).toFixed(1)}`} variant="outlined" sx={statusChipSx} />
                 <Chip
                   label={`P1 Buckets: ${Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0)}`}
                   color="error"
                   variant="outlined"
+                  sx={statusChipSx}
                 />
                 <Chip
                   label={`P2 Buckets: ${Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0)}`}
                   color="warning"
                   variant="outlined"
+                  sx={statusChipSx}
                 />
-                <Chip label={`Events: ${Number(payload?.summary?.event_count || 0)}`} variant="outlined" />
-                <Chip label={`Dominant: ${payload?.summary?.dominant_component || "-"}`} variant="outlined" />
+                <Chip label={`Events: ${Number(payload?.summary?.event_count || 0)}`} variant="outlined" sx={statusChipSx} />
+                <Chip label={`Dominant: ${payload?.summary?.dominant_component || "-"}`} variant="outlined" sx={statusChipSx} />
               </Stack>
               <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: { xs: 560, sm: 620, md: 700 } }} />
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.2} sx={{ mt: 1.5 }}>
-                <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
+                <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, flex: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>볼륨 드라이버</Typography>
                   <Typography variant="body2" color="text.secondary">
                     최근 {driverStats.volume.latest.toLocaleString()} · 최고 {driverStats.volume.peak.toLocaleString()}
                   </Typography>
                 </Paper>
-                <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
+                <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, flex: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>확산 드라이버</Typography>
                   <Typography variant="body2" color="text.secondary">
                     최근 {driverStats.spread.latest.toFixed(3)} · 최고 {driverStats.spread.peak.toFixed(3)}
                   </Typography>
                 </Paper>
-                <Paper variant="outlined" sx={{ p: 1.2, flex: 1 }}>
+                <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, flex: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>불확실 드라이버</Typography>
                   <Typography variant="body2" color="text.secondary">
                     최근 {driverStats.uncertain.latest.toFixed(3)} · 최고 {driverStats.uncertain.peak.toFixed(3)}

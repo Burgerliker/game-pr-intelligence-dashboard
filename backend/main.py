@@ -1348,6 +1348,10 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
         .rename(columns={"title_clean": "title", "originallink": "url"})
         .head(200)
     )
+    if not latest.empty:
+        latest["sentiment"] = latest["sentiment"].apply(
+            lambda val: val if str(val or "") in SENTIMENT_BUCKETS else "중립"
+        )
 
     return {
         "meta": {

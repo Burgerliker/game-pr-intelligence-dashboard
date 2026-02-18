@@ -29,6 +29,14 @@ import {
   shouldShowEmptyState,
   toRequestErrorState,
 } from "../../lib/pageStatus";
+import {
+  filterChipSx,
+  pageContainerSx,
+  pageShellSx,
+  panelPaperSx,
+  sectionCardSx,
+  statusChipSx,
+} from "../../lib/uiTokens";
 
 const SENTIMENTS = ["긍정", "중립", "부정"];
 const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"];
@@ -51,7 +59,7 @@ const TREND_METRIC_OPTIONS = [
   { key: "heat", label: "Heat(이슈량)" },
 ];
 const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
-const INTERACTIVE_CHIP_SX = { height: 44, fontSize: 15, fontWeight: 700 };
+const INTERACTIVE_CHIP_SX = filterChipSx;
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -474,19 +482,10 @@ export default function ComparePage() {
   }, [retryAfterSec, scheduleFetch, startPolling]);
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 5 } }}>
-      <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
+    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 5 } }}>
+      <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={2.3}>
-          <Paper
-            sx={{
-              borderRadius: 3,
-              border: "1px solid #e5e7eb",
-              bgcolor: "#f8fafc",
-              px: { xs: 2, md: 3 },
-              py: 1.2,
-              boxShadow: "0 8px 24px rgba(15,23,42,.04)",
-            }}
-          >
+          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.2, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -519,9 +518,9 @@ export default function ComparePage() {
                 spacing={1}
                 sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
               >
-                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={INTERACTIVE_CHIP_SX} />
-                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} sx={INTERACTIVE_CHIP_SX} />
-                <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={INTERACTIVE_CHIP_SX} />
+                <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={statusChipSx} />
+                <Chip size="small" variant="outlined" label={`자동 갱신: ${Math.round(refreshMs / 1000)}초`} sx={statusChipSx} />
+                <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={statusChipSx} />
               </Stack>
             </Stack>
           </Paper>
@@ -535,7 +534,7 @@ export default function ComparePage() {
 
           <Card
             variant="outlined"
-            sx={{ borderRadius: 3, borderColor: "rgba(15,23,42,.1)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}
+            sx={sectionCardSx}
           >
             <CardContent>
               <Stack spacing={1.3}>
@@ -609,7 +608,7 @@ export default function ComparePage() {
                   <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
                     <Card
                       variant="outlined"
-                      sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%", width: "100%" }}
+                      sx={{ ...sectionCardSx, height: "100%", width: "100%" }}
                     >
                       <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.4 }}>
@@ -634,7 +633,7 @@ export default function ComparePage() {
                 <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
-                    sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)", height: "100%", width: "100%" }}
+                    sx={{ ...sectionCardSx, height: "100%", width: "100%" }}
                   >
                     <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -660,11 +659,7 @@ export default function ComparePage() {
                 <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
-                    sx={{
-                      borderRadius: 2.4,
-                      borderColor: "rgba(15,23,42,.1)",
-                      width: "100%",
-                    }}
+                    sx={{ ...sectionCardSx, width: "100%" }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
                       <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, lineHeight: 1.3 }}>
@@ -793,11 +788,7 @@ export default function ComparePage() {
                 <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
-                    sx={{
-                      borderRadius: 2.4,
-                      borderColor: "rgba(15,23,42,.1)",
-                      width: "100%",
-                    }}
+                    sx={{ ...sectionCardSx, width: "100%" }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
                       <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4 }}>
@@ -864,7 +855,7 @@ export default function ComparePage() {
 
               <Card
                 variant="outlined"
-                sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+                sx={sectionCardSx}
               >
                 <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
                   <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
@@ -873,7 +864,7 @@ export default function ComparePage() {
                   <Grid container spacing={1.1}>
                     {keywordCards.map((card) => (
                       <Grid item xs={12} md={6} key={card.company} sx={{ display: "flex", minWidth: 0 }}>
-                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, width: "100%", height: "100%" }}>
+                        <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, width: "100%", height: "100%" }}>
                           <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                             {card.company}
                           </Typography>
@@ -897,7 +888,7 @@ export default function ComparePage() {
 
               <Card
                 variant="outlined"
-                sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+                sx={sectionCardSx}
               >
                 <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
                   <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
@@ -905,7 +896,7 @@ export default function ComparePage() {
                   </Typography>
                   <Grid container spacing={1.1}>
                     <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%", width: "100%" }}>
+                      <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           Top 5 이슈
                         </Typography>
@@ -923,7 +914,7 @@ export default function ComparePage() {
                       </Paper>
                     </Grid>
                     <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2, height: "100%", width: "100%" }}>
+                      <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           실행 제안
                         </Typography>
@@ -946,7 +937,7 @@ export default function ComparePage() {
 
               <Card
                 variant="outlined"
-                sx={{ borderRadius: 2.4, borderColor: "rgba(15,23,42,.1)" }}
+                sx={sectionCardSx}
               >
                 <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
                   <Stack

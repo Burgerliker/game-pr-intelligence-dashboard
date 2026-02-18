@@ -7,6 +7,15 @@ import { apiGet, getDiagnosticCode } from "../lib/api";
 import ApiGuardBanner from "../components/ApiGuardBanner";
 import PageStatusView from "../components/PageStatusView";
 import {
+  actionButtonSx,
+  navButtonSx,
+  pageContainerSx,
+  pageShellSx,
+  panelPaperSx,
+  sectionCardSx,
+  statusChipSx,
+} from "../lib/uiTokens";
+import {
   buildDiagnosticScope,
   shouldShowEmptyState,
   toRequestErrorState,
@@ -152,18 +161,11 @@ export default function HomePage() {
   });
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 6 }, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif" }}>
-      <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
+    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 6 }, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif" }}>
+      <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={{ xs: 2.5, md: 3.5 }}
         >
-          <Paper
-            sx={{
-              borderRadius: 3,
-              border: "1px solid #e5e7eb",
-              bgcolor: "#f8fafc",
-              boxShadow: "0 8px 24px rgba(15,23,42,.04)",
-            }}
-          >
+          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
             <Stack
               direction="row"
               alignItems="center"
@@ -188,15 +190,7 @@ export default function HomePage() {
                 component={Link}
                 href="/project"
                 variant="contained"
-                sx={{
-                  bgcolor: "#111827",
-                  borderRadius: 2.2,
-                  px: 2,
-                  py: 0.8,
-                  textTransform: "none",
-                  fontWeight: 600,
-                  "&:hover": { bgcolor: "#0b1220" },
-                }}
+                sx={actionButtonSx.primary}
               >
                 프로젝트 소개
               </Button>
@@ -208,10 +202,10 @@ export default function HomePage() {
               label="실시간 모니터링"
               size="small"
               sx={{
+                ...statusChipSx,
                 bgcolor: "#eef2ff",
                 border: "1px solid #c7d2fe",
                 color: "#1e3a8a",
-                fontWeight: 700,
                 letterSpacing: ".02em",
               }}
             />
@@ -222,9 +216,9 @@ export default function HomePage() {
               리스크 분석 포트폴리오
             </Typography>
             <Stack direction="row" spacing={1} justifyContent="center" useFlexGap flexWrap="wrap" sx={{ mt: 2 }}>
-              <Chip size="small" label={`최근 갱신 ${formatTime(lastUpdated)}`} variant="outlined" sx={{ bgcolor: "#fff", fontSize: 13 }} />
-              <Chip size="small" label={connStyle.text} variant="outlined" sx={{ bgcolor: connStyle.bg, borderColor: connStyle.border, color: connStyle.color, fontWeight: 700, fontSize: 13 }} />
-              <Chip size="small" label={modeStyle.text} variant="outlined" sx={{ bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color, fontWeight: 700, fontSize: 13 }} />
+              <Chip size="small" label={`최근 갱신 ${formatTime(lastUpdated)}`} variant="outlined" sx={statusChipSx} />
+              <Chip size="small" label={connStyle.text} variant="outlined" sx={{ ...statusChipSx, bgcolor: connStyle.bg, borderColor: connStyle.border, color: connStyle.color }} />
+              <Chip size="small" label={modeStyle.text} variant="outlined" sx={{ ...statusChipSx, bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color }} />
             </Stack>
             <ApiGuardBanner />
             {healthDiagCode ? (
@@ -275,9 +269,9 @@ export default function HomePage() {
                   onMouseEnter={() => setHoveredCard(card.key)}
                   onMouseLeave={() => setHoveredCard(null)}
                   sx={{
+                    ...sectionCardSx,
                     p: 3,
                     textAlign: "left",
-                    borderRadius: 2.8,
                     minHeight: 285,
                     position: "relative",
                     overflow: "hidden",
@@ -343,8 +337,8 @@ export default function HomePage() {
                     component={Link}
                     href={card.href}
                     sx={{
+                      ...navButtonSx,
                       mt: 2.2,
-                      borderRadius: 99,
                       px: active ? 2.2 : 1.2,
                       py: 0.75,
                       minWidth: active ? 126 : 44,
@@ -374,18 +368,18 @@ export default function HomePage() {
           <Divider sx={{ my: 1, borderColor: "#e5e7eb" }} />
 
           <Stack direction={{ xs: "column", md: "row" }} justifyContent="center" spacing={1.2}>
-            <Chip label={`최근 24시간 기사: ${stats.recent}`} variant="outlined" sx={{ bgcolor: "#fff", borderColor: "#d1d5db" }} />
+            <Chip label={`최근 24시간 기사: ${stats.recent}`} variant="outlined" sx={{ ...statusChipSx, borderColor: "#d1d5db" }} />
             <Chip
               label={`현재 위험도: ${stats.riskText}`}
               variant="outlined"
               sx={{
+                ...statusChipSx,
                 bgcolor: riskStyle.bg,
                 borderColor: riskStyle.border,
                 color: riskStyle.color,
-                fontWeight: 700,
               }}
             />
-            <Chip label={`데이터 상태: ${stats.modeText}`} variant="outlined" sx={{ bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color, fontWeight: 700 }} />
+            <Chip label={`데이터 상태: ${stats.modeText}`} variant="outlined" sx={{ ...statusChipSx, bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color }} />
           </Stack>
         </Stack>
       </Container>

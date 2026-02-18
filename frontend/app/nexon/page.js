@@ -34,6 +34,16 @@ import {
   createEmptyRisk,
   normalizeNexonDashboard,
 } from "../../lib/normalizeNexon";
+import {
+  filterChipSx,
+  metricValueSx,
+  navButtonSx,
+  pageContainerSx,
+  pageShellSx,
+  panelPaperSx,
+  sectionCardSx,
+  statusChipSx,
+} from "../../lib/uiTokens";
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
@@ -525,37 +535,8 @@ export default function NexonPage() {
   };
   const recommendedAction = themeActionMap[topRisk?.theme] || "핵심 팩트와 대응 일정을 짧고 명확하게 공지";
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 운영 페이지가 백테스트 DB를 참조 중입니다." : "";
-  const sectionCardSx = {
-    borderRadius: 3,
-    borderColor: "rgba(15,23,42,0.10)",
-    boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
-    bgcolor: "#fff",
-    transition: "transform .24s ease, box-shadow .24s ease, border-color .24s ease",
-    "&:hover": {
-      transform: "translateY(-2px)",
-      boxShadow: "0 18px 32px rgba(15,23,42,0.10)",
-      borderColor: "rgba(15,59,102,.22)",
-    },
-  };
-  const panelSx = {
-    borderRadius: 2.2,
-    borderColor: "rgba(15,23,42,.12)",
-    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease",
-    "&:hover": {
-      transform: "translateY(-1px)",
-      boxShadow: "0 8px 18px rgba(15,23,42,.08)",
-      borderColor: "rgba(15,59,102,.24)",
-      bgcolor: "#fbfdff",
-    },
-  };
-  const metricValueSx = {
-    fontWeight: 800,
-    fontVariantNumeric: "tabular-nums",
-    letterSpacing: "-.01em",
-    lineHeight: 1.08,
-  };
-  const controlChipSx = { minHeight: 44, fontSize: 14, fontWeight: 700 };
-  const controlButtonSx = { minHeight: 44, fontSize: 14, fontWeight: 700 };
+  const controlChipSx = filterChipSx;
+  const controlButtonSx = navButtonSx;
 
   useEffect(() => {
     let active = true;
@@ -776,17 +757,10 @@ export default function NexonPage() {
   }, [chartsReady, keywordCloud]);
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 1.5, sm: 2, md: 4 } }}>
-    <Container maxWidth="xl" sx={{ maxWidth: "1180px !important", px: { xs: 1.2, sm: 2, md: 3 } }}>
+    <Box sx={{ ...pageShellSx, py: { xs: 1.5, sm: 2, md: 4 } }}>
+    <Container maxWidth="xl" sx={{ ...pageContainerSx, px: { xs: 1.2, sm: 2, md: 3 } }}>
       <Stack spacing={{ xs: 1.4, md: 2 }}>
-        <Paper
-          sx={{
-            borderRadius: 3,
-            border: "1px solid #e5e7eb",
-            bgcolor: "#f8fafc",
-            boxShadow: "0 8px 24px rgba(15,23,42,.04)",
-          }}
-        >
+        <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
           <Stack
             direction={{ xs: "column", sm: "row" }}
             alignItems={{ xs: "flex-start", sm: "center" }}
@@ -905,6 +879,7 @@ export default function NexonPage() {
                 <Paper
                   variant="outlined"
                   sx={{
+                    ...panelPaperSx,
                     borderRadius: 99,
                     overflow: "hidden",
                     borderColor: "rgba(15,23,42,.16)",
@@ -935,9 +910,9 @@ export default function NexonPage() {
                     }
                   />
                 </Paper>
-                <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} sx={controlChipSx} />
-                <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={controlChipSx} />
-                <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={controlChipSx} />
+                <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} sx={statusChipSx} />
+                <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
+                <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
                 {SHOW_BACKTEST ? <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" sx={controlChipSx} /> : null}
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
@@ -1012,7 +987,7 @@ export default function NexonPage() {
                   }}
                 >
                   <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>현재 위험 상태</Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
                         <Chip size="small" variant="outlined" label={riskFormulaVersion ? "판정 기준: 최신 모델" : "판정 기준: 기본 모델"} sx={controlChipSx} />
@@ -1060,7 +1035,7 @@ export default function NexonPage() {
                         {quickSummary}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                         최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
                       </Typography>
@@ -1071,7 +1046,7 @@ export default function NexonPage() {
                         기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.3 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>왜 이렇게 나왔나요?</Typography>
                         <IconButton size="small" onClick={() => setShowMetricDetails((prev) => !prev)} aria-label="상세 지표 보기">
@@ -1104,7 +1079,7 @@ export default function NexonPage() {
                   </Stack>
 
                   <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <LabelWithTip label="경보 등급" tip={tipMap.alert} />
                       <Chip
                         label={`${alertInfo.label} (${alertLevel})`}
@@ -1115,14 +1090,14 @@ export default function NexonPage() {
                         {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 상태</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.45, fontVariantNumeric: "tabular-nums" }}>
                         {selectedBurstStatus?.mode === "burst" ? "BURST 수집" : "정상 수집"} · 주기 {selectedBurstStatus?.interval_seconds || 600}s
                         {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""} · 최근 30분 이벤트 {recentBurstCount}건
                       </Typography>
                     </Paper>
-                    <Paper variant="outlined" sx={{ ...panelSx, p: 1.5 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk vs Heat</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
                         Risk는 "부정 신호 강도", Heat는 "언급량/관심도"입니다. 언급이 많아도 부정이 적으면 Risk는 낮을 수 있습니다.
@@ -1145,7 +1120,7 @@ export default function NexonPage() {
                         const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "볼륨 신호" : k === "T" ? "테마 신호" : "매체 신호";
                         return (
                           <Grid item xs={6} md={3} key={k}>
-                            <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1, sm: 1.1 } }}>
+                            <Paper variant="outlined" sx={{ ...panelPaperSx, p: { xs: 1, sm: 1.1 } }}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
                                 <Typography variant="caption" sx={{ fontWeight: 700 }}>{signalLabel}</Typography>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
@@ -1165,7 +1140,7 @@ export default function NexonPage() {
                   </Collapse>
                 </Box>
 
-                <Paper variant="outlined" sx={{ ...panelSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
+                <Paper variant="outlined" sx={{ ...panelPaperSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
                   <Box sx={{ px: 1.2, pt: 0.6 }}>
                     <LabelWithTip label="버스트 이벤트" tip={tipMap.burst} />
                   </Box>

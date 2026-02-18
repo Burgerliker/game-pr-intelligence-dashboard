@@ -13,11 +13,12 @@ export default function PageStatusView({ loading, error, empty, spacing = 1.2 })
   if (!showLoading && !showError && !showEmpty) return null;
 
   return (
-    <Stack spacing={spacing}>
+    <Stack spacing={spacing} sx={{ width: "100%" }}>
       {showLoading ? (
         <LoadingState
           title={loading?.title || "로딩 중"}
           subtitle={loading?.subtitle || "데이터를 불러오고 있습니다."}
+          tone={loading?.tone || "info"}
         />
       ) : null}
       {showError ? (
@@ -27,6 +28,7 @@ export default function PageStatusView({ loading, error, empty, spacing = 1.2 })
           diagnosticCode={error?.diagnosticCode || ""}
           actionLabel={error?.actionLabel || ""}
           onAction={error?.onAction || null}
+          tone={error?.tone || "error"}
         />
       ) : null}
       {showEmpty ? (

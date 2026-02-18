@@ -11,6 +11,21 @@ export default function EmptyState({
   compact = false,
 }) {
   const tonePalette =
+    tone === "info"
+      ? {
+          bg: "#eff6ff",
+          border: "#bfdbfe",
+          title: "#1e3a8a",
+          subtitle: "#334155",
+        }
+      : tone === "error"
+        ? {
+            bg: "#fff4f4",
+            border: "#f4b9be",
+            title: "#7f1d1d",
+            subtitle: "#9f2a2a",
+          }
+        :
     tone === "warning"
       ? {
           bg: "#fff8eb",
@@ -29,25 +44,35 @@ export default function EmptyState({
     <Stack
       spacing={compact ? 0.5 : 0.8}
       sx={{
-        p: compact ? 1.4 : 2.2,
+        px: compact ? 1.2 : 1.6,
+        py: compact ? 1 : 1.5,
+        minHeight: compact ? 40 : 44,
         borderRadius: 2,
-        border: "1px dashed",
+        border: "1px solid",
         borderColor: tonePalette.border,
         bgcolor: tonePalette.bg,
         textAlign: compact ? "left" : "center",
       }}
     >
-      <Typography variant="body2" sx={{ fontWeight: 700, color: tonePalette.title }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, color: tonePalette.title, lineHeight: 1.35 }}>
         {title}
       </Typography>
       {subtitle ? (
-        <Typography variant="caption" sx={{ color: tonePalette.subtitle, whiteSpace: "pre-wrap" }}>
+        <Typography
+          variant="body2"
+          sx={{ color: tonePalette.subtitle, whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.35, fontVariantNumeric: "tabular-nums" }}
+        >
           {subtitle}
         </Typography>
       ) : null}
       {actionLabel && typeof onAction === "function" ? (
-        <Stack direction="row" justifyContent="center">
-          <Button variant="outlined" size="small" onClick={onAction}>
+        <Stack direction="row" justifyContent={compact ? "flex-start" : "center"}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={onAction}
+            sx={{ minHeight: 40, px: 1.5, borderRadius: 1.5, fontSize: 13, textTransform: "none", fontVariantNumeric: "tabular-nums" }}
+          >
             {actionLabel}
           </Button>
         </Stack>

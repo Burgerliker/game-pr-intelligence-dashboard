@@ -2,6 +2,13 @@
 
 import Link from "next/link";
 import { Box, Button, Container, Divider, Paper, Stack, Typography } from "@mui/material";
+import {
+  actionButtonSx,
+  navButtonSx,
+  pageContainerSx,
+  pageShellSx,
+  sectionCardSx,
+} from "../../lib/uiTokens";
 
 const sections = [
   {
@@ -20,23 +27,14 @@ const sections = [
 
 export default function ProjectPage() {
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 4 } }}>
-      <Container maxWidth="md" sx={{ maxWidth: "980px !important" }}>
-        <Paper
-          sx={{
-            borderRadius: 3,
-            border: "1px solid #e5e7eb",
-            bgcolor: "#f8fafc",
-            px: { xs: 2.5, md: 5 },
-            py: { xs: 3, md: 5 },
-            boxShadow: "0 14px 38px rgba(15,23,42,.06)",
-          }}
-        >
+    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 4 } }}>
+      <Container maxWidth="md" sx={{ ...pageContainerSx, maxWidth: "980px !important" }}>
+        <Paper sx={{ ...sectionCardSx, bgcolor: "#f8fafc", px: { xs: 2.5, md: 5 }, py: { xs: 3, md: 5 }, boxShadow: "0 14px 38px rgba(15,23,42,.06)" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
             <Typography sx={{ fontSize: { xs: 24, md: 30 }, fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em" }}>
               프로젝트 소개
             </Typography>
-            <Button component={Link} href="/" variant="outlined" sx={{ textTransform: "none", borderRadius: 99 }}>
+            <Button component={Link} href="/" variant="outlined" sx={navButtonSx}>
               메인으로
             </Button>
           </Stack>
@@ -70,10 +68,10 @@ export default function ProjectPage() {
           </Stack>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2} sx={{ mt: 4 }}>
-            <Button component={Link} href="/nexon" variant="contained" sx={{ textTransform: "none", borderRadius: 2, bgcolor: "#0f172a", "&:hover": { bgcolor: "#020617" } }}>
+            <Button component={Link} href="/nexon" variant="contained" sx={actionButtonSx.primary}>
               넥슨 IP 리스크 보기
             </Button>
-            <Button component={Link} href="/nexon/backtest" variant="outlined" sx={{ textTransform: "none", borderRadius: 2 }}>
+            <Button component={Link} href="/nexon/backtest" variant="outlined" sx={actionButtonSx.secondary}>
               백테스트 보기
             </Button>
           </Stack>
