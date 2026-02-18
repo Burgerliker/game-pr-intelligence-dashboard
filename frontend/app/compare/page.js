@@ -37,7 +37,8 @@ const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"]
 const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
-const DEFAULT_WINDOW_HOURS = 24;
+const DEFAULT_WINDOW_HOURS = 72;
+const WINDOW_HOURS_OPTIONS = [24, 72, 168];
 
 function getRefreshIntervalMs() {
   const configured = Number(process.env.NEXT_PUBLIC_COMPARE_REFRESH_MS || "");
@@ -92,6 +93,7 @@ export default function ComparePage() {
   const [filterSentiment, setFilterSentiment] = useState("전체");
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const [retryAfterSec, setRetryAfterSec] = useState(null);
+  const [selectedWindowHours, setSelectedWindowHours] = useState(DEFAULT_WINDOW_HOURS);
 
   const inFlightRef = useRef(false);
   const compareReqSeqRef = useRef(0);
@@ -107,7 +109,7 @@ export default function ComparePage() {
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
   const selectedFromData = data?.meta?.selected_companies ?? selectedCompanies;
-  const windowHours = Number(data?.meta?.window_hours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
+  const windowHours = Number(selectedWindowHours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -392,6 +394,17 @@ export default function ComparePage() {
                       onClick={() => toggleSelectedCompany(name)}
                       color={selectedCompanies.includes(name) ? "primary" : "default"}
                       variant={selectedCompanies.includes(name) ? "filled" : "outlined"}
+                    />
+                  ))}
+                </Stack>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {WINDOW_HOURS_OPTIONS.map((hours) => (
+                    <Chip
+                      key={hours}
+                      label={`${hours}시간`}
+                      onClick={() => setSelectedWindowHours(hours)}
+                      color={windowHours === hours ? "primary" : "default"}
+                      variant={windowHours === hours ? "filled" : "outlined"}
                     />
                   ))}
                 </Stack>

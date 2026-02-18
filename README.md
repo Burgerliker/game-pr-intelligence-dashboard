@@ -94,6 +94,7 @@ sudo tail -n 200 /var/log/nginx/error.log
 - 분당 제한 초과 시 `429`를 반환하며 응답/헤더의 `retry_after`/`Retry-After`를 따라 재시도하세요.
 - `company_counts`는 `selected_companies`의 모든 회사를 항상 포함하며, 0건 회사는 값 `0`으로 반환합니다.
 - `sentiment_summary`는 0건 회사도 `긍정/중립/부정` 3개 항목을 `count=0`, `ratio=0.0`으로 반환합니다.
+- 프론트 compare 화면은 `24/72/168시간` 토글을 제공하며 기본값은 `72시간`입니다.
 
 ## DB 기반 분석 산출물(외부 API 미호출)
 이미 DB에 적재된 데이터로 포트폴리오용 JSON/CSV를 생성합니다.

@@ -19,7 +19,7 @@ LAST_API_ERROR = ""
 # 비교 대상 회사 설정
 COMPANIES = {
     "넥슨": {"query": "넥슨", "color": "#0066FF"},
-    "NC소프트": {"query": "NC소프트 OR 엔씨소프트", "color": "#FF6B35"},
+    "NC소프트": {"query": "NC소프트 OR 엔씨소프트 OR NCSOFT OR 리니지 OR 쓰론 앤 리버티", "color": "#FF6B35"},
     "넷마블": {"query": "넷마블", "color": "#28A745"},
     "크래프톤": {"query": "크래프톤", "color": "#9B59B6"},
 }
