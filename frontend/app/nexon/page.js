@@ -24,7 +24,9 @@ import {
 } from "@mui/material";
 import LoadingState from "../../components/LoadingState";
 import ErrorState from "../../components/ErrorState";
-import { apiGet } from "../../lib/api";
+import ApiGuardBanner from "../../components/ApiGuardBanner";
+import LabelWithTip from "../../components/LabelWithTip";
+import { apiGet, getDiagnosticCode, getErrorMessage } from "../../lib/api";
 import {
   createEmptyCluster,
   createEmptyRisk,
@@ -129,7 +131,10 @@ export default function NexonPage() {
   const [articleOffset, setArticleOffset] = useState(0);
   const [articleHasMore, setArticleHasMore] = useState(false);
   const [articleLoading, setArticleLoading] = useState(false);
+  const [articleError, setArticleError] = useState("");
+  const [healthDiagCode, setHealthDiagCode] = useState("");
   const articleReqSeqRef = useRef(0);
+  const articleAbortRef = useRef(null);
   const articleSentinelRef = useRef(null);
   const ARTICLE_PAGE_SIZE = 20;
   const swipeStartXRef = useRef(null);
@@ -143,10 +148,17 @@ export default function NexonPage() {
   const outletChartInstRef = useRef(null);
   const themeChartInstRef = useRef(null);
   const keywordChartInstRef = useRef(null);
+  const [chartsReady, setChartsReady] = useState(false);
   const formatUpdatedAt = (date = new Date()) => {
     const d = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(d.getTime())) return "-";
     return d.toLocaleTimeString("ko-KR", { hour12: false });
+  };
+  const tipMap = {
+    burst: "최근 임계치 이벤트 발생 로그입니다.",
+    svtm: "S/V/T/M은 감성·볼륨·테마·매체 신호입니다.",
+    cluster: "유사 기사 키워드로 묶은 이슈 그룹 수입니다.",
+    alert: "위험도 구간별 대응 우선순위 등급입니다.",
   };
 
   const loadDashboard = async (targetIp = ip) => {
@@ -167,6 +179,7 @@ export default function NexonPage() {
       setBurstStatus(cache.burstStatus);
       setBurstEvents(cache.burstEvents);
       setHealth(cache.health || null);
+      setHealthDiagCode(cache.healthDiagCode || "");
       setUsingMock(Boolean(cache.usingMock));
       setNotice(cache.notice || "");
       setLastUpdatedAt(cache.lastUpdatedAt || formatUpdatedAt());
@@ -176,13 +189,15 @@ export default function NexonPage() {
 
     try {
       const base = new URLSearchParams({ ip: targetIp });
-      const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload, healthPayload] = await Promise.all([
+      const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload, healthState] = await Promise.all([
         apiGet(`/api/risk-dashboard?${base.toString()}`),
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
         apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
         apiGet("/api/burst-status").catch(() => null),
         apiGet("/api/burst-events?limit=50").catch(() => null),
-        apiGet("/api/health").catch(() => null),
+        apiGet("/api/health")
+          .then((data) => ({ data, error: null }))
+          .catch((error) => ({ data: null, error })),
       ]);
 
       const normalized = normalizeNexonDashboard({
@@ -207,7 +222,8 @@ export default function NexonPage() {
       setRiskScore(riskScorePayload || null);
       setBurstStatus(burstStatusPayload || null);
       setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
-      setHealth(healthPayload || null);
+      setHealth(healthState.data || null);
+      setHealthDiagCode(healthState.error ? getDiagnosticCode(healthState.error, "HEALTH") : "");
       setNotice(resolvedNotice);
       setLastUpdatedAt(refreshedAt);
 
@@ -217,7 +233,8 @@ export default function NexonPage() {
         riskScore: riskScorePayload || null,
         burstStatus: burstStatusPayload || null,
         burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
-        health: healthPayload || null,
+        health: healthState.data || null,
+        healthDiagCode: healthState.error ? getDiagnosticCode(healthState.error, "HEALTH") : "",
         usingMock: resolvedUsingMock,
         notice: resolvedNotice,
         lastUpdatedAt: refreshedAt,
@@ -237,7 +254,7 @@ export default function NexonPage() {
         setNotice("실데이터 호출에 실패했습니다. 백엔드 주소/API 상태를 확인해주세요.");
       }
       setLastUpdatedAt("-");
-      setError(String(e));
+      setError(getErrorMessage(e, "대시보드 API 요청에 실패했습니다."));
     } finally {
       if (requestSeq !== requestSeqRef.current) return;
       setLoading(false);
@@ -253,10 +270,15 @@ export default function NexonPage() {
     if (!reset && (articleLoading || !articleHasMore)) return;
     const reqSeq = ++articleReqSeqRef.current;
     const nextOffset = reset ? 0 : articleOffset;
+    if (articleAbortRef.current) articleAbortRef.current.abort();
+    const controller = new AbortController();
+    articleAbortRef.current = controller;
+    if (reset) setArticleError("");
     setArticleLoading(true);
     try {
       const payload = await apiGet(
-        `/api/nexon-articles?ip=${encodeURIComponent(targetIp)}&limit=${ARTICLE_PAGE_SIZE}&offset=${nextOffset}`
+        `/api/nexon-articles?ip=${encodeURIComponent(targetIp)}&limit=${ARTICLE_PAGE_SIZE}&offset=${nextOffset}`,
+        { signal: controller.signal }
       );
       if (reqSeq !== articleReqSeqRef.current) return;
       const nextItems = Array.isArray(payload?.items) ? payload.items : [];
@@ -264,8 +286,10 @@ export default function NexonPage() {
       setArticleTotal(Number(payload?.total || 0));
       setArticleOffset(nextOffset + nextItems.length);
       setArticleHasMore(Boolean(payload?.has_more));
-    } catch {
+    } catch (e) {
+      if (e?.name === "AbortError") return;
       if (reqSeq !== articleReqSeqRef.current) return;
+      setArticleError(getErrorMessage(e, "기사 목록 API 호출에 실패했습니다."));
       if (reset) {
         setArticleItems([]);
         setArticleTotal(0);
@@ -279,11 +303,13 @@ export default function NexonPage() {
 
   useEffect(() => {
     articleReqSeqRef.current += 1;
+    articleAbortRef.current?.abort();
     setArticleItems([]);
     setArticleTotal(0);
     setArticleOffset(0);
     setArticleHasMore(true);
     setArticleLoading(false);
+    setArticleError("");
     loadMoreArticles(ip, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ip]);
@@ -302,7 +328,9 @@ export default function NexonPage() {
     observer.observe(target);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ip, articleHasMore, articleLoading, articleOffset]);
+  }, [ip, articleHasMore, articleLoading]);
+
+  useEffect(() => () => articleAbortRef.current?.abort(), []);
 
   const bannerItems = useMemo(
     () =>
@@ -343,16 +371,21 @@ export default function NexonPage() {
 
   useEffect(() => {
     const timer = setInterval(async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
-        const [rs, bs, hs] = await Promise.all([
+        const [rs, bs, healthState] = await Promise.all([
           apiGet(`/api/risk-score?ip=${ip}`).catch(() => null),
           apiGet("/api/burst-status").catch(() => null),
-          apiGet("/api/health").catch(() => null),
+          apiGet("/api/health")
+            .then((data) => ({ data, error: null }))
+            .catch((error) => ({ data: null, error })),
         ]);
         if (rs) setRiskScore(rs);
         if (bs) setBurstStatus(bs);
-        if (hs) setHealth(hs);
-        if (rs || bs || hs) setLastUpdatedAt(formatUpdatedAt());
+        if (healthState.data) setHealth(healthState.data);
+        if (healthState.error) setHealthDiagCode(getDiagnosticCode(healthState.error, "HEALTH"));
+        else setHealthDiagCode("");
+        if (rs || bs || healthState.data) setLastUpdatedAt(formatUpdatedAt());
       } catch {
         // noop
       }
@@ -462,209 +495,30 @@ export default function NexonPage() {
 
   useEffect(() => {
     let active = true;
-    const cleanups = [];
+    let onResize;
 
     const mount = async () => {
       const echarts = await import("echarts");
       if (!active) return;
-
-      const trendEl = trendChartRef.current;
-      if (trendEl) {
-        const chart = echarts.init(trendEl);
-        trendChartInstRef.current = chart;
-        const x = dailyRows.map((r) => r.date);
-        chart.setOption(
-          {
-            animation: false,
-            grid: { left: 38, right: 20, top: 26, bottom: 38 },
-            tooltip: { trigger: "axis" },
-            xAxis: {
-              type: "category",
-              data: x,
-              axisLabel: {
-                formatter: (v) => String(v || "").slice(5),
-                color: "#64748b",
-              },
-            },
-            yAxis: { type: "value", axisLabel: { color: "#64748b" } },
-            series: [
-              {
-                name: "기사 수",
-                type: "bar",
-                data: dailyRows.map((r) => Number(r.article_count || 0)),
-                itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
-                barMaxWidth: 18,
-              },
-              {
-                name: "부정 비율(%)",
-                type: "line",
-                yAxisIndex: 0,
-                smooth: true,
-                symbol: "none",
-                data: dailyRows.map((r) => Number(r.negative_ratio || 0)),
-                lineStyle: { color: "#dc3c4a", width: 2 },
-              },
-            ],
-          },
-          true
-        );
-      }
-
-      const displayedOutlets = outletRows.slice(0, 12);
-      const outletEl = outletChartRef.current;
-      if (outletEl) {
-        const chart = echarts.init(outletEl);
-        outletChartInstRef.current = chart;
-        chart.setOption(
-          {
-            animation: false,
-            grid: { left: 90, right: 20, top: 26, bottom: 24 },
-            tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-            xAxis: { type: "value", axisLabel: { color: "#64748b" } },
-            yAxis: {
-              type: "category",
-              data: displayedOutlets.map((r) => r.outlet),
-              axisLabel: {
-                color: "#64748b",
-                width: 120,
-                interval: 0,
-                formatter: (value) => {
-                  const v = String(value || "");
-                  if (v.length <= 10) return v;
-                  const dot = v.indexOf(".");
-                  if (dot > 3 && dot < v.length - 3) return `${v.slice(0, dot)}\n${v.slice(dot + 1)}`;
-                  return `${v.slice(0, 10)}\n${v.slice(10)}`;
-                },
-              },
-            },
-            series: [
-              {
-                name: "긍정",
-                type: "bar",
-                stack: "sent",
-                data: displayedOutlets.map((r) => Number(r.positive_ratio || 0)),
-                itemStyle: { color: "#11a36a" },
-              },
-              {
-                name: "중립",
-                type: "bar",
-                stack: "sent",
-                data: displayedOutlets.map((r) => Number(r.neutral_ratio || 0)),
-                itemStyle: { color: "#f2b248" },
-              },
-              {
-                name: "부정",
-                type: "bar",
-                stack: "sent",
-                data: displayedOutlets.map((r) => Number(r.negative_ratio || 0)),
-                itemStyle: { color: "#dc3c4a" },
-              },
-            ],
-          },
-          true
-        );
-      }
-
-      const themeEl = themeChartRef.current;
-      if (themeEl) {
-        const chart = echarts.init(themeEl);
-        themeChartInstRef.current = chart;
-        chart.setOption(
-          {
-            animation: false,
-            grid: { left: 90, right: 20, top: 26, bottom: 24 },
-            tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-            xAxis: { type: "value", axisLabel: { color: "#64748b" } },
-            yAxis: {
-              type: "category",
-              data: themes.map((t) => t.theme),
-              axisLabel: {
-                color: "#64748b",
-                width: 96,
-                interval: 0,
-                formatter: (value) => {
-                  const v = String(value || "");
-                  if (v.length <= 6) return v;
-                  return `${v.slice(0, 6)}\n${v.slice(6)}`;
-                },
-              },
-            },
-            series: [
-              {
-                name: "위험 점수(%)",
-                type: "bar",
-                data: themes.map((t) => Math.round(Number(t.risk_score || 0) * 100)),
-                itemStyle: { color: "#7b61ff", borderRadius: [0, 4, 4, 0] },
-                barMaxWidth: 20,
-              },
-            ],
-          },
-          true
-        );
-      }
-
-      const keywordEl = keywordChartRef.current;
-      if (keywordEl) {
-        const chart = echarts.init(keywordEl);
-        keywordChartInstRef.current = chart;
-        const words = (keywordCloud || []).slice(0, 50).map((w) => ({
-          name: String(w.word || ""),
-          value: Math.max(1, Number(w.count || 0)),
-        }));
-        chart.setOption(
-          {
-            animation: false,
-            tooltip: {
-              show: true,
-              formatter: (params) => `${params?.name || "-"}: ${Number(params?.value || 0).toLocaleString()}`,
-            },
-            series: [
-              {
-                type: "treemap",
-                roam: false,
-                nodeClick: false,
-                breadcrumb: { show: false },
-                label: {
-                  show: true,
-                  formatter: "{b}",
-                  fontSize: 12,
-                  color: "#fff",
-                },
-                upperLabel: { show: false },
-                itemStyle: {
-                  borderColor: "#fff",
-                  borderWidth: 1,
-                  gapWidth: 1,
-                },
-                levels: [
-                  {
-                    color: ["#2f67d8", "#11a36a", "#e89c1c", "#dc3c4a", "#4a63d9", "#00a5c4"],
-                    colorMappingBy: "value",
-                  },
-                ],
-                data: words,
-              },
-            ],
-          },
-          true
-        );
-      }
-
-      const onResize = () => {
+      if (trendChartRef.current && !trendChartInstRef.current) trendChartInstRef.current = echarts.init(trendChartRef.current);
+      if (outletChartRef.current && !outletChartInstRef.current) outletChartInstRef.current = echarts.init(outletChartRef.current);
+      if (themeChartRef.current && !themeChartInstRef.current) themeChartInstRef.current = echarts.init(themeChartRef.current);
+      if (keywordChartRef.current && !keywordChartInstRef.current) keywordChartInstRef.current = echarts.init(keywordChartRef.current);
+      setChartsReady(true);
+      onResize = () => {
         trendChartInstRef.current?.resize();
         outletChartInstRef.current?.resize();
         themeChartInstRef.current?.resize();
         keywordChartInstRef.current?.resize();
       };
       window.addEventListener("resize", onResize);
-      cleanups.push(() => window.removeEventListener("resize", onResize));
     };
 
     mount();
-
     return () => {
       active = false;
-      cleanups.forEach((fn) => fn());
+      setChartsReady(false);
+      if (onResize) window.removeEventListener("resize", onResize);
       trendChartInstRef.current?.dispose();
       outletChartInstRef.current?.dispose();
       themeChartInstRef.current?.dispose();
@@ -674,14 +528,208 @@ export default function NexonPage() {
       themeChartInstRef.current = null;
       keywordChartInstRef.current = null;
     };
-  }, [dailyRows, outletRows, themes, keywordCloud]);
+  }, []);
+
+  useEffect(() => {
+    if (!chartsReady || !trendChartInstRef.current) return;
+    const x = dailyRows.map((r) => r.date);
+    trendChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 38, right: 20, top: 26, bottom: 38 },
+        tooltip: { trigger: "axis" },
+        xAxis: {
+          type: "category",
+          data: x,
+          axisLabel: {
+            formatter: (v) => String(v || "").slice(5),
+            color: "#64748b",
+          },
+        },
+        yAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        series: [
+          {
+            name: "기사 수",
+            type: "bar",
+            data: dailyRows.map((r) => Number(r.article_count || 0)),
+            itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
+            barMaxWidth: 18,
+            large: dailyRows.length > 220,
+            largeThreshold: 220,
+            progressive: 2000,
+            progressiveThreshold: 3000,
+          },
+          {
+            name: "부정 비율(%)",
+            type: "line",
+            yAxisIndex: 0,
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            progressive: 2000,
+            progressiveThreshold: 3000,
+            data: dailyRows.map((r) => Number(r.negative_ratio || 0)),
+            lineStyle: { color: "#dc3c4a", width: 2 },
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, dailyRows]);
+
+  useEffect(() => {
+    if (!chartsReady || !outletChartInstRef.current) return;
+    const displayedOutlets = outletRows.slice(0, 12);
+    outletChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 90, right: 20, top: 26, bottom: 24 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        yAxis: {
+          type: "category",
+          data: displayedOutlets.map((r) => r.outlet),
+          axisLabel: {
+            color: "#64748b",
+            width: 120,
+            interval: 0,
+            formatter: (value) => {
+              const v = String(value || "");
+              if (v.length <= 10) return v;
+              const dot = v.indexOf(".");
+              if (dot > 3 && dot < v.length - 3) return `${v.slice(0, dot)}\n${v.slice(dot + 1)}`;
+              return `${v.slice(0, 10)}\n${v.slice(10)}`;
+            },
+          },
+        },
+        series: [
+          {
+            name: "긍정",
+            type: "bar",
+            stack: "sent",
+            data: displayedOutlets.map((r) => Number(r.positive_ratio || 0)),
+            itemStyle: { color: "#11a36a" },
+          },
+          {
+            name: "중립",
+            type: "bar",
+            stack: "sent",
+            data: displayedOutlets.map((r) => Number(r.neutral_ratio || 0)),
+            itemStyle: { color: "#f2b248" },
+          },
+          {
+            name: "부정",
+            type: "bar",
+            stack: "sent",
+            data: displayedOutlets.map((r) => Number(r.negative_ratio || 0)),
+            itemStyle: { color: "#dc3c4a" },
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, outletRows]);
+
+  useEffect(() => {
+    if (!chartsReady || !themeChartInstRef.current) return;
+    themeChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 90, right: 20, top: 26, bottom: 24 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        yAxis: {
+          type: "category",
+          data: themes.map((t) => t.theme),
+          axisLabel: {
+            color: "#64748b",
+            width: 96,
+            interval: 0,
+            formatter: (value) => {
+              const v = String(value || "");
+              if (v.length <= 6) return v;
+              return `${v.slice(0, 6)}\n${v.slice(6)}`;
+            },
+          },
+        },
+        series: [
+          {
+            name: "위험 점수(%)",
+            type: "bar",
+            data: themes.map((t) => Math.round(Number(t.risk_score || 0) * 100)),
+            itemStyle: { color: "#7b61ff", borderRadius: [0, 4, 4, 0] },
+            barMaxWidth: 20,
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, themes]);
+
+  useEffect(() => {
+    if (!chartsReady || !keywordChartInstRef.current) return;
+    const words = (keywordCloud || []).slice(0, 80).map((w) => ({
+      name: String(w.word || ""),
+      value: Math.max(1, Number(w.count || 0)),
+    }));
+    keywordChartInstRef.current.setOption(
+      {
+        animation: false,
+        tooltip: {
+          show: true,
+          formatter: (params) => `${params?.name || "-"}: ${Number(params?.value || 0).toLocaleString()}`,
+        },
+        series: [
+          {
+            type: "treemap",
+            roam: false,
+            nodeClick: false,
+            breadcrumb: { show: false },
+            label: {
+              show: true,
+              formatter: "{b}",
+              fontSize: 12,
+              color: "#fff",
+            },
+            upperLabel: { show: false },
+            itemStyle: {
+              borderColor: "#fff",
+              borderWidth: 1,
+              gapWidth: 1,
+            },
+            levels: [
+              {
+                color: ["#2f67d8", "#11a36a", "#e89c1c", "#dc3c4a", "#4a63d9", "#00a5c4"],
+                colorMappingBy: "value",
+              },
+            ],
+            data: words,
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, keywordCloud]);
 
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 1.5, sm: 2, md: 4 } }}>
     <Container maxWidth="xl" sx={{ maxWidth: "1180px !important", px: { xs: 1.2, sm: 2, md: 3 } }}>
       <Stack spacing={{ xs: 1.4, md: 2 }}>
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, borderColor: "#e5e7eb", bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
-          <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between" spacing={1.2}>
+        <Paper
+          sx={{
+            borderRadius: 3,
+            border: "1px solid #e5e7eb",
+            bgcolor: "#f8fafc",
+            boxShadow: "0 8px 24px rgba(15,23,42,.04)",
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            justifyContent="space-between"
+            spacing={1.2}
+            sx={{ px: { xs: 2, md: 3 }, py: 1.2 }}
+          >
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
               <Box sx={{ py: 0.2 }}>
@@ -706,6 +754,7 @@ export default function NexonPage() {
             </Stack>
           </Stack>
         </Paper>
+        <ApiGuardBanner />
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
@@ -834,6 +883,11 @@ export default function NexonPage() {
             ) : null}
             {notice ? <Alert severity={usingMock ? "warning" : "info"} sx={{ mt: 1.5 }}>{notice}</Alert> : null}
             {modeMismatchWarning ? <Alert severity="warning" sx={{ mt: 1.5 }}>{modeMismatchWarning}</Alert> : null}
+            {healthDiagCode ? (
+              <Alert severity="info" sx={{ mt: 1.5 }}>
+                실시간 상태 정보가 일시적으로 누락되었습니다. 운영자 진단코드: {healthDiagCode}
+              </Alert>
+            ) : null}
             {error ? (
               <Box sx={{ mt: 1.5 }}>
                 <ErrorState title="대시보드 데이터를 불러오지 못했습니다." details={error} actionLabel="재시도" onAction={() => loadDashboard(ip)} />
@@ -847,11 +901,15 @@ export default function NexonPage() {
             { k: "선택 IP", v: riskData?.meta?.ip || "-", s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}` },
             { k: "총 기사 수", v: Number(riskData?.meta?.total_articles || 0).toLocaleString(), s: "필터 기준" },
             { k: "최고 위험 테마", v: topRisk?.theme || "-", s: `Risk ${topRisk?.risk_score ?? "-"}` },
-            { k: "이슈 묶음 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 주제 묶음" },
+            { k: "이슈 묶음 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 주제 묶음", tip: tipMap.cluster },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={3} key={item.k}>
               <Card variant="outlined" sx={sectionCardSx}><CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 } }}>
-                <Typography variant="body2" color="text.secondary">{item.k}</Typography>
+                {item.tip ? (
+                  <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">{item.k}</Typography>
+                )}
                 <Typography variant="h5" sx={{ mt: 0.8, fontWeight: 800 }}>{item.v}</Typography>
                 <Typography variant="caption" color="text.secondary">{item.s}</Typography>
               </CardContent></Card>
@@ -930,7 +988,7 @@ export default function NexonPage() {
 
                   <Stack spacing={2.2}>
                     <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.4, sm: 1.8, md: 2.2 } }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>경보 등급</Typography>
+                      <LabelWithTip label="경보 등급" tip={tipMap.alert} />
                       <Chip
                         label={`${alertInfo.label} (${alertLevel})`}
                         color={alertInfo.color}
@@ -964,7 +1022,7 @@ export default function NexonPage() {
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={{ ...panelSx, p: 2.2 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>위험도 구성요소</Typography>
+                      <LabelWithTip label="위험도 구성요소" tip={tipMap.svtm} />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8 }}>
                         감성 {Number(riskScore?.components?.S || 0).toFixed(2)} · 기사량 {Number(riskScore?.components?.V || 0).toFixed(2)}
                       </Typography>
@@ -978,13 +1036,12 @@ export default function NexonPage() {
                 <Grid container spacing={{ xs: 1, md: 1.5 }} sx={{ mt: 1 }}>
                   {["S", "V", "T", "M"].map((k) => {
                     const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
+                    const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "기사량 신호" : k === "T" ? "테마 신호" : "매체 신호";
                     return (
                       <Grid item xs={12} sm={6} md={3} key={k}>
                         <Paper variant="outlined" sx={{ ...panelSx, p: { xs: 1.1, sm: 1.3, md: 1.4 } }}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.7 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                              {k === "S" ? "감성 신호" : k === "V" ? "기사량 신호" : k === "T" ? "테마 신호" : "매체 신호"}
-                            </Typography>
+                            <LabelWithTip label={signalLabel} tip={tipMap.svtm} variant="caption" />
                             <Typography variant="caption" color="text.secondary">{value.toFixed(2)}</Typography>
                           </Stack>
                           <LinearProgress
@@ -999,6 +1056,9 @@ export default function NexonPage() {
                 </Grid>
 
                 <Paper variant="outlined" sx={{ ...panelSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
+                  <Box sx={{ px: 1.2, pt: 0.6 }}>
+                    <LabelWithTip label="버스트 이벤트" tip={tipMap.burst} />
+                  </Box>
                   <List dense disablePadding>
                     {filteredBurstEvents.length ? (
                       filteredBurstEvents.slice(0, 5).map((evt, idx) => (
@@ -1197,6 +1257,16 @@ export default function NexonPage() {
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
                 아직 표시할 수집 기사가 없습니다.
               </Typography>
+            ) : null}
+            {articleError ? (
+              <Box sx={{ mt: 1 }}>
+                <ErrorState
+                  title="기사 목록을 불러오지 못했습니다."
+                  details={articleError}
+                  actionLabel="다시 시도"
+                  onAction={() => loadMoreArticles(ip, true)}
+                />
+              </Box>
             ) : null}
           </CardContent>
         </Card>

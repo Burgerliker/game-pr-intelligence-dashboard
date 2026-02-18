@@ -28,9 +28,20 @@ docker compose --profile live --profile backtest up --build
 
 검증:
 ```bash
+# 배포 전 고정 preflight (정책 + env drift + compose config)
+bash scripts/preflight_deploy_live.sh --env-file .env.live --profile live
+
+# 기동 후 스모크 테스트
 bash scripts/smoke_test.sh --mode live --base http://localhost:8000
 bash scripts/smoke_test.sh --mode backtest --base http://localhost:8001
 ```
+
+운영 점검 스크립트 사용법:
+- `bash scripts/preflight_ops_check.sh --env-file .env.live`
+- `--app-env prod`로 운영 규칙(localhost 금지, https 권장) 강제 확인
+- `--health-url https://api.example.com/api/health`로 health 대상 지정
+- `--frontend-origin https://dashboard.example.com`로 CORS 포함 여부 검증
+- 실패 시 `OPS-E###` 코드와 함께 즉시 종료(비정상 1)
 
 접속:
 - Live UI: `http://localhost:3000/nexon`
@@ -42,6 +53,28 @@ bash scripts/smoke_test.sh --mode backtest --base http://localhost:8001
 - `.env.live`: live profile 기본값
 - `.env.backtest`: backtest profile 기본값
 - `.env.example`: 템플릿
+
+운영 보안 권장:
+- `CORS_ALLOW_ORIGINS`: 허용 오리진을 쉼표(`,`)로 명시 (와일드카드 `*` 지양)
+- `CORS_ALLOW_CREDENTIALS`: `1` 또는 `0` (쿠키/인증 필요 시만 `1`)
+- `ENABLE_DEBUG_ENDPOINTS=0`, `ENABLE_MANUAL_COLLECTION=0` 기본 유지
+
+### 장애 대응 런북(운영 확인 경로)
+```bash
+# 1) 서비스 상태
+curl -fsS http://127.0.0.1:8000/api/health
+curl -fsS http://127.0.0.1:8000/api/scheduler-status
+
+# 2) 컨테이너 로그 (최근 200줄)
+docker compose --profile live logs --tail=200 backend-live
+
+# 3) 스케줄러 로그 저장상태 확인 (fallback_count가 0인지)
+curl -fsS http://127.0.0.1:8000/api/health | jq '.scheduler_log_fallback_count'
+
+# 4) Nginx 경유 배포 시(EC2 표준 경로)
+sudo tail -n 200 /var/log/nginx/access.log
+sudo tail -n 200 /var/log/nginx/error.log
+```
 
 ## 주요 API
 - `GET /health`: 서버 상태 + 현재 DB 경로/파일명
@@ -95,3 +128,34 @@ python scripts/collect_backtest_maple_idle.py --dry-run
 ## Jenkins(선택)
 Jenkinsfile과 Docker 구성 파일이 포함되어 있어 로컬 CI 실습이 가능합니다.
 다만 이 프로젝트의 1순위는 배포보다 `분석 파이프라인 재현성`입니다.
+
+## GitHub Actions 자동 배포 (EC2)
+`main` 브랜치에 push하면 `backend-live`를 EC2에서 자동 재빌드/재기동합니다.
+
+필수 GitHub Secrets:
+- `EC2_HOST`: EC2 퍼블릭 IP 또는 도메인
+- `EC2_USER`: 예) `ubuntu`
+- `EC2_SSH_KEY`: PEM 개인키 전체 내용
+- `EC2_PORT`: 기본 `22` (옵션)
+- `EC2_APP_DIR`: 서버 레포 경로(옵션, 기본 `~/game-pr-intelligence-dashboard`)
+- `NAVER_CLIENT_ID`: 네이버 API ID
+- `NAVER_CLIENT_SECRET`: 네이버 API Secret
+
+워크플로 파일:
+- `.github/workflows/deploy-live.yml`
+
+## 프론트 배포 정합성 (Vercel 기준)
+운영 프론트는 Vercel 기준으로 아래 환경변수 설정을 권장합니다.
+
+- `NEXT_PUBLIC_API_BASE_URL`: 운영 백엔드 API Origin (예: `https://api.example.com`)
+- `NEXT_PUBLIC_SHOW_BACKTEST`: 운영은 `false` 권장
+
+중요:
+- `NEXT_PUBLIC_API_BASE_URL` 미설정 시 프론트는 현재 Origin으로 fallback합니다.
+- Vercel 배포에서는 `localhost`를 API 주소로 사용하지 않도록 환경변수를 명시하세요.
+
+## 잠재 리스크 분리 (EC2 Docker 경로)
+EC2 자동배포는 `EC2_APP_DIR` 경로 하드코딩/오입력 리스크가 있으므로 Vercel 프론트 배포와 분리해 관리하세요.
+
+- 프론트(Vercel): 환경변수 기반 API Origin만 관리
+- 백엔드(EC2 Docker): `EC2_APP_DIR`, `docker compose` 실행 경로, DB 볼륨 마운트 경로를 별도 점검

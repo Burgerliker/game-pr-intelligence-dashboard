@@ -10,8 +10,11 @@ services:
       - LIVE_DB_PATH=backend/data/articles.db
       - BACKTEST_DB_PATH=backend/data/articles_backtest.db
       - ENABLE_DEBUG_ENDPOINTS=${ENABLE_DEBUG_ENDPOINTS:-0}
+      - ENABLE_MANUAL_COLLECTION=${ENABLE_MANUAL_COLLECTION:-0}
       - SCHEDULER_LOG_TTL_DAYS=${SCHEDULER_LOG_TTL_DAYS:-7}
       - TEST_ARTICLE_TTL_HOURS=${TEST_ARTICLE_TTL_HOURS:-24}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS:-1}
     ports:
       - "8000:8000"
     volumes:
@@ -29,8 +32,11 @@ services:
       - LIVE_DB_PATH=backend/data/articles_backtest.db
       - BACKTEST_DB_PATH=backend/data/articles_backtest.db
       - ENABLE_DEBUG_ENDPOINTS=${ENABLE_DEBUG_ENDPOINTS:-0}
+      - ENABLE_MANUAL_COLLECTION=${ENABLE_MANUAL_COLLECTION:-0}
       - SCHEDULER_LOG_TTL_DAYS=${SCHEDULER_LOG_TTL_DAYS:-7}
       - TEST_ARTICLE_TTL_HOURS=${TEST_ARTICLE_TTL_HOURS:-24}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
+      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS:-1}
     ports:
       - "8001:8000"
     volumes:

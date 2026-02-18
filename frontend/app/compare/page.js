@@ -23,9 +23,11 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { apiGet, apiPost } from "../../lib/api";
+import { apiGet, apiPost, getErrorMessage } from "../../lib/api";
 import LoadingState from "../../components/LoadingState";
 import ErrorState from "../../components/ErrorState";
+import EmptyState from "../../components/EmptyState";
+import ApiGuardBanner from "../../components/ApiGuardBanner";
 
 const PAGE_SIZE = 40;
 const COMPARE_COLLECTION_DISABLED = true;
@@ -50,7 +52,10 @@ export default function ComparePage() {
   const [articleTotal, setArticleTotal] = useState(0);
   const [articleHasMore, setArticleHasMore] = useState(false);
   const [articleLoading, setArticleLoading] = useState(false);
+  const [hasBootstrapped, setHasBootstrapped] = useState(false);
   const sentinelRef = useRef(null);
+  const articleReqSeqRef = useRef(0);
+  const articleAbortRef = useRef(null);
 
   const total = data?.meta?.total_articles ?? 0;
   const companyCounts = data?.company_counts ?? {};
@@ -68,6 +73,10 @@ export default function ComparePage() {
     const companyVal = companyOverride ?? filterCompany;
     const sentimentVal = sentimentOverride ?? filterSentiment;
     const nextOffset = reset ? 0 : articleOffset;
+    const reqSeq = ++articleReqSeqRef.current;
+    if (articleAbortRef.current) articleAbortRef.current.abort();
+    const controller = new AbortController();
+    articleAbortRef.current = controller;
     const query = new URLSearchParams({
       company: companyVal,
       sentiment: sentimentVal,
@@ -77,15 +86,18 @@ export default function ComparePage() {
 
     setArticleLoading(true);
     try {
-      const payload = await apiGet(`/api/articles?${query.toString()}`);
+      const payload = await apiGet(`/api/articles?${query.toString()}`, { signal: controller.signal });
+      if (reqSeq !== articleReqSeqRef.current) return;
       setArticleRows((prev) => (reset ? payload.items : [...prev, ...payload.items]));
       setArticleOffset((reset ? 0 : nextOffset) + payload.items.length);
       setArticleTotal(payload.total || 0);
       setArticleHasMore(Boolean(payload.has_more));
     } catch (e) {
-      setError(String(e));
+      if (e?.name === "AbortError") return;
+      if (reqSeq !== articleReqSeqRef.current) return;
+      setError(getErrorMessage(e, "기사 목록을 불러오지 못했습니다."));
     } finally {
-      setArticleLoading(false);
+      if (reqSeq === articleReqSeqRef.current) setArticleLoading(false);
     }
   };
 
@@ -107,9 +119,10 @@ export default function ComparePage() {
       setFilterSentiment("전체");
       await loadArticles({ reset: true, companyOverride: "전체", sentimentOverride: "전체" });
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e, "비교 분석 요청에 실패했습니다."));
     } finally {
       setLoading(false);
+      setHasBootstrapped(true);
     }
   };
 
@@ -118,6 +131,7 @@ export default function ComparePage() {
     setError("");
     try {
       const payload = await apiPost("/api/demo");
+      if (articleAbortRef.current) articleAbortRef.current.abort();
       setData(payload);
       setDataSource("demo");
       setArticleRows([]);
@@ -127,9 +141,10 @@ export default function ComparePage() {
       setFilterCompany("전체");
       setFilterSentiment("전체");
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e, "데모 데이터를 불러오지 못했습니다."));
     } finally {
       setLoading(false);
+      setHasBootstrapped(true);
     }
   };
 
@@ -193,6 +208,8 @@ export default function ComparePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articleHasMore, articleLoading, dataSource]);
 
+  useEffect(() => () => articleAbortRef.current?.abort(), []);
+
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#eef0f3", py: { xs: 2, md: 5 } }}>
       <Container maxWidth="xl" sx={{ maxWidth: "1180px !important" }}>
@@ -207,17 +224,23 @@ export default function ComparePage() {
               boxShadow: "0 8px 24px rgba(15,23,42,.04)",
             }}
           >
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              justifyContent="space-between"
+              spacing={1.2}
+            >
               <Stack direction="row" spacing={1} alignItems="center">
                 <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
-                <Typography sx={{ fontSize: 24, fontWeight: 800, color: "#0f172a" }}>경쟁사 비교 현황판</Typography>
+                <Typography sx={{ fontSize: 20, fontWeight: 800, color: "#0f172a", letterSpacing: "-.01em" }}>경쟁사 비교 현황판</Typography>
               </Stack>
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
                 <Button component={Link} href="/" variant="outlined" size="small">메인</Button>
                 <Button component={Link} href="/nexon" variant="outlined" size="small">넥슨 IP 리스크</Button>
               </Stack>
             </Stack>
           </Paper>
+          <ApiGuardBanner />
 
           <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "rgba(15,23,42,.1)", boxShadow: "0 12px 28px rgba(15,23,42,.06)" }}>
             <CardContent>
@@ -260,7 +283,20 @@ export default function ComparePage() {
           </Card>
 
           {!data ? (
-            <LoadingState title="비교 데이터 대기 중" subtitle="데모 데이터 버튼으로 즉시 화면을 확인할 수 있습니다." />
+            loading ? (
+              <LoadingState title="비교 데이터 로딩 중" subtitle="요청 결과를 정리하고 있습니다." />
+            ) : (
+              <EmptyState
+                title="비교 데이터가 아직 없습니다."
+                subtitle={
+                  hasBootstrapped
+                    ? "요청이 실패했거나 결과가 비어 있습니다. 다시 시도해 주세요."
+                    : "데모 데이터 버튼으로 즉시 화면을 확인할 수 있습니다."
+                }
+                actionLabel="데모 데이터 불러오기"
+                onAction={loadDemo}
+              />
+            )
           ) : (
             <>
               <Grid container spacing={1.4}>
@@ -427,22 +463,30 @@ export default function ComparePage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {displayedArticles.map((a, idx) => (
-                          <TableRow key={`${a.url}-${idx}`} hover>
-                            <TableCell>{a.company}</TableCell>
-                            <TableCell>
-                              {a.url ? (
-                                <a href={a.url} target="_blank" rel="noreferrer" style={{ color: "#0f3b66", textDecoration: "none" }}>
-                                  {a.title}
-                                </a>
-                              ) : (
-                                a.title
-                              )}
+                        {displayedArticles.length ? (
+                          displayedArticles.map((a, idx) => (
+                            <TableRow key={`${a.url}-${idx}`} hover>
+                              <TableCell>{a.company}</TableCell>
+                              <TableCell>
+                                {a.url ? (
+                                  <a href={a.url} target="_blank" rel="noreferrer" style={{ color: "#0f3b66", textDecoration: "none" }}>
+                                    {a.title}
+                                  </a>
+                                ) : (
+                                  a.title
+                                )}
+                              </TableCell>
+                              <TableCell>{a.sentiment}</TableCell>
+                              <TableCell>{a.date}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} sx={{ color: "text.secondary" }}>
+                              조건에 맞는 기사가 없습니다.
                             </TableCell>
-                            <TableCell>{a.sentiment}</TableCell>
-                            <TableCell>{a.date}</TableCell>
                           </TableRow>
-                        ))}
+                        )}
                       </TableBody>
                     </Table>
                   </Box>

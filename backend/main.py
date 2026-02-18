@@ -5,9 +5,11 @@ import re
 import sys
 import time
 import os
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -41,6 +43,7 @@ from backend.storage import (
     force_burst_test_articles,
     record_burst_event,
     record_scheduler_log,
+    get_scheduler_log_fallback_count,
     repair_article_outlets,
     save_articles,
 )
@@ -69,6 +72,7 @@ class NexonClusterRequest(BaseModel):
 
 
 app = FastAPI(title="NEXON PR API", version="1.0.0")
+logger = logging.getLogger("backend.main")
 
 MONITOR_IPS = list(CORE_IPS)
 BASE_INTERVAL_SECONDS = 600
@@ -79,6 +83,15 @@ LIVE_COLLECT_DISPLAY = int(os.getenv("LIVE_COLLECT_DISPLAY", "100"))
 LIVE_COLLECT_PAGES = int(os.getenv("LIVE_COLLECT_PAGES", "3"))
 LIVE_COLLECT_QUERIES_PER_IP = int(os.getenv("LIVE_COLLECT_QUERIES_PER_IP", "2"))
 LIVE_COLLECT_INCLUDE_SIM = os.getenv("LIVE_COLLECT_INCLUDE_SIM", "1") == "1"
+COLLECT_ZERO_STREAK_WARN_THRESHOLD = int(os.getenv("COLLECT_ZERO_STREAK_WARN_THRESHOLD", "10"))
+ENABLE_COMPETITOR_AUTO_COLLECT = os.getenv("ENABLE_COMPETITOR_AUTO_COLLECT", "1") == "1"
+COMPETITOR_COLLECT_INTERVAL_SECONDS = int(os.getenv("COMPETITOR_COLLECT_INTERVAL_SECONDS", "3600"))
+COMPETITOR_COLLECT_ARTICLES = int(os.getenv("COMPETITOR_COLLECT_ARTICLES", "30"))
+COMPETITOR_AUTO_COMPANIES = [
+    c.strip()
+    for c in os.getenv("COMPETITOR_AUTO_COMPANIES", "넥슨,NC소프트,넷마블,크래프톤").split(",")
+    if c.strip() in COMPANIES
+]
 BACKFILL_INTERVAL_SECONDS = int(os.getenv("BACKFILL_INTERVAL_SECONDS", "1800"))
 BACKFILL_LOW_COUNT_THRESHOLD = int(os.getenv("BACKFILL_LOW_COUNT_THRESHOLD", "8"))
 BACKFILL_MAX_IPS_PER_RUN = int(os.getenv("BACKFILL_MAX_IPS_PER_RUN", "2"))
@@ -94,6 +107,13 @@ SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
 ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
 DISABLE_COMPETITOR_COMPARE = os.getenv("DISABLE_COMPETITOR_COMPARE", "1") == "1"
+ENABLE_MANUAL_COLLECTION = os.getenv("ENABLE_MANUAL_COLLECTION", "0") == "1"
+CORS_ALLOW_ORIGINS_RAW = os.getenv(
+    "CORS_ALLOW_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+)
+CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "1") == "1"
+APP_ENV = os.getenv("APP_ENV", "dev").strip().lower()
 
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 burst_managers: dict[str, BurstManager] = {
@@ -107,11 +127,63 @@ burst_managers: dict[str, BurstManager] = {
 }
 last_burst_state: dict[str, dict[str, Any]] = {}
 scheduler_job_state: dict[str, dict[str, Any]] = {}
+collect_zero_insert_streak: dict[str, int] = {ip_id: 0 for ip_id in MONITOR_IPS}
+
+
+def _parse_csv_env(value: str) -> list[str]:
+    return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
+def _load_cors_origins() -> list[str]:
+    origins = _parse_csv_env(CORS_ALLOW_ORIGINS_RAW)
+    if not origins:
+        logger.warning("CORS_ALLOW_ORIGINS is empty. Falling back to localhost defaults.")
+        return ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"]
+    return origins
+
+
+def _is_local_origin(origin: str) -> bool:
+    low = (origin or "").strip().lower()
+    if low == "*":
+        return False
+    try:
+        parsed = urlparse(low)
+    except Exception:
+        return "localhost" in low or "127.0.0.1" in low or "0.0.0.0" in low
+    host = (parsed.hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "0.0.0.0"}
+
+
+def _validate_cors_config(origins: list[str], allow_credentials: bool, app_env: str) -> tuple[str, list[str]]:
+    warnings: list[str] = []
+    if allow_credentials and "*" in origins:
+        warnings.append("wildcard_origin_with_credentials")
+    if app_env == "prod":
+        if "*" in origins:
+            warnings.append("prod_env_wildcard_origin")
+        if any(_is_local_origin(origin) for origin in origins):
+            warnings.append("prod_env_localhost_origin")
+    return ("warning", warnings) if warnings else ("ok", [])
+
+
+cors_allow_origins = _load_cors_origins()
+cors_allow_credentials = CORS_ALLOW_CREDENTIALS
+if cors_allow_credentials and "*" in cors_allow_origins:
+    logger.warning("CORS_ALLOW_CREDENTIALS=1 cannot be combined with wildcard origin. Forcing credentials to False.")
+    cors_allow_credentials = False
+cors_validation_status, cors_validation_warnings = _validate_cors_config(cors_allow_origins, CORS_ALLOW_CREDENTIALS, APP_ENV)
+for warning in cors_validation_warnings:
+    logger.warning(
+        "cors_validation_warning app_env=%s warning=%s origins=%s",
+        APP_ENV,
+        warning,
+        ",".join(cors_allow_origins),
+    )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_allow_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -119,6 +191,20 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup() -> None:
+    logger.info(
+        "startup init: monitor_ips=%s, debug_endpoints=%s, manual_collection=%s, cors_origins=%s",
+        MONITOR_IPS,
+        ENABLE_DEBUG_ENDPOINTS,
+        ENABLE_MANUAL_COLLECTION,
+        ",".join(cors_allow_origins),
+    )
+    if APP_ENV == "prod" and cors_validation_status != "ok":
+        logger.warning(
+            "startup cors guardrail triggered: app_env=%s status=%s warnings=%s",
+            APP_ENV,
+            cors_validation_status,
+            ",".join(cors_validation_warnings),
+        )
     init_db()
     repair_article_outlets(remove_placeholder=True)
     _start_monitoring_scheduler()
@@ -128,6 +214,7 @@ def on_startup() -> None:
 def on_shutdown() -> None:
     if scheduler.running:
         scheduler.shutdown(wait=False)
+        logger.info("scheduler shutdown requested")
 
 
 def _job_id(ip_id: str) -> str:
@@ -136,6 +223,45 @@ def _job_id(ip_id: str) -> str:
 
 def _collect_job_id(ip_id: str) -> str:
     return f"collect-news-{ip_id}"
+
+
+def _get_collect_strategy(ip_id: str) -> dict[str, Any]:
+    base_queries = max(1, LIVE_COLLECT_QUERIES_PER_IP)
+    base_pages = max(1, LIVE_COLLECT_PAGES)
+    base_include_sim = LIVE_COLLECT_INCLUDE_SIM
+    streak = int(collect_zero_insert_streak.get(ip_id, 0))
+    fallback_active = streak >= COLLECT_ZERO_STREAK_WARN_THRESHOLD
+    max_queries = max(1, len(BACKFILL_QUERIES.get(ip_id, []) or []))
+    if fallback_active:
+        return {
+            "queries_per_ip": min(max_queries, base_queries + 1),
+            "pages": min(10, base_pages + 2),
+            "include_sim": True,
+            "fallback_active": True,
+            "fallback_reason": f"zero_insert_streak>={COLLECT_ZERO_STREAK_WARN_THRESHOLD}",
+        }
+    return {
+        "queries_per_ip": base_queries,
+        "pages": base_pages,
+        "include_sim": base_include_sim,
+        "fallback_active": False,
+        "fallback_reason": "",
+    }
+
+
+def _update_collect_zero_streak(ip_id: str, inserted: int) -> tuple[int, bool]:
+    prev = int(collect_zero_insert_streak.get(ip_id, 0))
+    current = prev + 1 if int(inserted) == 0 else 0
+    collect_zero_insert_streak[ip_id] = current
+    alert = current >= COLLECT_ZERO_STREAK_WARN_THRESHOLD
+    if alert and prev < COLLECT_ZERO_STREAK_WARN_THRESHOLD:
+        logger.warning(
+            "collect_zero_streak_alert ip_id=%s streak=%s threshold=%s",
+            ip_id,
+            current,
+            COLLECT_ZERO_STREAK_WARN_THRESHOLD,
+        )
+    return current, alert
 
 
 def _run_monitor_tick(ip_id: str) -> None:
@@ -191,6 +317,7 @@ def _run_monitor_tick(ip_id: str) -> None:
             return
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
+            logger.exception("risk monitor tick failed: ip_id=%s, attempt=%s/%s", ip_id, i + 1, attempts)
             if i < attempts - 1:
                 time.sleep(0.5 * (i + 1))
                 continue
@@ -205,15 +332,16 @@ def _run_monitor_tick(ip_id: str) -> None:
     record_scheduler_log(job_id=job_id, status="error", error_message=str(last_exc or "unknown error"), run_time=run_ts)
 
 
-def _collect_live_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
-    queries = (BACKFILL_QUERIES.get(ip_id, []) or [])[: max(1, LIVE_COLLECT_QUERIES_PER_IP)]
+def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> tuple[pd.DataFrame, int]:
+    strategy = strategy or _get_collect_strategy(ip_id)
+    queries = (BACKFILL_QUERIES.get(ip_id, []) or [])[: int(strategy.get("queries_per_ip", max(1, LIVE_COLLECT_QUERIES_PER_IP)))]
     if not queries:
         return pd.DataFrame(), 0
 
     calls = 0
     frames: list[pd.DataFrame] = []
     for q in queries:
-        for page in range(max(1, LIVE_COLLECT_PAGES)):
+        for page in range(int(strategy.get("pages", max(1, LIVE_COLLECT_PAGES)))):
             start = 1 + page * 100
             if start > 1000:
                 break
@@ -231,8 +359,8 @@ def _collect_live_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
             # 검색어 자체가 IP 전용인 경우가 많아 필터가 과도하게 비우면 원본 프레임을 사용한다.
             frames.append(date_filtered if not date_filtered.empty else date_frame)
 
-        if LIVE_COLLECT_INCLUDE_SIM:
-            for page in range(max(1, LIVE_COLLECT_PAGES)):
+        if bool(strategy.get("include_sim", LIVE_COLLECT_INCLUDE_SIM)):
+            for page in range(int(strategy.get("pages", max(1, LIVE_COLLECT_PAGES)))):
                 start = 1 + page * 100
                 if start > 1000:
                     break
@@ -267,16 +395,33 @@ def _run_collect_ip_tick(ip_id: str) -> None:
     started = time.time()
     attempts = 2
     last_exc: Exception | None = None
+    strategy = _get_collect_strategy(ip_id)
     for i in range(attempts):
         try:
-            df, calls = _collect_live_for_ip(ip_id)
+            logger.info(
+                "collect strategy ip_id=%s fallback_active=%s base(queries=%s,pages=%s,include_sim=%s) applied(queries=%s,pages=%s,include_sim=%s) reason=%s",
+                ip_id,
+                bool(strategy.get("fallback_active", False)),
+                int(max(1, LIVE_COLLECT_QUERIES_PER_IP)),
+                int(max(1, LIVE_COLLECT_PAGES)),
+                bool(LIVE_COLLECT_INCLUDE_SIM),
+                int(strategy.get("queries_per_ip", 0)),
+                int(strategy.get("pages", 0)),
+                bool(strategy.get("include_sim", False)),
+                str(strategy.get("fallback_reason", "")),
+            )
+            df, calls = _collect_live_for_ip(ip_id, strategy=strategy)
             if df.empty:
+                zero_streak, zero_alert = _update_collect_zero_streak(ip_id, inserted=0)
                 scheduler_job_state[job_id] = {
                     "last_run_time": run_ts,
                     "last_status": "success",
                     "last_error": "",
                     "last_collect_count": 0,
                     "last_group_count": 0,
+                    "zero_insert_streak": int(zero_streak),
+                    "zero_insert_alert": bool(zero_alert),
+                    "collect_strategy": strategy,
                     "last_collect_duration_ms": int((time.time() - started) * 1000),
                 }
                 record_scheduler_log(
@@ -293,12 +438,16 @@ def _run_collect_ip_tick(ip_id: str) -> None:
                 pass
 
             inserted = int(save_articles(df))
+            zero_streak, zero_alert = _update_collect_zero_streak(ip_id, inserted=inserted)
             scheduler_job_state[job_id] = {
                 "last_run_time": run_ts,
                 "last_status": "success",
                 "last_error": "",
                 "last_collect_count": inserted,
                 "last_group_count": int(len(df)),
+                "zero_insert_streak": int(zero_streak),
+                "zero_insert_alert": bool(zero_alert),
+                "collect_strategy": strategy,
                 "last_collect_duration_ms": int((time.time() - started) * 1000),
             }
             record_scheduler_log(
@@ -310,6 +459,7 @@ def _run_collect_ip_tick(ip_id: str) -> None:
             return
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
+            logger.exception("collect tick failed: ip_id=%s, attempt=%s/%s", ip_id, i + 1, attempts)
             if i < attempts - 1:
                 time.sleep(0.5 * (i + 1))
                 continue
@@ -319,6 +469,9 @@ def _run_collect_ip_tick(ip_id: str) -> None:
         "last_error": str(last_exc or "unknown error"),
         "last_collect_count": 0,
         "last_group_count": 0,
+        "zero_insert_streak": int(collect_zero_insert_streak.get(ip_id, 0)),
+        "zero_insert_alert": bool(int(collect_zero_insert_streak.get(ip_id, 0)) >= COLLECT_ZERO_STREAK_WARN_THRESHOLD),
+        "collect_strategy": strategy,
         "last_collect_duration_ms": int((time.time() - started) * 1000),
     }
     record_scheduler_log(job_id=job_id, status="error", error_message=str(last_exc or "unknown error"), run_time=run_ts)
@@ -346,6 +499,7 @@ def _run_maintenance_cleanup() -> None:
             error_message=f"deleted_logs={deleted_logs},deleted_tests={deleted_tests}",
         )
     except Exception as exc:  # noqa: BLE001
+        logger.exception("maintenance cleanup failed")
         scheduler_job_state[job_id] = {
             "last_run_time": run_ts,
             "last_status": "error",
@@ -470,6 +624,68 @@ def _run_backfill_tick() -> None:
             error_message=f"targets={','.join(target_ips) or '-'};calls={total_calls};inserted={total_inserted}",
         )
     except Exception as exc:  # noqa: BLE001
+        logger.exception("backfill tick failed")
+        scheduler_job_state[job_id] = {
+            "last_run_time": run_ts,
+            "last_status": "error",
+            "last_error": str(exc),
+            "last_collect_count": 0,
+            "last_group_count": 0,
+            "last_collect_duration_ms": int((time.time() - started) * 1000),
+        }
+        record_scheduler_log(job_id=job_id, status="error", run_time=run_ts, error_message=str(exc))
+
+
+def _run_competitor_collect_tick() -> None:
+    job_id = "collect-competitors"
+    run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    started = time.time()
+    try:
+        companies = COMPETITOR_AUTO_COMPANIES or list(COMPANIES.keys())
+        frames: list[pd.DataFrame] = []
+        for company in companies:
+            part = fetch_company_news_compare(company=company, total=max(10, min(COMPETITOR_COLLECT_ARTICLES, 100)))
+            if not part.empty:
+                frames.append(part)
+
+        if not frames:
+            scheduler_job_state[job_id] = {
+                "last_run_time": run_ts,
+                "last_status": "success",
+                "last_error": "",
+                "last_collect_count": 0,
+                "last_group_count": 0,
+                "last_collect_duration_ms": int((time.time() - started) * 1000),
+            }
+            record_scheduler_log(job_id=job_id, status="success", run_time=run_ts, error_message="rows=0;inserted=0")
+            return
+
+        merged = pd.concat(frames, ignore_index=True)
+        merged = merged.drop_duplicates(subset=["company", "originallink", "title_clean"], keep="first").reset_index(
+            drop=True
+        )
+        try:
+            merged = add_sentiment_column(merged)
+        except Exception:
+            pass
+
+        inserted = int(save_articles(merged))
+        scheduler_job_state[job_id] = {
+            "last_run_time": run_ts,
+            "last_status": "success",
+            "last_error": "",
+            "last_collect_count": inserted,
+            "last_group_count": int(len(companies)),
+            "last_collect_duration_ms": int((time.time() - started) * 1000),
+        }
+        record_scheduler_log(
+            job_id=job_id,
+            status="success",
+            run_time=run_ts,
+            error_message=f"companies={','.join(companies)};rows={len(merged)};inserted={inserted}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("competitor collect tick failed")
         scheduler_job_state[job_id] = {
             "last_run_time": run_ts,
             "last_status": "error",
@@ -483,6 +699,7 @@ def _run_backfill_tick() -> None:
 
 def _start_monitoring_scheduler() -> None:
     if scheduler.running:
+        logger.info("scheduler already running")
         return
     for ip_id in MONITOR_IPS:
         scheduler.add_job(
@@ -520,12 +737,24 @@ def _start_monitoring_scheduler() -> None:
         coalesce=True,
         replace_existing=True,
     )
+    if ENABLE_COMPETITOR_AUTO_COLLECT:
+        scheduler.add_job(
+            _run_competitor_collect_tick,
+            trigger=IntervalTrigger(seconds=COMPETITOR_COLLECT_INTERVAL_SECONDS),
+            id="collect-competitors",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
     scheduler.start()
+    logger.info("scheduler started: jobs=%s", [job.id for job in scheduler.get_jobs()])
     for ip_id in MONITOR_IPS:
         _run_collect_ip_tick(ip_id)
     for ip_id in MONITOR_IPS:
         _run_monitor_tick(ip_id)
     _run_backfill_tick()
+    if ENABLE_COMPETITOR_AUTO_COLLECT:
+        _run_competitor_collect_tick()
 
 
 def _to_records(df: pd.DataFrame) -> list[dict]:
@@ -778,12 +1007,25 @@ def health() -> dict:
     db_name = db_path.name.lower()
     mode = "backtest" if "backtest" in db_name else "live"
     counts = get_observability_counts()
+    zero_alert_ips = [
+        ip_id
+        for ip_id, streak in collect_zero_insert_streak.items()
+        if int(streak) >= COLLECT_ZERO_STREAK_WARN_THRESHOLD
+    ]
     return {
         "ok": True,
         "pr_db_path": str(db_path),
         "db_path": str(db_path),
         "db_file_name": db_path.name,
         "mode": mode,
+        "scheduler_running": bool(scheduler.running),
+        "scheduler_job_count": len(scheduler.get_jobs()) if scheduler.running else 0,
+        "scheduler_log_fallback_count": get_scheduler_log_fallback_count(),
+        "collect_zero_streak_threshold": int(COLLECT_ZERO_STREAK_WARN_THRESHOLD),
+        "collect_zero_insert_streaks": {ip_id: int(streak) for ip_id, streak in collect_zero_insert_streak.items()},
+        "collect_zero_alert_ips": zero_alert_ips,
+        "cors_allow_origins": cors_allow_origins,
+        "cors_validation_status": cors_validation_status,
         **counts,
     }
 
@@ -812,6 +1054,11 @@ def config() -> dict:
         "companies": COMPANIES,
         "model_id": get_model_id(),
         "limits": {"articles_per_company_min": 10, "articles_per_company_max": 100},
+        "features": {
+            "manual_collection_enabled": ENABLE_MANUAL_COLLECTION,
+            "competitor_compare_disabled": DISABLE_COMPETITOR_COMPARE,
+            "competitor_auto_collect_enabled": ENABLE_COMPETITOR_AUTO_COLLECT,
+        },
     }
 
 
@@ -959,9 +1206,11 @@ def scheduler_status() -> dict:
         [_collect_job_id(ip_id) for ip_id in MONITOR_IPS]
         + [_job_id(ip_id) for ip_id in MONITOR_IPS]
         + ["backfill-collector", "maintenance-cleanup"]
+        + (["collect-competitors"] if ENABLE_COMPETITOR_AUTO_COLLECT else [])
     )
     for job_id in job_ids:
         ip_id = job_id.replace("risk-monitor-", "").replace("collect-news-", "")
+        is_collect_job = job_id.startswith("collect-news-")
         state = scheduler_job_state.get(job_id, {})
         if not state:
             latest = get_latest_scheduler_log(job_id)
@@ -988,9 +1237,19 @@ def scheduler_status() -> dict:
                 "last_collect_count": int(state.get("last_collect_count", 0) or 0),
                 "last_group_count": int(state.get("last_group_count", 0) or 0),
                 "last_collect_duration_ms": int(state.get("last_collect_duration_ms", 0) or 0),
+                "zero_insert_streak": int(
+                    state.get("zero_insert_streak", collect_zero_insert_streak.get(ip_id, 0) if is_collect_job else 0) or 0
+                ),
+                "zero_insert_alert": bool(
+                    state.get(
+                        "zero_insert_alert",
+                        int(collect_zero_insert_streak.get(ip_id, 0)) >= COLLECT_ZERO_STREAK_WARN_THRESHOLD if is_collect_job else False,
+                    )
+                ),
+                "collect_strategy": state.get("collect_strategy", _get_collect_strategy(ip_id) if is_collect_job else None),
             }
         )
-    return {"running": bool(scheduler.running), "jobs": jobs}
+    return {"running": bool(scheduler.running), "job_count": len(jobs), "jobs": jobs}
 
 
 @app.post("/api/debug/force-burst")
@@ -1107,6 +1366,9 @@ def backtest(
 
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest) -> dict:
+    if not ENABLE_MANUAL_COLLECTION:
+        raise HTTPException(status_code=403, detail="수동 수집 API는 비활성화되어 있습니다.")
+
     if DISABLE_COMPETITOR_COMPARE:
         raise HTTPException(status_code=403, detail="경쟁사 비교 수집 기능은 현재 비활성화되어 있습니다.")
 
@@ -1139,6 +1401,9 @@ def analyze(req: AnalyzeRequest) -> dict:
 @app.post("/api/nexon-cluster-source")
 def nexon_cluster_source(req: NexonClusterRequest) -> dict:
     """넥슨 군집분석용 데이터 소스 수집(비교 수집과 분리된 호출 전략)."""
+    if not ENABLE_MANUAL_COLLECTION:
+        raise HTTPException(status_code=403, detail="수동 수집 API는 비활성화되어 있습니다.")
+
     df = fetch_nexon_cluster_news(total=req.total_articles)
     if df.empty:
         raise HTTPException(status_code=502, detail=get_last_api_error() or "넥슨 군집용 뉴스를 수집하지 못했습니다.")

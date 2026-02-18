@@ -5,6 +5,9 @@ import math
 import os
 import re
 import sqlite3
+import logging
+import sys
+from threading import Lock
 from collections import Counter
 from difflib import SequenceMatcher
 from datetime import datetime, timedelta
@@ -17,6 +20,9 @@ from utils.sentiment import analyze_sentiment_rule_v1
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = ROOT_DIR / "backend" / "data" / "articles.db"
+logger = logging.getLogger("backend.storage")
+_scheduler_log_fallback_count = 0
+_scheduler_log_fallback_lock = Lock()
 RISK_THEME_RULES: dict[str, list[str]] = {
     "확률형/BM": ["확률", "확률형", "가챠", "과금", "bm", "뽑기"],
     "운영/장애": ["점검", "장애", "오류", "버그", "접속", "서버", "롤백"],
@@ -255,7 +261,8 @@ def init_db() -> None:
                 m_comp REAL NOT NULL,
                 alert_level TEXT NOT NULL,
                 sample_size INTEGER NOT NULL,
-                uncertain_ratio REAL NOT NULL
+                uncertain_ratio REAL NOT NULL,
+                quality_flag TEXT NOT NULL DEFAULT 'OK'
             )
             """
         )
@@ -286,6 +293,20 @@ def init_db() -> None:
         sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
         if "source_group_id" not in sentiment_cols:
             conn.execute("ALTER TABLE sentiment_results ADD COLUMN source_group_id TEXT")
+        risk_cols = {r["name"] for r in conn.execute("PRAGMA table_info(risk_timeseries)").fetchall()}
+        if "quality_flag" not in risk_cols:
+            conn.execute("ALTER TABLE risk_timeseries ADD COLUMN quality_flag TEXT NOT NULL DEFAULT 'OK'")
+
+        conn.execute(
+            """
+            DELETE FROM risk_timeseries
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM risk_timeseries
+                GROUP BY ip_id, ts
+            )
+            """
+        )
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_company ON articles(company)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_sentiment ON articles(sentiment)")
@@ -299,6 +320,7 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_method ON sentiment_results(method)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_analyzed_at ON sentiment_results(analyzed_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_ip_ts ON risk_timeseries(ip_id, ts)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_ip_ts ON risk_timeseries(ip_id, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_burst_ip_time ON burst_events(ip_name, occurred_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scheduler_job_time ON scheduler_logs(job_id, run_time)")
         conn.commit()
@@ -1115,6 +1137,60 @@ def _alert_level(score: float) -> str:
     return "P3"
 
 
+def _risk_quality_flag(sample_size: int) -> str:
+    return "LOW_SAMPLE" if int(sample_size) <= 0 else "OK"
+
+
+def _upsert_risk_timeseries(
+    conn: sqlite3.Connection,
+    *,
+    ip_id: str,
+    ts: str,
+    raw_risk: float,
+    score: float,
+    s_comp: float,
+    v_comp: float,
+    t_comp: float,
+    m_comp: float,
+    alert_level: str,
+    sample_size: int,
+    uncertain_ratio: float,
+    quality_flag: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO risk_timeseries (
+            ip_id, ts, risk_raw, risk_score, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio, quality_flag
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(ip_id, ts) DO UPDATE SET
+            risk_raw = excluded.risk_raw,
+            risk_score = excluded.risk_score,
+            s_comp = excluded.s_comp,
+            v_comp = excluded.v_comp,
+            t_comp = excluded.t_comp,
+            m_comp = excluded.m_comp,
+            alert_level = excluded.alert_level,
+            sample_size = excluded.sample_size,
+            uncertain_ratio = excluded.uncertain_ratio,
+            quality_flag = excluded.quality_flag
+        """,
+        (
+            str(ip_id),
+            str(ts),
+            float(raw_risk),
+            float(score),
+            float(s_comp),
+            float(v_comp),
+            float(t_comp),
+            float(m_comp),
+            str(alert_level),
+            int(sample_size),
+            float(uncertain_ratio),
+            str(quality_flag),
+        ),
+    )
+
+
 def _parse_article_dt(pub_date: str, date_only: str) -> datetime | None:
     dt = pd.to_datetime(pub_date or "", errors="coerce")
     if pd.isna(dt):
@@ -1292,25 +1368,22 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
         alert = _alert_level(score)
         ts = now.strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute(
-            """
-            INSERT INTO risk_timeseries (
-                ip_id, ts, risk_raw, risk_score, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                ip_id,
-                ts,
-                float(raw_risk),
-                float(score),
-                float(S_t),
-                float(V_t),
-                float(T_t),
-                float(M_t),
-                alert,
-                int(len(recent)),
-                float(uncertain_ratio),
-            ),
+        sample_size = int(len(recent_groups))
+        quality_flag = _risk_quality_flag(sample_size)
+        _upsert_risk_timeseries(
+            conn,
+            ip_id=ip_id,
+            ts=ts,
+            raw_risk=float(raw_risk),
+            score=float(score),
+            s_comp=float(S_t),
+            v_comp=float(V_t),
+            t_comp=float(T_t),
+            m_comp=float(M_t),
+            alert_level=alert,
+            sample_size=sample_size,
+            uncertain_ratio=float(uncertain_ratio),
+            quality_flag=quality_flag,
         )
         conn.commit()
 
@@ -1328,7 +1401,8 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             },
             "alert_level": alert,
             "alert": alert,
-            "sample_size": int(len(recent_groups)),
+            "sample_size": sample_size,
+            "data_quality_flag": quality_flag,
             "article_count_window": int(len(recent)),
             "group_count_window": int(len(recent_groups)),
             "mention_count_window": int(len(recent)),
@@ -1512,25 +1586,22 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
         score = round(float(max(0.0, min(100.0, smoothed))), 1)
         alert = _alert_level(score)
         ts = now.strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute(
-            """
-            INSERT INTO risk_timeseries (
-                ip_id, ts, risk_raw, risk_score, s_comp, v_comp, t_comp, m_comp, alert_level, sample_size, uncertain_ratio
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                ip_id,
-                ts,
-                float(raw_risk),
-                float(score),
-                float(S_t),
-                float(V_t),
-                float(T_t),
-                float(M_t),
-                alert,
-                int(len(recent)),
-                float(uncertain_ratio),
-            ),
+        sample_size = int(len(recent_groups))
+        quality_flag = _risk_quality_flag(sample_size)
+        _upsert_risk_timeseries(
+            conn,
+            ip_id=ip_id,
+            ts=ts,
+            raw_risk=float(raw_risk),
+            score=float(score),
+            s_comp=float(S_t),
+            v_comp=float(V_t),
+            t_comp=float(T_t),
+            m_comp=float(M_t),
+            alert_level=alert,
+            sample_size=sample_size,
+            uncertain_ratio=float(uncertain_ratio),
+            quality_flag=quality_flag,
         )
         conn.commit()
 
@@ -1554,7 +1625,8 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
             },
             "alert_level": alert,
             "alert": alert,
-            "sample_size": int(len(recent_groups)),
+            "sample_size": sample_size,
+            "data_quality_flag": quality_flag,
             "article_count_window": int(len(recent)),
             "group_count_window": int(len(recent_groups)),
             "mention_count_window": int(len(recent)),
@@ -1645,10 +1717,29 @@ def record_scheduler_log(job_id: str, status: str, error_message: str = "", run_
                 (str(job_id), ts, str(status), str(error_message or "")),
             )
             conn.commit()
-        except sqlite3.OperationalError:
-            return
+        except sqlite3.OperationalError as exc:
+            global _scheduler_log_fallback_count
+            with _scheduler_log_fallback_lock:
+                _scheduler_log_fallback_count += 1
+                fallback_count = _scheduler_log_fallback_count
+            logger.warning(
+                "scheduler_log_write_failed job_id=%s status=%s fallback_count=%s error=%s",
+                str(job_id),
+                str(status),
+                fallback_count,
+                str(exc),
+            )
+            print(
+                f"[WARN] scheduler_log_write_failed job_id={job_id} status={status} fallback_count={fallback_count} error={exc}",
+                file=sys.stderr,
+            )
     finally:
         conn.close()
+
+
+def get_scheduler_log_fallback_count() -> int:
+    with _scheduler_log_fallback_lock:
+        return int(_scheduler_log_fallback_count)
 
 
 def get_latest_scheduler_log(job_id: str) -> dict[str, Any] | None:
