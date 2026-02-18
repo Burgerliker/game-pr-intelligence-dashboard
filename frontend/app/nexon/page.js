@@ -682,11 +682,11 @@ export default function NexonPage() {
                 <Typography variant="caption" color="text.secondary">실시간 모니터링</Typography>
                 <Typography
                   sx={{
-                    fontSize: { xs: "clamp(1.8rem, 7vw, 2.3rem)", sm: "clamp(2.1rem, 5vw, 2.8rem)", md: "3rem" },
-                    fontWeight: 800,
+                    fontSize: { xs: "clamp(1.6rem, 6vw, 2rem)", sm: "clamp(1.9rem, 4.5vw, 2.4rem)", md: "clamp(2.1rem, 3.2vw, 2.8rem)" },
+                    fontWeight: 700,
                     color: "#0f172a",
-                    letterSpacing: "-.03em",
-                    lineHeight: 1.02,
+                    letterSpacing: "-.02em",
+                    lineHeight: 1.08,
                     wordBreak: "keep-all",
                   }}
                 >
