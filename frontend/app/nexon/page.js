@@ -786,9 +786,7 @@ export default function NexonPage() {
               </Box>
             </Stack>
             <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
-              <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
-              <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
-              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="contained" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
+              <Chip variant="outlined" label="실시간 대시보드" sx={statusChipSx} />
             </Stack>
           </Stack>
         </Paper>
@@ -812,7 +810,7 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 188, sm: 224, md: 280 },
+                    height: { xs: 164, sm: 196, md: 228 },
                     p: { xs: 1.5, sm: 2.2, md: 2.8 },
                     borderRadius: 3,
                     color: "#eef4ff",
@@ -910,10 +908,15 @@ export default function NexonPage() {
                     }
                   />
                 </Paper>
+                <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
+                <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
+                {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="outlined" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
+              </Stack>
+
+              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ rowGap: 0.8 }}>
                 <Chip variant="outlined" label={loading ? "자동 갱신 중" : "자동 갱신"} sx={statusChipSx} />
                 <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
                 <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
-                {SHOW_BACKTEST ? <Chip component={Link} href="/nexon/backtest" clickable label="Backtest 보기" color="primary" variant="outlined" sx={controlChipSx} /> : null}
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
             </Stack>
