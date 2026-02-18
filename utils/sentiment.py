@@ -5,7 +5,6 @@ import pandas as pd
 POSITIVE = "긍정"
 NEUTRAL = "중립"
 NEGATIVE = "부정"
-UNCERTAIN = "불확실"
 DEFAULT_MODEL_ID = "rule_v1"
 
 NEG_DICT = {
@@ -58,8 +57,6 @@ def _label_kr(label_en: str) -> str:
         return NEGATIVE
     if label_en == "positive":
         return POSITIVE
-    if label_en == "uncertain":
-        return UNCERTAIN
     return NEUTRAL
 
 
@@ -84,9 +81,7 @@ def analyze_sentiment_rule_v1(title: str, description: str = "") -> dict:
         confidence *= 0.5
     confidence = round(max(0.0, min(1.0, confidence)), 2)
 
-    if confidence < 0.4:
-        label_en = "uncertain"
-    elif raw_score <= -0.3:
+    if raw_score <= -0.3:
         label_en = "negative"
     elif raw_score >= 0.3:
         label_en = "positive"
