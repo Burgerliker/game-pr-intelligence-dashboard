@@ -14,20 +14,6 @@
   - 회귀 위험/주의사항
   - 롤백 한 줄
 
-## Skills 정책
-- 고정 허용 목록을 두지 않는다.
-- `/Users/daniel/.codex/skills` 또는 `~/.agents/skills`에 설치된 스킬은 프로젝트에서 사용 가능하다고 본다.
-- 프론트 작업 권장 스킬:
-  - `frontend-design`
-  - `vercel-react-best-practices`
-  - `web-design-guidelines`
-  - `ui-ux-pro-max`
-- 스킬 추가/변경 후 현재 세션에서 인식이 안 되면 새 세션을 시작한다.
-- 스킬 미인식 시 우선순위:
-  1) 설치 경로에 `SKILL.md` 존재 확인
-  2) 세션 재시작
-  3) `skill-installer`로 재설치
-
 ## 역할
 - `BE-Core`: 백엔드 API/계약/운영 가드레일
 - `BE-DataPipe`: 수집 파이프라인/데이터 정합성/품질 지표
