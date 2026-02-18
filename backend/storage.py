@@ -314,6 +314,14 @@ def init_db() -> None:
         sentiment_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sentiment_results)").fetchall()}
         if "source_group_id" not in sentiment_cols:
             conn.execute("ALTER TABLE sentiment_results ADD COLUMN source_group_id TEXT")
+        # v2 sentiment migration: uncertain 라벨 제거(3-class 고정)
+        conn.execute(
+            """
+            UPDATE sentiment_results
+            SET sentiment_label = 'neutral'
+            WHERE sentiment_label = 'uncertain'
+            """
+        )
         risk_cols = {r["name"] for r in conn.execute("PRAGMA table_info(risk_timeseries)").fetchall()}
         if "quality_flag" not in risk_cols:
             conn.execute("ALTER TABLE risk_timeseries ADD COLUMN quality_flag TEXT NOT NULL DEFAULT 'OK'")
@@ -1302,24 +1310,22 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                     continue
                 sentiment_by_group[gid] = {
                     "score": float(sr["sentiment_score"] or 0.0),
-                    "label": str(sr["sentiment_label"] or "uncertain"),
+                    "label": str(sr["sentiment_label"] or "neutral"),
                     "confidence": float(sr["confidence"] or 0.0),
                 }
 
         weighted_scores = []
-        uncertain_count = 0
+        uncertain_count = 0  # 3-class 전환 이후 레거시 필드 호환용(항상 0)
         negative_group_count = 0
         for gid in recent_groups:
-            entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "uncertain", "confidence": 0.0})
+            entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "neutral", "confidence": 0.0})
             label = str(entry["label"])
             confidence = float(entry["confidence"])
-            weight = confidence if label != "uncertain" else 0.3
+            weight = max(0.2, confidence)
             negative_value = max(0.0, -float(entry["score"]))
             weighted_scores.append(negative_value * weight)
             if label == "negative":
                 negative_group_count += 1
-            if label == "uncertain":
-                uncertain_count += 1
         S_t = float(sum(weighted_scores) / max(len(weighted_scores), 1))
         uncertain_ratio = float(uncertain_count / max(len(recent_groups), 1))
         negative_ratio_window = float(negative_group_count / max(len(recent_groups), 1))
@@ -1546,24 +1552,22 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
                     continue
                 sentiment_by_group[gid] = {
                     "score": float(sr["sentiment_score"] or 0.0),
-                    "label": str(sr["sentiment_label"] or "uncertain"),
+                    "label": str(sr["sentiment_label"] or "neutral"),
                     "confidence": float(sr["confidence"] or 0.0),
                 }
 
         weighted_scores = []
-        uncertain_count = 0
+        uncertain_count = 0  # 3-class 전환 이후 레거시 필드 호환용(항상 0)
         negative_group_count = 0
         for gid in recent_groups:
-            entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "uncertain", "confidence": 0.0})
+            entry = sentiment_by_group.get(gid, {"score": 0.0, "label": "neutral", "confidence": 0.0})
             label = str(entry["label"])
             confidence = float(entry["confidence"])
-            weight = confidence if label != "uncertain" else 0.3
+            weight = max(0.2, confidence)
             negative_value = max(0.0, -float(entry["score"]))
             weighted_scores.append(negative_value * weight)
             if label == "negative":
                 negative_group_count += 1
-            if label == "uncertain":
-                uncertain_count += 1
         S_t = float(sum(weighted_scores) / max(len(weighted_scores), 1))
         uncertain_ratio = float(uncertain_count / max(len(recent_groups), 1))
         negative_ratio_window = float(negative_group_count / max(len(recent_groups), 1))
