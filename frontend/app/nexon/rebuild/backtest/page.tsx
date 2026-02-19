@@ -188,8 +188,8 @@ export default function NexonRebuildBacktestPage() {
 
   if (!SHOW_BACKTEST) {
     return (
-      <main className="min-h-screen bg-slate-100 px-3 py-8 md:px-6 [font-family:'Plus_Jakarta_Sans','Pretendard','Noto_Sans_KR',sans-serif]">
-        <div className="mx-auto max-w-[1200px] rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+      <main className="min-h-screen bg-[#070f1d] px-3 py-8 md:px-6 [font-family:'Plus_Jakarta_Sans','Pretendard','Noto_Sans_KR',sans-serif]">
+        <div className="mx-auto max-w-[1200px] rounded-xl border border-sky-300/30 bg-sky-300/10 px-4 py-3 text-sm text-sky-200">
           운영 모드에서는 Backtest 페이지를 비활성화했습니다.
         </div>
       </main>
@@ -198,12 +198,12 @@ export default function NexonRebuildBacktestPage() {
 
   return (
     <main
-      className="relative min-h-screen overflow-hidden bg-[#f4f8ff] px-3 py-4 md:px-6 md:py-8 [font-family:'Plus_Jakarta_Sans','Pretendard','Noto_Sans_KR',sans-serif]"
+      className="relative min-h-screen overflow-hidden bg-[#070f1d] px-3 py-4 md:px-6 md:py-8 [font-family:'Plus_Jakarta_Sans','Pretendard','Noto_Sans_KR',sans-serif]"
       style={{ WebkitTapHighlightColor: "transparent" }}
     >
-      <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true">
-        <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-cyan-200/40 blur-3xl" />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-amber-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 opacity-70" aria-hidden="true">
+        <div className="absolute -left-24 -top-24 h-96 w-96 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute right-0 top-1/3 h-[32rem] w-[32rem] rounded-full bg-lime-400/10 blur-3xl" />
       </div>
       <div className="relative mx-auto max-w-[1280px] space-y-4">
         <a
@@ -212,34 +212,34 @@ export default function NexonRebuildBacktestPage() {
         >
           메인 콘텐츠로 이동
         </a>
-        <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_24px_56px_-28px_rgba(15,23,42,0.35)] backdrop-blur">
+        <section className="rounded-3xl border border-slate-700/60 bg-slate-900/80 p-4 shadow-[0_24px_56px_-28px_rgba(56,189,248,0.45)] backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-semibold tracking-[0.16em] text-slate-500">NEXON REBUILD BACKTEST</p>
-              <h1 className="text-4xl [font-family:'Sora','SUIT','Noto_Sans_KR',sans-serif] font-black leading-none tracking-tight text-slate-900 md:text-5xl">백테스트 타임라인</h1>
-              <p className="mt-1 text-sm text-slate-500">maplestory 내부 이슈(case: {FIXED_CASE}) 기준 리스크 반응</p>
+              <p className="text-xs font-semibold tracking-[0.16em] text-cyan-300">NEXON REBUILD BACKTEST</p>
+              <h1 className="text-4xl [font-family:'Sora','SUIT','Noto_Sans_KR',sans-serif] font-black leading-none tracking-tight text-slate-100 md:text-5xl">백테스트 타임라인</h1>
+              <p className="mt-1 text-sm text-slate-300">maplestory 내부 이슈(case: {FIXED_CASE}) 기준 리스크 반응</p>
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
-              <Link href="/nexon/rebuild" className={ACTION_LINK}>넥슨 대시보드</Link>
-              <Link href="/" className={ACTION_LINK}>메인</Link>
+              <Link href="/nexon/rebuild" className={`${ACTION_LINK} border-slate-500/60 bg-slate-800/80 text-slate-100 hover:bg-slate-700`}>넥슨 대시보드</Link>
+              <Link href="/" className={`${ACTION_LINK} border-slate-500/60 bg-slate-800/80 text-slate-100 hover:bg-slate-700`}>메인</Link>
             </div>
           </div>
         </section>
 
         <ApiGuardBanner />
 
-        <section id="rebuild-backtest-main" className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_20px_40px_-24px_rgba(15,23,42,0.45)]">
-          <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold tabular-nums text-slate-600">
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">IP: maplestory</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Case: {FIXED_CASE}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Period: 2025-11-01 ~ 2026-02-10</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Step: 6h</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">DB: {dbLabel}</span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Backend: {health?.ok ? "healthy" : "unknown"}</span>
+        <section id="rebuild-backtest-main" className="rounded-3xl border border-slate-700/60 bg-slate-900/80 p-4 text-slate-100 shadow-[0_20px_40px_-24px_rgba(15,23,42,0.85)]">
+          <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold tabular-nums text-slate-300">
+            <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1">IP: maplestory</span>
+            <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1">Case: {FIXED_CASE}</span>
+            <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1">Period: 2025-11-01 ~ 2026-02-10</span>
+            <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1">Step: 6h</span>
+            <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1">DB: {dbLabel}</span>
+            <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1">Backend: {health?.ok ? "healthy" : "unknown"}</span>
           </div>
 
-          {modeMismatchWarning ? <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">{modeMismatchWarning}</p> : null}
-          <p className="mb-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700">
+          {modeMismatchWarning ? <p className="mb-2 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-sm text-amber-200">{modeMismatchWarning}</p> : null}
+          <p className="mb-2 rounded-lg border border-sky-300/30 bg-sky-300/10 px-3 py-2 text-sm text-sky-200">
             백테스트는 임계치 기반 이벤트(히스테리시스 없음)로 계산합니다. 실시간 모드는 집중 수집 전환 로직을 사용합니다.
           </p>
 
@@ -260,7 +260,7 @@ export default function NexonRebuildBacktestPage() {
             }}
           />
 
-          {hasSeries ? <div ref={chartRef} className="mt-3 h-[680px] w-full rounded-xl border border-slate-200 bg-white" style={{ contentVisibility: "auto", containIntrinsicSize: "680px" }} /> : null}
+          {hasSeries ? <div ref={chartRef} className="mt-3 h-[680px] w-full rounded-xl border border-slate-700 bg-slate-950/50" style={{ contentVisibility: "auto", containIntrinsicSize: "680px" }} /> : null}
         </section>
       </div>
     </main>
