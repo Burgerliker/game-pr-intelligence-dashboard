@@ -16,6 +16,10 @@ const DIAG_SCOPE = {
   dashboard: buildDiagnosticScope("NEX", "DASH"),
   article: buildDiagnosticScope("NEX", "ART"),
 };
+const ACTION_LINK =
+  "inline-flex min-h-11 touch-manipulation items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2";
+const ACTION_BUTTON_BASE =
+  "min-h-11 touch-manipulation rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2";
 
 const MOCK_RISK: any = {
   meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
@@ -389,37 +393,51 @@ export default function NexonRebuildPage() {
   const ipCatalog = riskData?.ip_catalog || MOCK_RISK.ip_catalog;
 
   return (
-    <main className="min-h-screen bg-slate-100 px-3 py-4 md:px-6 md:py-8">
-      <div className="mx-auto max-w-[1320px] space-y-4">
-        <section className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+    <main
+      className="relative min-h-screen overflow-hidden bg-[#f4f8ff] px-3 py-4 md:px-6 md:py-8 [font-family:'Plus_Jakarta_Sans','Pretendard','Noto_Sans_KR',sans-serif]"
+      style={{ WebkitTapHighlightColor: "transparent" }}
+    >
+      <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true">
+        <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-cyan-200/40 blur-3xl" />
+        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-amber-200/30 blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:32px_32px]" />
+      </div>
+      <div className="relative mx-auto max-w-[1320px] space-y-4">
+        <a
+          href="#rebuild-main"
+          className="sr-only rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50"
+        >
+          메인 콘텐츠로 이동
+        </a>
+        <section className="rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_24px_56px_-28px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-semibold tracking-[0.16em] text-slate-500">NEXON REBUILD</p>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900">넥슨 IP 리스크 대시보드</h1>
+              <p className="text-xs font-semibold tracking-[0.16em] text-sky-700">NEXON REBUILD</p>
+              <h1 className="text-pretty [font-family:'Sora','SUIT','Noto_Sans_KR',sans-serif] text-4xl font-black leading-none tracking-tight text-slate-900 md:text-5xl">넥슨 IP 리스크 대시보드</h1>
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
-              <Link href="/" className="rounded-full border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">메인</Link>
-              <Link href="/compare" className="rounded-full border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">경쟁사 비교</Link>
-              {SHOW_BACKTEST ? <Link href="/nexon/rebuild/backtest" className="rounded-full border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">Backtest 보기</Link> : null}
+              <Link href="/" className={ACTION_LINK}>메인</Link>
+              <Link href="/compare" className={ACTION_LINK}>경쟁사 비교</Link>
+              {SHOW_BACKTEST ? <Link href="/nexon/rebuild/backtest" className={ACTION_LINK}>Backtest 보기</Link> : null}
             </div>
           </div>
         </section>
 
         <ApiGuardBanner />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section id="rebuild-main" className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-[0_20px_40px_-24px_rgba(15,23,42,0.45)]">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {ipCatalog.map((item: any) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setIp(item.id)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${ip === item.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                className={`${ACTION_BUTTON_BASE} ${ip === item.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
               >
                 {item.name}
               </button>
             ))}
-            <span className="ml-auto rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">마지막 갱신 {lastUpdatedAt || "-"}</span>
+            <span aria-live="polite" className="ml-auto rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold tabular-nums text-slate-500">마지막 갱신 {lastUpdatedAt || "-"}</span>
           </div>
 
           <PageStatusView
@@ -444,9 +462,9 @@ export default function NexonRebuildPage() {
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">선택 IP</p><p className="text-lg font-bold text-slate-900">{riskData?.meta?.ip || "-"}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">총 기사 수</p><p className="text-lg font-bold text-slate-900">{Number(riskData?.meta?.total_articles || 0).toLocaleString()}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">이슈 묶음 수</p><p className="text-lg font-bold text-slate-900">{Number(clusterData?.meta?.cluster_count || 0)}</p></div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">현재 위험도</p><p className={`text-lg font-black ${metricColor(riskValue)}`}>{riskValue.toFixed(1)}</p></div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">총 기사 수</p><p className="text-lg font-bold tabular-nums text-slate-900">{Number(riskData?.meta?.total_articles || 0).toLocaleString()}</p></div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">이슈 묶음 수</p><p className="text-lg font-bold tabular-nums text-slate-900">{Number(clusterData?.meta?.cluster_count || 0)}</p></div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">현재 위험도</p><p className={`text-lg font-black tabular-nums ${metricColor(riskValue)}`}>{riskValue.toFixed(1)}</p></div>
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -479,7 +497,7 @@ export default function NexonRebuildPage() {
               <p className="mt-2 text-sm text-slate-600">
                 {selectedBurstStatus?.mode === "burst" ? "BURST" : "NORMAL"} · 주기 {selectedBurstStatus?.interval_seconds || 600}s
               </p>
-              <p className="mt-1 text-sm text-slate-600">최근 이벤트 {filteredBurstEvents.length}건</p>
+                  <p className="mt-1 text-sm tabular-nums text-slate-600">최근 이벤트 {filteredBurstEvents.length}건</p>
               <p className="mt-1 text-xs text-slate-500">DB 모드: {health?.mode || "unknown"}</p>
               {usingMock ? <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">샘플 데이터 사용 중</p> : null}
             </div>
@@ -525,9 +543,9 @@ export default function NexonRebuildPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-800">기사 목록</h3>
-              <p className="text-xs text-slate-500">{articleItems.length.toLocaleString()} / {articleTotal.toLocaleString()}</p>
+              <p className="text-xs tabular-nums text-slate-500">{articleItems.length.toLocaleString()} / {articleTotal.toLocaleString()}</p>
             </div>
-            <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
+            <div className="max-h-[420px] space-y-2 overflow-auto pr-1" style={{ contentVisibility: "auto", containIntrinsicSize: "420px" }}>
               {articleItems.map((item: any, idx: number) => (
                 <div key={`${item.url || item.title || "article"}-${idx}`} className="rounded-lg border border-slate-200 p-2">
                   <p className="line-clamp-2 text-sm font-semibold text-slate-900">{item.title || "(제목 없음)"}</p>
@@ -541,15 +559,15 @@ export default function NexonRebuildPage() {
                 type="button"
                 onClick={() => loadMoreArticles(ip, false)}
                 disabled={!articleHasMore || articleLoading}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`${ACTION_BUTTON_BASE} border-slate-300 text-slate-700 disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                {articleLoading ? "불러오는 중..." : articleHasMore ? "더 불러오기" : "마지막 페이지"}
+                {articleLoading ? "불러오는 중…" : articleHasMore ? "더 불러오기" : "마지막 페이지"}
               </button>
               <button
                 type="button"
                 onClick={() => loadMoreArticles(ip, true)}
                 disabled={articleLoading}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`${ACTION_BUTTON_BASE} border-slate-300 text-slate-700 disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 새로고침
               </button>
