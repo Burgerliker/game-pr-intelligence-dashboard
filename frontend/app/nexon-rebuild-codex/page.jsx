@@ -1,175 +1,1436 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, ShieldAlert } from 'lucide-react';
-import { apiGet, getErrorMessage } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
-import { Progress } from '../../components/ui/progress';
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Collapse,
+  Container,
+  Divider,
+  Grid,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  LinearProgress,
+  MobileStepper,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { AlertTriangle, ChevronLeft, ChevronRight, Info, RefreshCw } from "lucide-react";
+import { List as WindowList } from "react-window";
+import PageStatusView from "../../components/PageStatusView";
+import ApiGuardBanner from "../../components/ApiGuardBanner";
+import LabelWithTip from "../../components/LabelWithTip";
+import { apiGet, getDiagnosticCode } from "../../lib/api";
+import { buildDiagnosticScope, toRequestErrorState } from "../../lib/pageStatus";
+import {
+  createEmptyCluster,
+  createEmptyRisk,
+  normalizeNexonDashboard,
+} from "../../lib/normalizeNexon";
+import {
+  filterChipSx,
+  metricValueSx,
+  navButtonSx,
+  pageContainerSx,
+  pageShellSx,
+  panelPaperSx,
+  sectionCardSx,
+  statusChipSx,
+} from "../../lib/uiTokens";
 
-const IPS = [
-  { id: 'all', name: '전체', kicker: 'NEXON OVERVIEW', color: 'from-[#0b1326] via-[#143a7a] to-[#2f68c0]' },
-  { id: 'maplestory', name: '메이플스토리', kicker: 'MAPLESTORY', color: 'from-[#1a1104] via-[#5d3400] to-[#b8864d]' },
-  { id: 'dnf', name: '던전앤파이터', kicker: 'DUNGEON&FIGHTER', color: 'from-[#190808] via-[#551111] to-[#a13a3a]' },
-  { id: 'bluearchive', name: '블루아카이브', kicker: 'BLUE ARCHIVE', color: 'from-[#071726] via-[#12405d] to-[#2f83b4]' },
-  { id: 'arcraiders', name: '아크레이더스', kicker: 'ARC RAIDERS', color: 'from-[#0e1021] via-[#28304f] to-[#596487]' },
-  { id: 'fconline', name: 'FC온라인', kicker: 'FC ONLINE', color: 'from-[#061916] via-[#0f4a3f] to-[#2f917c]' },
-];
+const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
+const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
+const NEXON_LOGO = "/nexon-logo.png";
+const ARTICLE_PAGE_SIZE = 20;
+const ARTICLE_ROW_HEIGHT = 122;
+const ARTICLE_LIST_MAX_HEIGHT = 640;
+const ARTICLE_LIST_MIN_HEIGHT = 244;
+const DIAG_SCOPE = {
+  health: buildDiagnosticScope("NEX", "HEALTH"),
+  dashboard: buildDiagnosticScope("NEX", "DASH"),
+  article: buildDiagnosticScope("NEX", "ART"),
+};
+const IP_BANNER_STYLE = {
+  all: {
+    kicker: "NEXON OVERVIEW",
+    accent: "#8fb6ff",
+    bg: "#0f172a",
+    glow: "none",
+  },
+  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "#2d1b05", glow: "none" },
+  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "#2b1111", glow: "none" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "#18242d", glow: "none" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "#1b2442", glow: "none" },
+  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "#0f2f27", glow: "none" },
+};
+const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
+const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
+const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
 
-function levelMeta(score) {
-  const s = Number(score || 0);
-  if (s >= 70) return { label: '높음', tone: 'warning' };
-  if (s >= 45) return { label: '주의', tone: 'warning' };
-  return { label: '낮음', tone: 'success' };
-}
+const MOCK_RISK = {
+  meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
+  daily: Array.from({ length: 24 }).map((_, i) => ({
+    date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+    article_count: 45 + Math.round(Math.sin(i / 2) * 18) + (i % 7 === 0 ? 16 : 0),
+    negative_ratio: 16 + (i % 5) * 5,
+  })),
+  outlets: [
+    { outlet: "inven.co.kr", article_count: 640, positive_ratio: 28.2, neutral_ratio: 38.6, negative_ratio: 33.2 },
+    { outlet: "mk.co.kr", article_count: 592, positive_ratio: 32.9, neutral_ratio: 39.5, negative_ratio: 27.6 },
+    { outlet: "sedaily.com", article_count: 511, positive_ratio: 30.4, neutral_ratio: 41.2, negative_ratio: 28.4 },
+  ],
+  risk_themes: [
+    { theme: "확률형/BM", article_count: 1230, negative_ratio: 46.1, risk_score: 0.91 },
+    { theme: "규제/법적", article_count: 819, negative_ratio: 43.5, risk_score: 0.76 },
+    { theme: "운영/장애", article_count: 942, negative_ratio: 38.3, risk_score: 0.74 },
+    { theme: "보상/환불", article_count: 702, negative_ratio: 35.7, risk_score: 0.64 },
+  ],
+  ip_catalog: [
+    { id: "all", name: "넥슨 (전체보기)" },
+    { id: "maplestory", name: "메이플스토리" },
+    { id: "dnf", name: "던전앤파이터" },
+    { id: "arcraiders", name: "아크레이더스" },
+    { id: "fconline", name: "FC온라인" },
+    { id: "bluearchive", name: "블루아카이브" },
+  ],
+};
 
-export default function NexonRebuildCodexPage() {
-  const [active, setActive] = useState(1);
-  const [risk, setRisk] = useState(null);
+const MOCK_CLUSTER = {
+  meta: { cluster_count: 4, total_articles: 4320 },
+  top_outlets: [
+    { outlet: "inven.co.kr", article_count: 320 },
+    { outlet: "thisisgame.com", article_count: 260 },
+    { outlet: "newsis.com", article_count: 180 },
+  ],
+  keyword_cloud: [
+    { word: "확률", count: 120, weight: 1.0 },
+    { word: "보상", count: 96, weight: 0.8 },
+    { word: "업데이트", count: 88, weight: 0.73 },
+    { word: "환불", count: 74, weight: 0.62 },
+    { word: "점검", count: 66, weight: 0.55 },
+    { word: "이벤트", count: 62, weight: 0.52 },
+  ],
+  clusters: [
+    {
+      cluster: "확률형/BM",
+      article_count: 680,
+      negative_ratio: 51.2,
+      sentiment: { positive: 17.4, neutral: 31.4, negative: 51.2 },
+      keywords: ["확률", "과금", "보상", "논란"],
+      samples: ["메이플 확률형 아이템 관련 공지"],
+    },
+    {
+      cluster: "보상/환불",
+      article_count: 390,
+      negative_ratio: 44.3,
+      sentiment: { positive: 23.8, neutral: 31.9, negative: 44.3 },
+      keywords: ["환불", "보상", "피해", "기준"],
+      samples: ["넥슨 보상안 발표"],
+    },
+  ],
+};
+
+export default function NexonPage() {
+  const [ip, setIp] = useState("maplestory");
+  const [riskData, setRiskData] = useState(() => createEmptyRisk("maplestory"));
+  const [clusterData, setClusterData] = useState(() => createEmptyCluster("maplestory"));
+  const [riskScore, setRiskScore] = useState(null);
+  const [burstStatus, setBurstStatus] = useState(null);
+  const [burstEvents, setBurstEvents] = useState([]);
   const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState('');
+  const [usingMock, setUsingMock] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [notice, setNotice] = useState("");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState("");
+  const [articleItems, setArticleItems] = useState([]);
+  const [articleTotal, setArticleTotal] = useState(0);
+  const [articleOffset, setArticleOffset] = useState(0);
+  const [articleHasMore, setArticleHasMore] = useState(false);
+  const [articleLoading, setArticleLoading] = useState(false);
+  const [articleError, setArticleError] = useState("");
+  const [articleErrorCode, setArticleErrorCode] = useState("");
+  const [healthDiagCode, setHealthDiagCode] = useState("");
+  const [showMetricDetails, setShowMetricDetails] = useState(false);
+  const articleReqSeqRef = useRef(0);
+  const articleAbortRef = useRef(null);
+  const swipeStartXRef = useRef(null);
+  const ipCacheRef = useRef(new Map());
+  const requestSeqRef = useRef(0);
+  const trendChartRef = useRef(null);
+  const outletChartRef = useRef(null);
+  const themeChartRef = useRef(null);
+  const keywordChartRef = useRef(null);
+  const trendChartInstRef = useRef(null);
+  const outletChartInstRef = useRef(null);
+  const themeChartInstRef = useRef(null);
+  const keywordChartInstRef = useRef(null);
+  const [chartsReady, setChartsReady] = useState(false);
+  const formatUpdatedAt = useCallback((date = new Date()) => {
+    const d = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleTimeString("ko-KR", { hour12: false });
+  }, []);
+  const getHealthDiagnosticCode = useCallback(
+    (healthError) => (healthError ? getDiagnosticCode(healthError, DIAG_SCOPE.health) : ""),
+    []
+  );
+  const tipMap = {
+    burst: "최근 임계치 이벤트 발생 로그입니다.",
+    cluster: "유사 기사 키워드로 묶은 이슈 그룹 수입니다.",
+    alert: "위험도 구간별 대응 우선순위 등급입니다.",
+  };
 
-  const activeIp = IPS[active];
+  const loadDashboard = async (targetIp = ip) => {
+    const requestSeq = ++requestSeqRef.current;
+    const baseCatalog = riskData?.ip_catalog || MOCK_RISK.ip_catalog;
+    setRiskData(createEmptyRisk(targetIp, baseCatalog));
+    setClusterData(createEmptyCluster(targetIp));
+    setRiskScore(null);
+    setError("");
+    setErrorCode("");
+    setNotice("");
+    setLoading(true);
+    const cache = ipCacheRef.current.get(targetIp);
+    if (cache) {
+      if (requestSeq !== requestSeqRef.current) return;
+      setRiskData(cache.riskData);
+      setClusterData(cache.clusterData);
+      setRiskScore(cache.riskScore);
+      setBurstStatus(cache.burstStatus);
+      setBurstEvents(cache.burstEvents);
+      setHealth(cache.health || null);
+      setHealthDiagCode(cache.healthDiagCode || "");
+      setUsingMock(Boolean(cache.usingMock));
+      setNotice(cache.notice || "");
+      setLastUpdatedAt(cache.lastUpdatedAt || formatUpdatedAt());
+      setLoading(false);
+      return;
+    }
 
-  const fetchData = async () => {
     try {
-      setLoading(true);
-      setError('');
-      const [healthRes, riskRes] = await Promise.all([
-        apiGet('/api/health'),
-        apiGet(`/api/risk-score?ip=${activeIp.id === 'all' ? 'maplestory' : activeIp.id}&window_hours=24`),
+      const base = new URLSearchParams({ ip: targetIp });
+      const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload, healthState] = await Promise.all([
+        apiGet(`/api/risk-dashboard?${base.toString()}`),
+        apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
+        apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
+        apiGet("/api/burst-status").catch(() => null),
+        apiGet("/api/burst-events?limit=50").catch(() => null),
+        apiGet("/api/health")
+          .then((data) => ({ data, error: null }))
+          .catch((error) => ({ data: null, error })),
       ]);
-      setHealth(healthRes);
-      setRisk(riskRes);
-      setLastUpdated(new Date().toISOString());
+
+      const normalized = normalizeNexonDashboard({
+        targetIp,
+        riskPayload,
+        clusterPayload,
+        useMockFallback: USE_MOCK_FALLBACK,
+        mockRisk: MOCK_RISK,
+        mockCluster: MOCK_CLUSTER,
+        baseCatalog,
+      });
+      const resolvedRisk = normalized.riskData;
+      const resolvedCluster = normalized.clusterData;
+      const resolvedNotice = normalized.notice;
+      const resolvedUsingMock = normalized.usingMock;
+      const refreshedAt = formatUpdatedAt();
+
+      if (requestSeq !== requestSeqRef.current) return;
+      setRiskData(resolvedRisk);
+      setClusterData(resolvedCluster);
+      setUsingMock(resolvedUsingMock);
+      setRiskScore(riskScorePayload || null);
+      setBurstStatus(burstStatusPayload || null);
+      setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
+      setHealth(healthState.data || null);
+      setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
+      setNotice(resolvedNotice);
+      setLastUpdatedAt(refreshedAt);
+
+      ipCacheRef.current.set(targetIp, {
+        riskData: resolvedRisk,
+        clusterData: resolvedCluster,
+        riskScore: riskScorePayload || null,
+        burstStatus: burstStatusPayload || null,
+        burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
+        health: healthState.data || null,
+        healthDiagCode: getHealthDiagnosticCode(healthState.error),
+        usingMock: resolvedUsingMock,
+        notice: resolvedNotice,
+        lastUpdatedAt: refreshedAt,
+      });
     } catch (e) {
-      setError(getErrorMessage(e, '데이터를 불러오지 못했습니다.'));
+      if (requestSeq !== requestSeqRef.current) return;
+      if (USE_MOCK_FALLBACK) {
+        const ipName = MOCK_RISK.ip_catalog.find((x) => x.id === targetIp)?.name || targetIp;
+        setRiskData({ ...MOCK_RISK, meta: { ...MOCK_RISK.meta, ip_id: targetIp, ip: ipName, total_articles: 0 } });
+        setClusterData(MOCK_CLUSTER);
+        setUsingMock(true);
+        setNotice("실데이터 호출 실패로 샘플 데이터를 표시 중입니다.");
+      } else {
+        setRiskData(createEmptyRisk(targetIp, baseCatalog));
+        setClusterData(createEmptyCluster(targetIp));
+        setUsingMock(false);
+        setNotice("실데이터 호출에 실패했습니다. 백엔드 주소/API 상태를 확인해주세요.");
+      }
+      setLastUpdatedAt("-");
+      const nextError = toRequestErrorState(e, {
+        scope: DIAG_SCOPE.dashboard,
+        fallback: "대시보드 API 요청에 실패했습니다.",
+      });
+      setError(nextError.message);
+      setErrorCode(nextError.code);
     } finally {
+      if (requestSeq !== requestSeqRef.current) return;
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, [activeIp.id]);
+    loadDashboard(ip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ip]);
 
-  const meta = useMemo(() => {
-    const score = Number(risk?.risk_score || 0);
-    const level = levelMeta(score);
-    const confidence = Math.round(Number(risk?.confidence || 0) * 100);
-    return { score, level, confidence, heat: Number(risk?.issue_heat || 0) };
-  }, [risk]);
+  const loadMoreArticles = async (targetIp = ip, reset = false) => {
+    if (!reset && (articleLoading || !articleHasMore)) return;
+    const reqSeq = ++articleReqSeqRef.current;
+    const nextOffset = reset ? 0 : articleOffset;
+    if (articleAbortRef.current) articleAbortRef.current.abort();
+    const controller = new AbortController();
+    articleAbortRef.current = controller;
+    if (reset) {
+      setArticleError("");
+      setArticleErrorCode("");
+    }
+    setArticleLoading(true);
+    try {
+      const payload = await apiGet(
+        `/api/nexon-articles?ip=${encodeURIComponent(targetIp)}&limit=${ARTICLE_PAGE_SIZE}&offset=${nextOffset}`,
+        { signal: controller.signal }
+      );
+      if (reqSeq !== articleReqSeqRef.current) return;
+      const nextItems = Array.isArray(payload?.items) ? payload.items : [];
+      setArticleItems((prev) => (reset ? nextItems : [...prev, ...nextItems]));
+      setArticleTotal(Number(payload?.total || 0));
+      setArticleOffset(nextOffset + nextItems.length);
+      setArticleHasMore(Boolean(payload?.has_more));
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      if (reqSeq !== articleReqSeqRef.current) return;
+      const nextError = toRequestErrorState(e, {
+        scope: DIAG_SCOPE.article,
+        fallback: "기사 목록 API 호출에 실패했습니다.",
+      });
+      setArticleError(nextError.message);
+      setArticleErrorCode(nextError.code);
+      if (reset) {
+        setArticleItems([]);
+        setArticleTotal(0);
+        setArticleOffset(0);
+        setArticleHasMore(false);
+      }
+    } finally {
+      if (reqSeq === articleReqSeqRef.current) setArticleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    articleReqSeqRef.current += 1;
+    articleAbortRef.current?.abort();
+    setArticleItems([]);
+    setArticleTotal(0);
+    setArticleOffset(0);
+    setArticleHasMore(true);
+    setArticleLoading(false);
+    setArticleError("");
+    setArticleErrorCode("");
+    loadMoreArticles(ip, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ip]);
+
+  useEffect(() => () => articleAbortRef.current?.abort(), []);
+
+  const bannerItems = useMemo(
+    () =>
+      (riskData?.ip_catalog || MOCK_RISK.ip_catalog).map((item) => ({
+        ...item,
+        visual: IP_BANNER_STYLE[item.id] || IP_BANNER_STYLE.all,
+      })),
+    [riskData?.ip_catalog]
+  );
+
+  const currentBannerIndex = useMemo(() => bannerItems.findIndex((x) => x.id === ip), [bannerItems, ip]);
+  const currentBanner = currentBannerIndex >= 0 ? bannerItems[currentBannerIndex] : bannerItems[0];
+  const goPrevBanner = () => {
+    if (!bannerItems.length) return;
+    const nextIndex = currentBannerIndex <= 0 ? 0 : currentBannerIndex - 1;
+    const next = bannerItems[nextIndex];
+    if (next?.id && next.id !== ip) setIp(next.id);
+  };
+  const goNextBanner = () => {
+    if (!bannerItems.length) return;
+    const nextIndex = currentBannerIndex < 0 || currentBannerIndex >= bannerItems.length - 1 ? bannerItems.length - 1 : currentBannerIndex + 1;
+    const next = bannerItems[nextIndex];
+    if (next?.id && next.id !== ip) setIp(next.id);
+  };
+  const handleBannerTouchStart = (e) => {
+    swipeStartXRef.current = e.touches?.[0]?.clientX ?? null;
+  };
+  const handleBannerTouchEnd = (e) => {
+    const startX = swipeStartXRef.current;
+    const endX = e.changedTouches?.[0]?.clientX ?? null;
+    swipeStartXRef.current = null;
+    if (startX == null || endX == null) return;
+    const delta = endX - startX;
+    if (Math.abs(delta) < 50) return;
+    if (delta > 0) goPrevBanner();
+    else goNextBanner();
+  };
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      try {
+        const [rs, bs, healthState] = await Promise.all([
+          apiGet(`/api/risk-score?ip=${ip}`).catch(() => null),
+          apiGet("/api/burst-status").catch(() => null),
+          apiGet("/api/health")
+            .then((data) => ({ data, error: null }))
+            .catch((error) => ({ data: null, error })),
+        ]);
+        if (rs) setRiskScore(rs);
+        if (bs) setBurstStatus(bs);
+        if (healthState.data) setHealth(healthState.data);
+        setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
+        if (rs || bs || healthState.data) setLastUpdatedAt(formatUpdatedAt());
+      } catch {
+        // noop
+      }
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [ip]);
+
+  const dailyRows = riskData?.daily || [];
+  const outletRows = riskData?.outlets || [];
+  const themes = riskData?.risk_themes || [];
+  const clusters = clusterData?.clusters || [];
+  const keywordCloud = clusterData?.keyword_cloud || [];
+  const topRisk = themes[0];
+  const selectedBurstStatus = useMemo(() => {
+    const items = burstStatus?.items || [];
+    return items.find((x) => x.ip_id === ip) || items.find((x) => x.ip_id === "all") || items[0] || null;
+  }, [burstStatus, ip]);
+  const recentBurstCount = useMemo(() => {
+    const now = Date.now();
+    return (burstEvents || [])
+      .filter((evt) => (ip === "all" ? true : evt.ip_name === ip))
+      .filter((evt) => now - new Date(String(evt.occurred_at).replace(" ", "T")).getTime() <= 30 * 60 * 1000)
+      .length;
+  }, [burstEvents, ip]);
+  const filteredBurstEvents = useMemo(
+    () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
+    [burstEvents, ip]
+  );
+  const articleListHeight = useMemo(() => {
+    const estimated = articleItems.length * ARTICLE_ROW_HEIGHT;
+    if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
+    return Math.max(ARTICLE_LIST_MIN_HEIGHT, Math.min(ARTICLE_LIST_MAX_HEIGHT, estimated));
+  }, [articleItems.length]);
+  const handleArticleRowsRendered = (visibleRows) => {
+    if (!articleHasMore || articleLoading) return;
+    if (visibleRows.stopIndex >= articleItems.length - 5) {
+      loadMoreArticles(ip, false);
+    }
+  };
+  const riskValue = Number(riskScore?.risk_score || 0);
+  const hasConfidence = riskScore && riskScore.confidence != null;
+  const riskConfidence = hasConfidence ? Number(riskScore?.confidence || 0) : null;
+  const riskFormulaVersion = riskScore?.risk_formula_version ? String(riskScore.risk_formula_version) : "";
+  const isLowSample = String(riskScore?.data_quality_flag || "").toUpperCase() === "LOW_SAMPLE";
+  const hasHeatValue = riskScore && riskScore.issue_heat != null;
+  const heatValue = hasHeatValue ? Number(riskScore?.issue_heat || 0) : null;
+  const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
+  const alertInfo =
+    alertLevel === "P1"
+      ? { label: "심각", desc: "위험도 70 이상", color: "error" }
+      : alertLevel === "P2"
+        ? { label: "주의", desc: "위험도 45~69", color: "warning" }
+        : { label: "관심", desc: "위험도 0~44", color: "success" };
+  const riskGaugeColor = riskValue >= 70 ? "#dc3c4a" : riskValue >= 45 ? "#e89c1c" : "#11a36a";
+  const riskMeaning = useMemo(() => {
+    if (riskValue >= 70) return { label: "심각", color: "error" };
+    if (riskValue >= 45) return { label: "높음", color: "warning" };
+    if (riskValue >= 20) return { label: "주의", color: "info" };
+    return { label: "낮음", color: "success" };
+  }, [riskValue]);
+  const recent24hArticles = Number(riskScore?.article_count_window || 0);
+  const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
+  const weeklyBaselineAvg = useMemo(() => {
+    if (!recentWeekRows.length) return 0;
+    return recentWeekRows.reduce((acc, row) => acc + Number(row.article_count || 0), 0) / recentWeekRows.length;
+  }, [recentWeekRows]);
+  const weeklyBaselineMin = useMemo(() => {
+    if (!recentWeekRows.length) return 0;
+    return Math.min(...recentWeekRows.map((row) => Number(row.article_count || 0)));
+  }, [recentWeekRows]);
+  const weeklyBaselineMax = useMemo(() => {
+    if (!recentWeekRows.length) return 0;
+    return Math.max(...recentWeekRows.map((row) => Number(row.article_count || 0)));
+  }, [recentWeekRows]);
+  const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
+  const spreadValue = Number(riskScore?.spread_ratio || 0);
+  const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
+  const volumeHint = useMemo(() => {
+    if (recent24hArticles >= 20) return "충분";
+    if (recent24hArticles >= 5) return "보통";
+    return "부족";
+  }, [recent24hArticles]);
+  const spreadHint = useMemo(() => {
+    if (spreadValue >= 1.8) return "같은 이슈가 여러 기사로 재확산되는 구간";
+    if (spreadValue >= 1.2) return "유사 이슈가 반복 보도되는 구간";
+    return "개별 이슈 위주(재확산 낮음)";
+  }, [spreadValue]);
+  const uncertaintyHint = useMemo(() => {
+    if (uncertaintyValue >= 0.5) return "감성 판정 불확실 기사 비중이 높음";
+    if (uncertaintyValue >= 0.2) return "불확실 기사 비중이 일부 존재";
+    return "감성 판정 안정";
+  }, [uncertaintyValue]);
+  const liveInterpretation = useMemo(() => {
+    if (recent24hArticles < 5) return "기사량이 매우 적어 위험도 신뢰도가 낮을 수 있습니다.";
+    if (riskValue >= 70) return "기사량 급증과 고위험 테마 집중으로 위험도가 심각 단계입니다.";
+    if (riskValue >= 45) return "위험도가 높은 상태입니다. 확산도와 감성 변화를 밀착 모니터링하세요.";
+    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위험도는 낮지만 기사량 또는 확산도가 기준선보다 상승 중입니다.";
+    return "기사량과 확산도가 안정적이라 현재 위험도는 낮은 상태입니다.";
+  }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
+  const confidenceLabel = useMemo(() => {
+    if (!hasConfidence) return "신뢰도 정보 없음";
+    if (riskConfidence < 0.3) return `신뢰도 낮음 (${Math.round(riskConfidence * 100)}%)`;
+    if (riskConfidence < 0.7) return `신뢰도 보통 (${Math.round(riskConfidence * 100)}%)`;
+    return `신뢰도 높음 (${Math.round(riskConfidence * 100)}%)`;
+  }, [hasConfidence, riskConfidence]);
+  const quickSummary = useMemo(() => {
+    if (recent24hArticles < 5) return "기사가 적어 현재 점수는 참고용입니다.";
+    if (riskValue >= 45) return "즉시 모니터링이 필요한 구간입니다.";
+    return "현재는 급한 리스크 신호가 크지 않습니다.";
+  }, [recent24hArticles, riskValue]);
+  const outletRisk = useMemo(() => {
+    if (!outletRows.length) return null;
+    return [...outletRows]
+      .map((x) => ({ ...x, score: Math.round((Number(x.article_count || 0) * Number(x.negative_ratio || 0)) / 100) }))
+      .sort((a, b) => b.score - a.score)[0];
+  }, [outletRows]);
+  const themeActionMap = {
+    "확률형/BM": "확률·검증 근거와 산식 설명을 FAQ/공지에 고정",
+    "운영/장애": "장애 타임라인과 재발방지 항목을 동일 포맷으로 배포",
+    "보상/환불": "보상 대상·기준·예외를 표 형식으로 명확화",
+    "규제/법적": "팩트 중심 공식 입장문과 Q&A를 분리 운영",
+    "여론/논란": "오해 포인트 정정 메시지를 채널별 동시 배포",
+    "신작/성과": "성과 메시지와 리스크 메시지를 분리해 혼선 방지",
+  };
+  const recommendedAction = themeActionMap[topRisk?.theme] || "핵심 팩트와 대응 일정을 짧고 명확하게 공지";
+  const modeMismatchWarning = health?.mode === "backtest" ? "현재 운영 페이지가 백테스트 DB를 참조 중입니다." : "";
+  const controlChipSx = filterChipSx;
+  const controlButtonSx = navButtonSx;
+  const bannerMetricChipSx = {
+    ...statusChipSx,
+    minHeight: 28,
+    fontSize: 12,
+    bgcolor: "rgba(255,255,255,.08)",
+    borderColor: "rgba(255,255,255,.22)",
+    color: "rgba(241,245,249,.95)",
+  };
+
+  useEffect(() => {
+    let active = true;
+    let onResize;
+
+    const mount = async () => {
+      const echarts = await import("echarts");
+      if (!active) return;
+      if (trendChartRef.current && !trendChartInstRef.current) trendChartInstRef.current = echarts.init(trendChartRef.current);
+      if (outletChartRef.current && !outletChartInstRef.current) outletChartInstRef.current = echarts.init(outletChartRef.current);
+      if (themeChartRef.current && !themeChartInstRef.current) themeChartInstRef.current = echarts.init(themeChartRef.current);
+      if (keywordChartRef.current && !keywordChartInstRef.current) keywordChartInstRef.current = echarts.init(keywordChartRef.current);
+      setChartsReady(true);
+      onResize = () => {
+        trendChartInstRef.current?.resize();
+        outletChartInstRef.current?.resize();
+        themeChartInstRef.current?.resize();
+        keywordChartInstRef.current?.resize();
+      };
+      window.addEventListener("resize", onResize);
+    };
+
+    mount();
+    return () => {
+      active = false;
+      setChartsReady(false);
+      if (onResize) window.removeEventListener("resize", onResize);
+      trendChartInstRef.current?.dispose();
+      outletChartInstRef.current?.dispose();
+      themeChartInstRef.current?.dispose();
+      keywordChartInstRef.current?.dispose();
+      trendChartInstRef.current = null;
+      outletChartInstRef.current = null;
+      themeChartInstRef.current = null;
+      keywordChartInstRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!chartsReady || !trendChartInstRef.current) return;
+    const x = dailyRows.map((r) => r.date);
+    trendChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 38, right: 20, top: 26, bottom: 38 },
+        tooltip: { trigger: "axis" },
+        xAxis: {
+          type: "category",
+          data: x,
+          axisLabel: {
+            formatter: (v) => String(v || "").slice(5),
+            color: "#64748b",
+          },
+        },
+        yAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        series: [
+          {
+            name: "기사 수",
+            type: "bar",
+            data: dailyRows.map((r) => Number(r.article_count || 0)),
+            itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
+            barMaxWidth: 18,
+            large: dailyRows.length > 220,
+            largeThreshold: 220,
+            progressive: 2000,
+            progressiveThreshold: 3000,
+          },
+          {
+            name: "부정 비율(%)",
+            type: "line",
+            yAxisIndex: 0,
+            smooth: true,
+            symbol: "none",
+            sampling: "lttb",
+            progressive: 2000,
+            progressiveThreshold: 3000,
+            data: dailyRows.map((r) => Number(r.negative_ratio || 0)),
+            lineStyle: { color: "#dc3c4a", width: 2 },
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, dailyRows]);
+
+  useEffect(() => {
+    if (!chartsReady || !outletChartInstRef.current) return;
+    const displayedOutlets = outletRows.slice(0, 12);
+    outletChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 90, right: 20, top: 26, bottom: 24 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        yAxis: {
+          type: "category",
+          data: displayedOutlets.map((r) => r.outlet),
+          axisLabel: {
+            color: "#64748b",
+            width: 120,
+            interval: 0,
+            formatter: (value) => {
+              const v = String(value || "");
+              if (v.length <= 10) return v;
+              const dot = v.indexOf(".");
+              if (dot > 3 && dot < v.length - 3) return `${v.slice(0, dot)}\n${v.slice(dot + 1)}`;
+              return `${v.slice(0, 10)}\n${v.slice(10)}`;
+            },
+          },
+        },
+        series: [
+          {
+            name: "긍정",
+            type: "bar",
+            stack: "sent",
+            data: displayedOutlets.map((r) => Number(r.positive_ratio || 0)),
+            itemStyle: { color: "#11a36a" },
+          },
+          {
+            name: "중립",
+            type: "bar",
+            stack: "sent",
+            data: displayedOutlets.map((r) => Number(r.neutral_ratio || 0)),
+            itemStyle: { color: "#f2b248" },
+          },
+          {
+            name: "부정",
+            type: "bar",
+            stack: "sent",
+            data: displayedOutlets.map((r) => Number(r.negative_ratio || 0)),
+            itemStyle: { color: "#dc3c4a" },
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, outletRows]);
+
+  useEffect(() => {
+    if (!chartsReady || !themeChartInstRef.current) return;
+    themeChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 90, right: 20, top: 26, bottom: 24 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        yAxis: {
+          type: "category",
+          data: themes.map((t) => t.theme),
+          axisLabel: {
+            color: "#64748b",
+            width: 96,
+            interval: 0,
+            formatter: (value) => {
+              const v = String(value || "");
+              if (v.length <= 6) return v;
+              return `${v.slice(0, 6)}\n${v.slice(6)}`;
+            },
+          },
+        },
+        series: [
+          {
+            name: "위험 점수(%)",
+            type: "bar",
+            data: themes.map((t) => Math.round(Number(t.risk_score || 0) * 100)),
+            itemStyle: { color: "#7b61ff", borderRadius: [0, 4, 4, 0] },
+            barMaxWidth: 20,
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, themes]);
+
+  useEffect(() => {
+    if (!chartsReady || !keywordChartInstRef.current) return;
+    const words = (keywordCloud || []).slice(0, 80).map((w) => ({
+      name: String(w.word || ""),
+      value: Math.max(1, Number(w.count || 0)),
+    }));
+    keywordChartInstRef.current.setOption(
+      {
+        animation: false,
+        tooltip: {
+          show: true,
+          formatter: (params) => `${params?.name || "-"}: ${Number(params?.value || 0).toLocaleString()}`,
+        },
+        series: [
+          {
+            type: "treemap",
+            roam: false,
+            nodeClick: false,
+            breadcrumb: { show: false },
+            label: {
+              show: true,
+              formatter: "{b}",
+              fontSize: 13,
+              color: "#fff",
+            },
+            upperLabel: { show: false },
+            itemStyle: {
+              borderColor: "#fff",
+              borderWidth: 1,
+              gapWidth: 1,
+            },
+            levels: [
+              {
+                color: ["#2f67d8", "#11a36a", "#e89c1c", "#dc3c4a", "#4a63d9", "#00a5c4"],
+                colorMappingBy: "value",
+              },
+            ],
+            data: words,
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, keywordCloud]);
 
   return (
-    <main className="min-h-screen bg-[#edf2f8] px-4 py-6 text-slate-900 md:px-8">
-      <section className="mx-auto flex w-full max-w-[1320px] flex-col gap-4 rounded-2xl border border-line bg-card p-4 shadow-soft md:p-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold tracking-tight">넥슨 IP 리스크 대시보드 · Codex Rebuild</h1>
-          <Link href="/nexon" className="text-sm font-semibold text-blue-700 hover:underline">기존 화면 보기</Link>
-        </div>
+    <Box sx={{ ...pageShellSx, py: { xs: 1.5, sm: 2, md: 4 } }}>
+    <Container maxWidth="xl" sx={{ ...pageContainerSx, px: { xs: 1.2, sm: 2, md: 3 } }}>
+      <Stack spacing={{ xs: 1.4, md: 2 }}>
+        <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            justifyContent="space-between"
+            spacing={1.2}
+            sx={{ px: { xs: 2, md: 3 }, py: 1.2 }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1.2}>
+              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
+              <Box sx={{ py: 0.2 }}>
+                <Typography
+                  sx={{
+                    fontSize: { xs: 20, md: 20 },
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    letterSpacing: "-.01em",
+                    lineHeight: 1.1,
+                    wordBreak: "keep-all",
+                  }}
+                >
+                  넥슨 IP 리스크 대시보드
+                </Typography>
+              </Box>
+            </Stack>
+            <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
+              <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
+              <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
+              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="outlined" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
+            </Stack>
+          </Stack>
+        </Paper>
+        <ApiGuardBanner />
 
-        <div className={`relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br ${activeIp.color} p-6 text-white md:p-8`}>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_20%,rgba(255,255,255,.26)_0%,rgba(255,255,255,0)_52%)]" />
-          <div className="relative z-10 flex flex-col gap-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold tracking-[0.12em] text-white/80">{activeIp.kicker}</p>
-                <h2 className="mt-1 text-5xl font-black tracking-tight">{activeIp.name}</h2>
-                <p className="mt-2 text-xl text-white/85">실시간 리스크 흐름 · 이슈량 · 수집 상태</p>
-              </div>
-              <img src="/nexon-logo.png" alt="NEXON" className="h-20 w-20 rounded-xl border border-white/30 bg-white/90 p-2" />
-            </div>
+        <Card variant="outlined" sx={sectionCardSx}>
+          <CardContent>
+            <Stack spacing={1.2}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  모니터링 IP
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {Math.max(currentBannerIndex + 1, 1)} / {bannerItems.length}
+                </Typography>
+              </Stack>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-white/25 bg-white/10 p-3 backdrop-blur">
-                <p className="text-xs text-white/75">현재 위험도</p>
-                <p className="text-3xl font-black">{meta.score.toFixed(1)}</p>
-              </div>
-              <div className="rounded-xl border border-white/25 bg-white/10 p-3 backdrop-blur">
-                <p className="text-xs text-white/75">이슈량(Heat)</p>
-                <p className="text-3xl font-black">{meta.heat.toFixed(1)}</p>
-              </div>
-              <div className="rounded-xl border border-white/25 bg-white/10 p-3 backdrop-blur">
-                <p className="text-xs text-white/75">신뢰도</p>
-                <p className="text-3xl font-black">{meta.confidence}%</p>
-              </div>
-            </div>
-          </div>
-        </div>
+              {currentBanner ? (
+                <Paper
+                  onTouchStart={handleBannerTouchStart}
+                  onTouchEnd={handleBannerTouchEnd}
+                  sx={{
+                    width: "100%",
+                    height: { xs: 156, sm: 182, md: 204 },
+                    p: { xs: 1.5, sm: 2, md: 2.2 },
+                    borderRadius: 2.4,
+                    color: "#eef2ff",
+                    position: "relative",
+                    overflow: "hidden",
+                    border: "1px solid rgba(148,163,184,.22)",
+                    background: currentBanner.visual.bg,
+                    boxShadow: "0 10px 22px rgba(15,23,42,.18)",
+                    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      inset: 0,
+                      background: currentBanner.visual.glow || "none",
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      width: 4,
+                      height: "100%",
+                      bgcolor: currentBanner.visual.accent,
+                      opacity: 0.9,
+                    }}
+                  />
+                  <Box
+                    component="img"
+                    src={NEXON_LOGO}
+                    alt="NEXON"
+                    width={64}
+                    height={64}
+                    sx={{
+                      position: "absolute",
+                      right: { xs: 10, sm: 12, md: 14 },
+                      top: { xs: 10, sm: 10, md: 12 },
+                      width: { xs: 30, sm: 36, md: 42 },
+                      p: { xs: 0.15, md: 0.25 },
+                      opacity: 0.65,
+                      filter: "grayscale(100%) contrast(1.02)",
+                    }}
+                  />
+                  <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                    {currentBanner.visual.kicker}
+                  </Typography>
+                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 30, sm: 32, md: 36 }, fontWeight: 900, lineHeight: 1.03, letterSpacing: "-.02em" }}>
+                    {currentBanner.name}
+                  </Typography>
+                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 13, md: 14 }, color: "rgba(237,245,255,.86)" }}>
+                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
+                  </Typography>
+                  <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap" sx={{ mt: 1.1 }}>
+                    <Chip
+                      variant="outlined"
+                      label={`위험도 ${riskValue.toFixed(1)}`}
+                      sx={{
+                        ...bannerMetricChipSx,
+                        borderColor:
+                          alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
+                      }}
+                    />
+                    <Chip variant="outlined" label={`24h 기사 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`이슈 묶음 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                  </Stack>
+                </Paper>
+              ) : null}
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => setActive((p) => (p - 1 + IPS.length) % IPS.length)}><ChevronLeft size={16} />이전</Button>
-            <Button variant="secondary" onClick={() => setActive((p) => (p + 1) % IPS.length)}>다음<ChevronRight size={16} /></Button>
-            <div className="ml-1 flex items-center gap-1">
-              {IPS.map((_, idx) => (
-                <span key={idx} className={`h-2.5 w-2.5 rounded-full ${idx === active ? 'bg-blue-600' : 'bg-slate-300'}`} />
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="h-11 px-4 text-sm"><RefreshCw size={14} className="mr-1" />자동 갱신</Badge>
-            <Badge variant="outline" className="h-11 px-4 text-sm">현재: {activeIp.name}</Badge>
-            <Badge variant="outline" className="h-11 px-4 text-sm">마지막 갱신: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString('ko-KR', { hour12: false }) : '-'}</Badge>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto mt-6 grid w-full max-w-[1320px] grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>실시간 위험도 모니터</CardTitle>
-            <CardDescription>핵심 지표만 먼저 보여주고, 상세는 카드 하단에서 확인합니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error ? (
-              <Alert variant="destructive">
-                <AlertTitle>데이터 조회 실패</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", md: "center" }}
+                spacing={1}
+              >
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    ...panelPaperSx,
+                    borderRadius: 99,
+                    overflow: "hidden",
+                    borderColor: "rgba(15,23,42,.16)",
+                    bgcolor: "#fff",
+                  }}
+                >
+                  <MobileStepper
+                    variant="dots"
+                    steps={Math.max(bannerItems.length, 1)}
+                    position="static"
+                    activeStep={Math.max(currentBannerIndex, 0)}
+                    sx={{
+                      bgcolor: "transparent",
+                      py: 0.25,
+                      px: 0.6,
+                      minHeight: 40,
+                      "& .MuiMobileStepper-dot": { mx: 0.35 },
+                    }}
+                    nextButton={
+                      <Button size="small" sx={controlButtonSx} onClick={goNextBanner} disabled={currentBannerIndex >= bannerItems.length - 1}>
+                        다음 <ChevronRight {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: "4px" }} />
+                      </Button>
+                    }
+                    backButton={
+                      <Button size="small" sx={controlButtonSx} onClick={goPrevBanner} disabled={currentBannerIndex <= 0}>
+                        <ChevronLeft {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginRight: "4px" }} />이전
+                      </Button>
+                    }
+                  />
+                </Paper>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
+                  <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
+                </Stack>
+              </Stack>
+              {usingMock ? <Chip color="warning" variant="outlined" label="샘플 데이터" /> : null}
+            </Stack>
+            <Box sx={{ mt: 1.5 }}>
+              <PageStatusView
+                loading={{
+                  show: loading,
+                  title: "IP 데이터를 동기화하는 중",
+                  subtitle: "리스크/이슈 묶음/집중 수집 상태를 갱신하고 있습니다.",
+                }}
+              />
+            </Box>
+            {notice ? <Alert severity={usingMock ? "warning" : "info"} icon={false} sx={{ mt: 1.5 }}><span>{usingMock ? <AlertTriangle {...iconProps()} style={inlineIconSx} /> : <Info {...iconProps()} style={inlineIconSx} />}{notice}</span></Alert> : null}
+            {modeMismatchWarning ? <Alert severity="warning" icon={false} sx={{ mt: 1.5 }}><span><AlertTriangle {...iconProps()} style={inlineIconSx} />{modeMismatchWarning}</span></Alert> : null}
+            {healthDiagCode ? (
+              <Alert severity="info" icon={false} sx={{ mt: 1.5 }}>
+                <span><Info {...iconProps()} style={inlineIconSx} />실시간 상태 정보가 일시적으로 누락되었습니다. 진단코드: {healthDiagCode}</span>
               </Alert>
             ) : null}
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={meta.level.tone === 'warning' ? 'warning' : 'success'}>{meta.level.label}</Badge>
-              <Badge variant="outline">판정 기준: 최신 모델</Badge>
-              <Badge variant="outline">식 v2</Badge>
-            </div>
-
-            <div className="text-5xl font-black tracking-tight">{loading ? '-' : meta.score.toFixed(1)}</div>
-            <Progress value={Math.max(0, Math.min(100, meta.score))} />
-            <p className="text-sm text-muted">최근 24시간 기준 · Risk는 부정 강도, Heat는 언급량입니다.</p>
+            <Box sx={{ mt: 1.5 }}>
+              <PageStatusView
+                error={{
+                  show: Boolean(error),
+                  title: "대시보드 데이터를 불러오지 못했습니다.",
+                  details: error,
+                  diagnosticCode: errorCode,
+                  actionLabel: "재시도",
+                  onAction: () => loadDashboard(ip),
+                }}
+              />
+            </Box>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>운영 상태</CardTitle>
-            <CardDescription>실서비스 상태 체크</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Badge variant={health?.ok ? 'success' : 'warning'}>{health?.ok ? '정상' : '주의'}</Badge>
-            <p className="text-sm text-slate-700">스케줄러: {String(health?.scheduler_running ?? '-')}</p>
-            <p className="text-sm text-slate-700">잡 개수: {health?.scheduler_job_count ?? '-'}</p>
-            <p className="text-sm text-slate-700">최근 24h 기사: {health?.recent_articles_24h ?? '-'}</p>
-            <Button variant="secondary" className="w-full" onClick={fetchData}>지금 새로고침</Button>
+        <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
+          {[
+            { k: "선택 IP", v: riskData?.meta?.ip || "-", s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}` },
+            { k: "총 기사 수", v: Number(riskData?.meta?.total_articles || 0).toLocaleString(), s: "필터 기준" },
+            { k: "최고 위험 테마", v: topRisk?.theme || "-", s: `Risk ${topRisk?.risk_score ?? "-"}` },
+            { k: "이슈 묶음 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 주제 묶음", tip: tipMap.cluster },
+          ].map((item) => (
+            <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
+              <Card variant="outlined" sx={{ ...sectionCardSx, width: "100%", height: "100%" }}>
+                <CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 }, width: "100%", minWidth: 0 }}>
+                {item.tip ? (
+                  <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">{item.k}</Typography>
+                )}
+                <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
+                <Typography variant="caption" color="text.secondary">{item.s}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        <Card variant="outlined" sx={sectionCardSx}>
+          <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.3 } }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.8 }}>
+              실시간 위험도 모니터
+            </Typography>
+            {riskScore ? (
+              <Box sx={{ maxWidth: 1060, mx: "auto", width: "100%" }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "1fr", lg: "1.2fr .8fr" },
+                    gap: { xs: 1.2, sm: 1.6, md: 1.9, lg: 2.2 },
+                    alignItems: "start",
+                  }}
+                >
+                  <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>현재 위험 상태</Typography>
+                      <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
+                        <Chip size="small" variant="outlined" label={riskFormulaVersion ? "판정 기준: 최신 모델" : "판정 기준: 기본 모델"} sx={controlChipSx} />
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={hasConfidence && riskConfidence < 0.4 ? "warning" : "default"}
+                          label={confidenceLabel}
+                          sx={controlChipSx}
+                        />
+                      </Stack>
+                      {isLowSample ? (
+                        <Alert severity="warning" icon={false} sx={{ mt: 0.8, borderRadius: 1.5 }}>
+                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />표본이 부족해 현재 위험도 신뢰도가 낮습니다. 수치 해석보다 추세 확인을 우선하세요.</span>
+                        </Alert>
+                      ) : null}
+                      <Typography
+                        variant={isLowSample ? "h5" : "h4"}
+                        sx={{ mt: 0.3, ...metricValueSx, opacity: isLowSample ? 0.82 : 1 }}
+                      >
+                        {riskValue.toFixed(1)}
+                      </Typography>
+                      <Chip
+                        label={riskMeaning.label}
+                        size="small"
+                        color={riskMeaning.color}
+                        variant="outlined"
+                        sx={{ ...controlChipSx, mt: 0.5 }}
+                      />
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.max(0, Math.min(100, riskValue))}
+                        sx={{
+                          mt: 0.9,
+                          height: 10,
+                          borderRadius: 999,
+                          bgcolor: "#edf2fb",
+                          "& .MuiLinearProgress-bar": { bgcolor: riskGaugeColor },
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
+                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 기준 · 이슈 관심도 {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.55, fontWeight: 600 }}>
+                        {quickSummary}
+                      </Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                        최근 24시간 기사 수: {recent24hArticles.toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.2, fontVariantNumeric: "tabular-nums" }}>
+                        최근 7일 기준선: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
+                        기준선 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
+                      </Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.3 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>왜 이렇게 나왔나요?</Typography>
+                        <IconButton size="small" onClick={() => setShowMetricDetails((prev) => !prev)} aria-label="상세 지표 보기">
+                          <Info {...iconProps({ size: 15 })} />
+                        </IconButton>
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        기사량: {recent24hArticles.toLocaleString()}건 ({volumeHint}) · 확산: {spreadValue.toFixed(2)} · 분류애매: {Math.round(uncertaintyValue * 100)}%
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.6, lineHeight: 1.45 }}>
+                        {liveInterpretation}
+                      </Typography>
+                      <Collapse in={showMetricDetails}>
+                        <Box sx={{ mt: 0.8, pt: 0.8, borderTop: "1px dashed", borderColor: "divider" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 700 }}>
+                            상세 설명
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
+                            기사량은 최근 24시간 기사 수입니다. 기사 수가 적으면 점수 신뢰도가 낮아질 수 있습니다.
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
+                            확산은 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
+                            분류애매는 감성 판단이 어려운 기사 비율입니다. {uncertaintyHint}
+                          </Typography>
+                        </Box>
+                      </Collapse>
+                    </Paper>
+                  </Stack>
+
+                  <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
+                      <LabelWithTip label="경보 등급" tip={tipMap.alert} />
+                      <Chip
+                        label={`${alertInfo.label} (${alertLevel})`}
+                        color={alertInfo.color}
+                        sx={{ mt: 0.55, fontWeight: 700 }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
+                        {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
+                      </Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>수집 상태</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.45, fontVariantNumeric: "tabular-nums" }}>
+                        {selectedBurstStatus?.mode === "burst" ? "BURST 수집" : "정상 수집"} · 주기 {selectedBurstStatus?.interval_seconds || 600}s
+                        {selectedBurstStatus?.burst_remaining ? ` · 남은 ${selectedBurstStatus.burst_remaining}s` : ""} · 최근 30분 이벤트 {recentBurstCount}건
+                      </Typography>
+                    </Paper>
+                    <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Risk vs Heat</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                        Risk는 "부정 신호 강도", Heat는 "언급량/관심도"입니다. 언급이 많아도 부정이 적으면 Risk는 낮을 수 있습니다.
+                      </Typography>
+                    </Paper>
+                  </Stack>
+                </Box>
+
+                <Box sx={{ mt: 1 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="caption" color="text.secondary">상세 구성요소(S/V/T/M)</Typography>
+                    <Button size="small" onClick={() => setShowMetricDetails((prev) => !prev)}>
+                      {showMetricDetails ? "접기" : "보기"}
+                    </Button>
+                  </Stack>
+                  <Collapse in={showMetricDetails}>
+                    <Grid container spacing={{ xs: 1, md: 1.2 }} sx={{ mt: 0.4 }}>
+                      {["S", "V", "T", "M"].map((k) => {
+                        const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
+                        const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "볼륨 신호" : k === "T" ? "테마 신호" : "매체 신호";
+                        return (
+                          <Grid item xs={6} md={3} key={k}>
+                            <Paper variant="outlined" sx={{ ...panelPaperSx, p: { xs: 1, sm: 1.1 } }}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700 }}>{signalLabel}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {value.toFixed(2)}
+                                </Typography>
+                              </Stack>
+                              <LinearProgress
+                                variant="determinate"
+                                value={value * 100}
+                                sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
+                              />
+                            </Paper>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Collapse>
+                </Box>
+
+                <Paper variant="outlined" sx={{ ...panelPaperSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
+                  <Box sx={{ px: 1.2, pt: 0.6 }}>
+                    <LabelWithTip label="버스트 이벤트" tip={tipMap.burst} />
+                  </Box>
+                  <List dense disablePadding>
+                    {filteredBurstEvents.length ? (
+                      filteredBurstEvents.slice(0, 5).map((evt, idx) => (
+                        <ListItem key={`${evt.occurred_at}-${idx}`} divider>
+                          <ListItemText
+                            primary={`${String(evt.occurred_at).slice(5, 16)} · ${evt.ip_name} · ${String(evt.event_type).toUpperCase()}`}
+                            secondary={evt.trigger_reason}
+                            primaryTypographyProps={{ variant: "body2" }}
+                            secondaryTypographyProps={{ variant: "caption" }}
+                          />
+                        </ListItem>
+                      ))
+                    ) : (
+                      <Box sx={{ p: 1 }}>
+                        <PageStatusView
+                          empty={{
+                            show: true,
+                            title: "버스트 이벤트 없음",
+                            subtitle: "아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)",
+                            compact: true,
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </List>
+                </Paper>
+              </Box>
+            ) : (
+              <PageStatusView
+                empty={{
+                  show: true,
+                  title: "위험도 데이터가 아직 없습니다.",
+                  subtitle: !filteredBurstEvents.length ? "아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)" : "",
+                  tone: "warning",
+                }}
+              />
+            )}
           </CardContent>
         </Card>
-      </section>
 
-      <section className="mx-auto mt-4 w-full max-w-[1320px]">
-        <Alert variant="info">
-          <ShieldAlert size={16} className="mb-1" />
-          <AlertTitle>비교용 프로토타입</AlertTitle>
-          <AlertDescription>
-            이 페이지는 기존 `/nexon`을 건드리지 않는 Tailwind/shadcn 리빌드 시안입니다. 최종 선택 후 main 반영합니다.
-          </AlertDescription>
-        </Alert>
-      </section>
-    </main>
+        <Card variant="outlined" sx={sectionCardSx}>
+          <CardContent>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 기사/부정 추이</Typography>
+            <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 220, sm: 260, md: 290 } }} />
+          </CardContent>
+        </Card>
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "1.4fr 1fr" },
+            gap: { xs: 1, md: 1.5 },
+          }}
+        >
+          <Card variant="outlined" sx={sectionCardSx}><CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
+                언론사별<br />감성 분포
+              </Typography>
+              <Box ref={outletChartRef} sx={{ width: "100%", height: { xs: 300, md: 420 } }} />
+            </CardContent></Card>
+          <Card variant="outlined" sx={sectionCardSx}><CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, lineHeight: 1.25 }}>
+                위험 테마<br />점수
+              </Typography>
+              <Box ref={themeChartRef} sx={{ width: "100%", height: { xs: 300, md: 420 } }} />
+            </CardContent></Card>
+        </Box>
+
+        <Card variant="outlined" sx={sectionCardSx}><CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>키워드 중요도 맵</Typography>
+          <Box
+            ref={keywordChartRef}
+            sx={{
+              width: "100%",
+              minHeight: 320,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              bgcolor: "#f8fbff",
+            }}
+          />
+        </CardContent></Card>
+
+        <Card variant="outlined" sx={sectionCardSx}><CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>실행 인사이트</Typography>
+          <Grid container spacing={1.2}>
+            <Grid item xs={12} md={4}>
+              <Paper variant="outlined" sx={{ p: 1.2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>최우선 위험 테마</Typography>
+                <Typography variant="h6" sx={{ mt: 1 }}>{topRisk?.theme || "-"}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  위험점수 {topRisk?.risk_score ?? "-"} · 부정 {topRisk?.negative_ratio ?? "-"}%
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper variant="outlined" sx={{ p: 1.2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>고위험 노출 매체</Typography>
+                <Typography variant="h6" sx={{ mt: 1 }}>{outletRisk?.outlet || "-"}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  기사 {outletRisk?.article_count || 0}건 · 부정 {outletRisk?.negative_ratio || 0}% · 노출점수 {outletRisk?.score || 0}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper variant="outlined" sx={{ p: 1.2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>대응 권고</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                  {recommendedAction}
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+        </CardContent></Card>
+
+        <Card variant="outlined" sx={sectionCardSx}><CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>이슈 묶음 분석</Typography>
+          <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>
+            {(clusterData?.top_outlets || []).map((o) => (
+              <Chip key={o.outlet} label={`${o.outlet} ${o.article_count}건`} size="small" variant="outlined" sx={controlChipSx} />
+            ))}
+          </Stack>
+          <Divider sx={{ mb: 1 }} />
+          <Grid container spacing={1.2}>
+            {clusters.map((c) => (
+              <Grid item xs={12} md={6} key={c.cluster}>
+                <Paper variant="outlined" sx={{ p: 1.2 }}>
+                  <Typography sx={{ fontWeight: 700 }}>{c.cluster}</Typography>
+                  <Typography variant="caption" color="text.secondary">기사 {c.article_count}건 · 부정 {c.negative_ratio}%</Typography>
+                  <Stack direction="row" sx={{ mt: 1, height: 8, borderRadius: 999, overflow: "hidden", bgcolor: "#edf2fb" }}>
+                    <Box sx={{ width: `${c.sentiment?.positive || 0}%`, bgcolor: "success.main" }} />
+                    <Box sx={{ width: `${c.sentiment?.neutral || 0}%`, bgcolor: "warning.main" }} />
+                    <Box sx={{ width: `${c.sentiment?.negative || 0}%`, bgcolor: "error.main" }} />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                    키워드: {(c.keywords || []).join(", ")}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    대표 기사: {(c.samples || [])[0] || "-"}
+                  </Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        </CardContent></Card>
+
+        <Card variant="outlined" sx={sectionCardSx}>
+          <CardContent>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>수집 기사 목록</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {articleItems.length.toLocaleString()} / {articleTotal.toLocaleString()}
+              </Typography>
+            </Stack>
+            <Stack spacing={1}>
+              {articleItems.length ? (
+                <WindowList
+                  rowCount={articleItems.length}
+                  rowHeight={ARTICLE_ROW_HEIGHT}
+                  overscanCount={6}
+                  defaultHeight={ARTICLE_LIST_MIN_HEIGHT}
+                  style={{ height: articleListHeight, width: "100%" }}
+                  rowProps={{ items: articleItems }}
+                  onRowsRendered={handleArticleRowsRendered}
+                  rowComponent={({ index, style, items, ariaAttributes }) => {
+                    const a = items[index];
+                    return (
+                      <Box style={style} sx={{ px: 0.2, py: 0.45 }} {...ariaAttributes}>
+                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                          <Stack direction="row" justifyContent="space-between" spacing={1}>
+                            <Typography
+                              component={a.url ? "a" : "span"}
+                              href={a.url || undefined}
+                              target={a.url ? "_blank" : undefined}
+                              rel={a.url ? "noreferrer" : undefined}
+                              sx={{
+                                minWidth: 0,
+                                fontWeight: 700,
+                                color: "#10284a",
+                                textDecoration: "none",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                "&:hover": { textDecoration: a.url ? "underline" : "none" },
+                              }}
+                            >
+                              {a.title || "(제목 없음)"}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={a.sentiment || "중립"}
+                              color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
+                              variant="outlined"
+                              sx={controlChipSx}
+                            />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
+                            {a.date || "-"} · {a.outlet || "unknown"}
+                          </Typography>
+                          {a.description ? (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                mt: 0.6,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {a.description}
+                            </Typography>
+                          ) : null}
+                        </Paper>
+                      </Box>
+                    );
+                  }}
+                />
+              ) : null}
+            </Stack>
+            {articleLoading ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
+                기사 목록을 불러오는 중…
+              </Typography>
+            ) : null}
+            {!articleLoading && !articleHasMore && articleItems.length > 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
+                마지막 기사까지 모두 불러왔습니다.
+              </Typography>
+            ) : null}
+            {!articleLoading && articleItems.length === 0 ? (
+              <Box sx={{ mt: 1.2 }}>
+                <PageStatusView
+                  empty={{
+                    show: true,
+                    title: "수집 기사 없음",
+                    subtitle: "현재 조건에서 표시할 기사가 없습니다.",
+                    compact: true,
+                  }}
+                />
+              </Box>
+            ) : null}
+            {articleError ? (
+              <Box sx={{ mt: 1 }}>
+                <PageStatusView
+                  error={{
+                    show: true,
+                    title: "기사 목록을 불러오지 못했습니다.",
+                    details: articleError,
+                    diagnosticCode: articleErrorCode,
+                    actionLabel: "다시 시도",
+                    onAction: () => loadMoreArticles(ip, true),
+                  }}
+                />
+              </Box>
+            ) : null}
+          </CardContent>
+        </Card>
+      </Stack>
+    </Container>
+    </Box>
   );
 }
