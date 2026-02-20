@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Box, Button, Container, Divider, Paper, Stack, Typography } from "@mui/material";
-import {
-  actionButtonSx,
-  navButtonSx,
-  pageContainerSx,
-  pageShellSx,
-  sectionCardSx,
-} from "../../lib/uiTokens";
+
+const SHELL = { minHeight: "100dvh", backgroundColor: "#eef0f3", fontFamily: "'Plus Jakarta Sans','Noto Sans KR','Apple SD Gothic Neo',sans-serif", paddingTop: 16, paddingBottom: 48 };
+const CONTAINER = { maxWidth: 1180, margin: "0 auto", padding: "0 16px" };
+const SECTION_CARD = { borderRadius: 24, border: "1px solid rgba(15,23,42,.1)", backgroundColor: "#ffffff", boxShadow: "0 12px 28px rgba(15,23,42,.06)" };
+const NAV_BTN = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 16px", borderRadius: 9999, border: "1px solid rgba(15,23,42,.24)", fontSize: 14, fontWeight: 700, backgroundColor: "transparent", color: "#0f172a", cursor: "pointer" };
+const ACTION_PRIMARY = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 16px", borderRadius: 8, border: "none", fontSize: 14, fontWeight: 700, backgroundColor: "#111827", color: "#ffffff", cursor: "pointer" };
+const ACTION_SECONDARY = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 16px", borderRadius: 8, border: "1px solid rgba(15,23,42,.24)", fontSize: 14, fontWeight: 700, backgroundColor: "transparent", color: "#0f172a", cursor: "pointer" };
 
 const sections = [
   {
@@ -27,36 +26,34 @@ const sections = [
 
 export default function ProjectPage() {
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 4 } }}>
-      <Container maxWidth="md" sx={{ ...pageContainerSx, maxWidth: "980px !important" }}>
-        <Paper sx={{ ...sectionCardSx, bgcolor: "#f8fafc", px: { xs: 2.5, md: 5 }, py: { xs: 3, md: 5 }, boxShadow: "0 14px 38px rgba(15,23,42,.06)" }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-            <Typography sx={{ fontSize: { xs: 24, md: 30 }, fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em" }}>
+    <div style={SHELL}>
+      <div style={{ ...CONTAINER, maxWidth: 980 }}>
+        <div style={{ ...SECTION_CARD, backgroundColor: "#f8fafc", padding: "40px 48px", boxShadow: "0 14px 38px rgba(15,23,42,.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <h1 style={{ margin: 0, fontSize: "clamp(24px,3vw,30px)", fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em" }}>
               프로젝트 소개
-            </Typography>
-            <Button component={Link} href="/" variant="outlined" sx={navButtonSx}>
-              메인으로
-            </Button>
-          </Stack>
+            </h1>
+            <Link href="/" style={NAV_BTN}>메인으로</Link>
+          </div>
 
-          <Typography sx={{ fontSize: { xs: 16, md: 18 }, color: "#64748b", lineHeight: 1.7, mb: 4 }}>
+          <p style={{ margin: "0 0 32px", fontSize: "clamp(16px,2vw,18px)", color: "#64748b", lineHeight: 1.7 }}>
             게임 PR 실무 의사결정에 바로 연결되는 분석 구조를 목표로 설계한 포트폴리오입니다.
-          </Typography>
+          </p>
 
-          <Stack spacing={3.5}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
             {sections.map((section) => (
-              <Box key={section.title}>
-                <Typography sx={{ fontSize: 22, fontWeight: 700, color: "#111827", mb: 1 }}>{section.title}</Typography>
-                <Typography sx={{ color: "#475569", lineHeight: 1.85, fontSize: 16 }}>{section.body}</Typography>
-              </Box>
+              <div key={section.title}>
+                <h2 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: "#111827" }}>{section.title}</h2>
+                <p style={{ margin: 0, color: "#475569", lineHeight: 1.85, fontSize: 16 }}>{section.body}</p>
+              </div>
             ))}
-          </Stack>
+          </div>
 
-          <Divider sx={{ my: 4 }} />
+          <hr style={{ margin: "32px 0", borderColor: "#e5e7eb", borderTop: "1px solid #e5e7eb" }} />
 
-          <Stack spacing={1}>
-            <Typography sx={{ fontSize: 22, fontWeight: 700, color: "#111827" }}>핵심 구성</Typography>
-            <Typography sx={{ color: "#475569", fontSize: 16, lineHeight: 1.75 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700, color: "#111827" }}>핵심 구성</h2>
+            <p style={{ margin: 0, color: "#475569", fontSize: 16, lineHeight: 1.75 }}>
               1. 실시간 수집: IP별 스케줄링 + 중복 제거 + 운영 로그
               <br />
               2. 분석 엔진: 감성/볼륨/테마/매체 신호 결합 리스크 산식
@@ -64,19 +61,15 @@ export default function ProjectPage() {
               3. 검증 체계: 백테스트 타임라인으로 임계치 반응 검증
               <br />
               4. 대시보드: 실시간 모니터링 + 설명 가능한 지표 표시
-            </Typography>
-          </Stack>
+            </p>
+          </div>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2} sx={{ mt: 4 }}>
-            <Button component={Link} href="/nexon" variant="contained" sx={actionButtonSx.primary}>
-              넥슨 IP 리스크 보기
-            </Button>
-            <Button component={Link} href="/nexon/backtest" variant="outlined" sx={actionButtonSx.secondary}>
-              백테스트 보기
-            </Button>
-          </Stack>
-        </Paper>
-      </Container>
-    </Box>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 9.6, marginTop: 32 }}>
+            <Link href="/nexon" style={ACTION_PRIMARY}>넥슨 IP 리스크 보기</Link>
+            <Link href="/nexon/backtest" style={ACTION_SECONDARY}>백테스트 보기</Link>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -355,6 +355,7 @@ def init_db() -> None:
         )
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_company ON articles(company)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_company_test_date ON articles(company, is_test, date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_sentiment ON articles(sentiment)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_pub_date ON articles(pub_date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_outlet ON articles(outlet)")
@@ -577,6 +578,12 @@ def _increment_group_repost(conn: sqlite3.Connection, source_group_id: str, now:
 
 
 def _compute_group_volume(conn: sqlite3.Connection, group_ids: set[str]) -> dict[str, float | int]:
+    # 운영 지표 정의:
+    # - unique_articles: source_group 기준 고유 기사 수
+    # - total_mentions: 재배포 포함 노출량(repost_count 합)
+    # 주의:
+    # source_group 매핑 정확도(원문 링크 정규화/군집 품질)에 따라
+    # total_mentions는 보수/과대 추정이 발생할 수 있다.
     effective_groups = {g for g in group_ids if g and not g.startswith("legacy:")}
     unique_articles = int(len(group_ids))
     if not effective_groups:
@@ -763,8 +770,19 @@ def get_nexon_articles(
     if not ip_name:
         raise ValueError("지원하지 않는 IP입니다.")
 
+    ip_where_sql, ip_where_params = _build_ip_sql_filter(ip_name)
+
     conn = _connect()
     try:
+        where_sql = f"""
+            FROM articles
+            WHERE company = ?
+              AND is_test = 0
+              {ip_where_sql}
+        """
+        base_params: list[Any] = ["넥슨", *ip_where_params]
+        total_row = conn.execute(f"SELECT COUNT(1) AS cnt {where_sql}", base_params).fetchone()
+        total = int(total_row["cnt"] if total_row else 0)
         rows = conn.execute(
             """
             SELECT id, company, title_clean, description_clean, sentiment, date,
@@ -772,22 +790,22 @@ def get_nexon_articles(
                    COALESCE(originallink, '') AS originallink,
                    COALESCE(link, '') AS link,
                    CASE WHEN originallink IS NOT NULL AND originallink != '' THEN originallink ELSE link END AS url
-            FROM articles
-            WHERE company = ?
+            """
+            + where_sql
+            + """
             ORDER BY COALESCE(pub_date, date, created_at) DESC, id DESC
+            LIMIT ? OFFSET ?
             """,
-            ("넥슨",),
+            [*base_params, max(1, int(limit)), max(0, int(offset))],
         ).fetchall()
     finally:
         conn.close()
 
-    filtered: list[dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for r in rows:
         text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
         detected_ip = _detect_ip(text)
-        if ip_name != "전체" and detected_ip != ip_name:
-            continue
-        filtered.append(
+        items.append(
             {
                 "id": int(r["id"]),
                 "company": str(r["company"] or ""),
@@ -801,15 +819,14 @@ def get_nexon_articles(
             }
         )
 
-    total = len(filtered)
     start = max(0, int(offset))
-    end = start + max(1, int(limit))
-    items = filtered[start:end]
+    page_limit = max(1, int(limit))
+    end = start + page_limit
     return {
         "items": items,
         "total": int(total),
         "offset": int(start),
-        "limit": int(limit),
+        "limit": int(page_limit),
         "has_more": end < total,
     }
 
@@ -853,6 +870,27 @@ def _detect_ip(text: str) -> str:
     return "기타"
 
 
+def _build_ip_sql_filter(ip_name: str) -> tuple[str, list[str]]:
+    if ip_name == "전체":
+        return "", []
+    meta = IP_RULES.get(ip_name, {})
+    keywords = [str(k).strip().lower() for k in meta.get("keywords", []) if str(k).strip()]
+    if not keywords:
+        return " AND 1 = 0", []
+
+    # 운영 조회 성능 개선:
+    # IP 필터를 Python 후처리가 아니라 SQL WHERE 단계에서 처리한다.
+    # 주의:
+    # 다중 IP 키워드가 함께 포함된 기사에서는 _detect_ip(첫 매칭 우선) 결과와
+    # SQL 포함 여부가 다를 수 있다(조회 포함은 되지만 표기 ip는 첫 매칭 IP).
+    clauses: list[str] = []
+    params: list[str] = []
+    for keyword in keywords:
+        clauses.append("LOWER(COALESCE(title_clean, '') || ' ' || COALESCE(description_clean, '')) LIKE ?")
+        params.append(f"%{keyword}%")
+    return f" AND ({' OR '.join(clauses)})", params
+
+
 def _extract_cluster_tokens(text: str, ip_name: str) -> list[str]:
     words = re.findall(r"[가-힣a-zA-Z0-9]{2,12}", text or "")
     stop = set(CLUSTER_TOKEN_STOPWORDS)
@@ -888,7 +926,8 @@ def get_ip_clusters(
     if not ip_name:
         raise ValueError("지원하지 않는 IP입니다.")
 
-    params = ["넥슨", date_from, date_to]
+    ip_where_sql, ip_where_params = _build_ip_sql_filter(ip_name)
+    params = ["넥슨", date_from, date_to, *ip_where_params]
     conn = _connect()
     try:
         rows = conn.execute(
@@ -897,7 +936,10 @@ def get_ip_clusters(
                    COALESCE(source_group_id, '') AS source_group_id,
                    COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet
             FROM articles
-            WHERE company = ? AND date BETWEEN ? AND ?
+            WHERE company = ? AND is_test = 0 AND date BETWEEN ? AND ?
+            """
+            + ip_where_sql
+            + """
             ORDER BY date DESC, id DESC
             """,
             params,
@@ -1023,6 +1065,8 @@ def get_ip_clusters(
             "ip_id": (ip or "").strip().lower(),
             "date_from": date_from,
             "date_to": date_to,
+            # 운영 지표 정의:
+            # total_mentions = 재배포 포함 노출량, unique_articles = 고유 기사 수
             "total_articles": int(volume["total_mentions"]),
             "unique_articles": int(volume["unique_articles"]),
             "total_mentions": int(volume["total_mentions"]),
@@ -1042,7 +1086,8 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
     if not ip_name:
         raise ValueError("지원하지 않는 IP입니다.")
 
-    params = ["넥슨", date_from, date_to]
+    ip_where_sql, ip_where_params = _build_ip_sql_filter(ip_name)
+    params = ["넥슨", date_from, date_to, *ip_where_params]
     conn = _connect()
     try:
         rows = conn.execute(
@@ -1054,14 +1099,17 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
                    COALESCE(source_group_id, '') AS source_group_id,
                    COALESCE(NULLIF(outlet, ''), 'unknown') AS outlet
             FROM articles
-            WHERE company = ? AND date BETWEEN ? AND ?
+            WHERE company = ? AND is_test = 0 AND date BETWEEN ? AND ?
+            """
+            + ip_where_sql
+            + """
             """,
             params,
         ).fetchall()
     finally:
         conn.close()
 
-    daily_acc: dict[str, dict[str, int]] = {}
+    daily_acc: dict[str, dict[str, Any]] = {}
     outlet_acc: dict[str, dict[str, int]] = {}
     ip_breakdown_acc: dict[str, int] = {}
     theme_counts: dict[str, dict[str, float]] = {
@@ -1086,8 +1134,9 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
         gid = str(r["source_group_id"] or "") or f"legacy:{int(r['id'])}"
         group_ids.add(gid)
         if date not in daily_acc:
-            daily_acc[date] = {"article_count": 0, "negative_count": 0}
+            daily_acc[date] = {"article_count": 0, "negative_count": 0, "group_ids": set()}
         daily_acc[date]["article_count"] += 1
+        daily_acc[date]["group_ids"].add(gid)
         if sentiment == "부정":
             daily_acc[date]["negative_count"] += 1
 
@@ -1107,12 +1156,49 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
                 if sentiment == "부정":
                     theme_counts[theme]["negative_count"] += 1
 
+    # 일자별 노출량(재배포 포함) 계산:
+    # source_group repost_count를 사용해 day-level mention_count를 산출한다.
+    daily_group_ids: set[str] = set()
+    for day_row in daily_acc.values():
+        daily_group_ids.update(day_row["group_ids"])
+    group_repost_map: dict[str, int] = {}
+    real_group_ids = [gid for gid in sorted(daily_group_ids) if not gid.startswith("legacy:")]
+    if real_group_ids:
+        placeholders = ",".join(["?"] * len(real_group_ids))
+        conn = _connect()
+        try:
+            grows = conn.execute(
+                f"""
+                SELECT group_id, repost_count
+                FROM source_groups
+                WHERE group_id IN ({placeholders})
+                """,
+                real_group_ids,
+            ).fetchall()
+        finally:
+            conn.close()
+        group_repost_map = {str(g["group_id"] or ""): max(1, int(g["repost_count"] or 1)) for g in grows}
+
     daily = []
     for date in sorted(daily_acc.keys()):
         count = daily_acc[date]["article_count"]
         neg = daily_acc[date]["negative_count"]
         ratio = round(100.0 * neg / max(count, 1), 1)
-        daily.append({"date": date, "article_count": count, "negative_ratio": ratio})
+        total_mentions_daily = sum(
+            max(1, int(group_repost_map.get(str(gid), 1)))
+            for gid in daily_acc[date]["group_ids"]
+        )
+        daily.append(
+            {
+                "date": date,
+                "article_count": count,
+                "negative_ratio": ratio,
+                # daily 표준 계약 필드: total_mentions(재배포 포함 노출량)
+                "total_mentions": int(total_mentions_daily),
+                # mention_count는 기존 프론트 역호환 alias로 유지(신규 사용 비권장)
+                "mention_count": int(total_mentions_daily),
+            }
+        )
 
     outlets = []
     for outlet, row in sorted(outlet_acc.items(), key=lambda kv: kv[1]["article_count"], reverse=True)[:40]:
@@ -1164,6 +1250,10 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
             "ip_id": (ip or "all").strip().lower(),
             "date_from": date_from,
             "date_to": date_to,
+            # 운영 지표 의미 고정:
+            # total_mentions: 재배포 포함 노출량
+            # unique_articles: 고유 기사 수(source_group 기준)
+            # repost_multiplier: total_mentions / unique_articles
             "total_articles": int(volume["total_mentions"]),
             "unique_articles": int(volume["unique_articles"]),
             "total_mentions": int(volume["total_mentions"]),
@@ -2010,6 +2100,8 @@ def cleanup_live_articles(retain_days: int = 30, max_delete_rows: int | None = N
         return 0
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     cap = _normalize_delete_cap(max_delete_rows)
+    # 운영 데이터 보존 기준:
+    # live 기사(is_test=0)만 TTL 삭제하고, 테스트 데이터는 유지한다.
     where_sql = """
         FROM articles
         WHERE is_test = 0
@@ -2073,6 +2165,8 @@ def cleanup_risk_timeseries(retain_days: int = 90, max_delete_rows: int | None =
         return 0
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     cap = _normalize_delete_cap(max_delete_rows)
+    # 리스크 시계열 보존 기준:
+    # ts(계산 시각) 기준으로 오래된 행부터 순차 삭제한다.
     conn = _connect()
     try:
         if dry_run:

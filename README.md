@@ -97,6 +97,14 @@ sudo tail -n 200 /var/log/nginx/error.log
 - 프론트 compare 화면은 `24/72/168시간` 토글을 제공하며 기본값은 `72시간`입니다.
 - 감성 분류 사전/수식은 `/docs/sentiment-rule-v2.md`를 기준으로 운영합니다.
 
+### risk-dashboard 계약
+- `meta.total_mentions`: 재배포 포함 노출량(`source_groups.repost_count` 합산 기반)
+- `meta.unique_articles`: 고유 기사 수(`source_group` 기준)
+- `meta.repost_multiplier`: `total_mentions / unique_articles`
+- `daily.total_mentions`: 일자별 재배포 포함 노출량(표준 필드)
+- `daily.mention_count`: 기존 UI 역호환 alias (`daily.total_mentions`와 동일 값)
+- 주의: `source_group` 매핑 품질(원문 링크 정규화/군집화 정확도)에 따라 `total_mentions`는 보수/과대 추정될 수 있습니다.
+
 ## DB 기반 분석 산출물(외부 API 미호출)
 이미 DB에 적재된 데이터로 포트폴리오용 JSON/CSV를 생성합니다.
 

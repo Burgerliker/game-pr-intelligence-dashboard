@@ -67,21 +67,46 @@
 - 운영 트래킹 파일 임의 수정 후 방치 금지
 - 수동 배포와 자동 배포 혼용 금지(전환 시 명시적 공지 필수)
 
-## 다음 세션 인수인계 (2026-02-19)
-- 사용자 요청으로 `/nexon-rebuild-codex` 실험 라우트는 제거됨.
-- 현재 목적:
-  - 기존 운영 페이지(`/nexon`, `/compare`) 안정성 유지
-  - 리빌드는 새 세션에서 별도 브랜치로 다시 시작
-- 필수 원칙:
-  - 기능 로직 변경 없이 UI/레이아웃만 단계적으로 개선
-  - 변경 단위는 작게(페이지 1개 또는 컴포넌트 묶음 1개)
-  - 매 단계 `npm --prefix frontend run build` 통과 후 커밋
-- 우선순위 작업:
-  1. 버튼/칩/카드 토큰 통일(높이, 라운드, 타이포)
-  2. `/nexon` 상단 배너 재디자인(그라데이션 금지, 정보 구조 단순화)
-  3. 위험도 설명 UI 간소화(기본 1줄 + 상세는 접기)
-  4. `/compare` 차트 0값/저표본 표현 오인 제거 유지 점검
-- 검증 체크:
-  - 데스크톱 + 모바일(390x844) 레이아웃 깨짐 없음
-  - 429 카운트다운/자동갱신 동작 회귀 없음
-  - `/api/health`, `/api/scheduler-status` 계약 필드 영향 없음
+## 운영 DB 점검 표준
+- 운영 SQL은 쉘에 직접 입력하지 말고 `sqlite3` 세션(또는 heredoc)으로만 실행한다.
+- 운영 DB 기본 경로: 컨테이너 내부 `/app/backend/data/articles.db`
+- 기본 점검은 아래 3개를 우선 실행한다.
+
+### 1) 30일 초과 live 기사 삭제 대상
+```bash
+docker exec -i game-pr-intelligence-dashboard-backend-live-1 sqlite3 /app/backend/data/articles.db <<'SQL'
+SELECT COUNT(*) AS old_live_rows
+FROM articles
+WHERE is_test=0
+  AND datetime(COALESCE(NULLIF(pub_date,''), NULLIF(created_at,''), date||' 00:00:00'))
+      < datetime('now','-30 day');
+SQL
+```
+
+### 2) 최근 14일 날짜 분포
+```bash
+docker exec -i game-pr-intelligence-dashboard-backend-live-1 sqlite3 /app/backend/data/articles.db <<'SQL'
+SELECT date(datetime(COALESCE(NULLIF(pub_date,''), NULLIF(created_at,''), date||' 00:00:00'))) AS d,
+       COUNT(*) AS n
+FROM articles
+WHERE is_test=0
+GROUP BY d
+ORDER BY d DESC
+LIMIT 14;
+SQL
+```
+
+### 3) maintenance-cleanup 실행 로그
+```bash
+docker exec -i game-pr-intelligence-dashboard-backend-live-1 sqlite3 /app/backend/data/articles.db <<'SQL'
+SELECT id, job_id, run_time, status, error_message
+FROM scheduler_logs
+WHERE job_id='maintenance-cleanup'
+ORDER BY id DESC
+LIMIT 10;
+SQL
+```
+
+### 주의
+- `deleted_live_articles`, `cleanup_last_updated_at`는 스케줄러 잡(`maintenance-cleanup`) 실행 시점 기준으로 갱신된다.
+- 수동 파이썬 호출로 삭제해도 `/api/health`의 cleanup 상태 필드는 즉시 반영되지 않을 수 있다.
