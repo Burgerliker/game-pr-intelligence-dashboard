@@ -1,51 +1,46 @@
 "use client";
 
-import Link from "next/link";
+import { RebuildNav } from "../_components/ui";
 
 const cards = [
   {
-    title: "왜 이 대시보드가 필요한가",
-    body: "홍보팀은 매일 '지금 이슈가 위험 단계인지'를 빠르게 판단해야 합니다. 단순 기사 나열만으로는 보고/대응 우선순위를 정하기 어렵습니다.",
+    title: "문제",
+    body: "홍보팀은 매일 기사량 급증과 여론 악화 중 무엇이 실제 위기인지 빠르게 판단해야 합니다. 데이터는 많지만 행동 기준이 부족한 게 핵심 문제입니다.",
   },
   {
-    title: "핵심 가치",
-    body: "실시간 모니터링, 경쟁사 비교, 과거 분석을 한 체계로 연결해 오늘 판단과 보고 자료를 동시에 준비할 수 있게 설계했습니다.",
+    title: "해결",
+    body: "실시간 모니터링, 경쟁사 비교, 과거 분석을 같은 구조로 묶어 오늘 판단과 보고 자료를 동시에 준비할 수 있게 설계했습니다.",
   },
   {
-    title: "운영 기준",
-    body: "운영 API 상태와 수집 스케줄러 상태를 함께 노출해 '숫자가 왜 이렇게 보이는지'까지 설명 가능한 화면을 목표로 합니다.",
+    title: "기준",
+    body: "상태 신호등, 핵심 지표 3개, 이벤트 목록, 근거 기사로 연결되는 정보 계층을 고정해 PR 실무자가 1~5분 안에 상황을 설명할 수 있도록 했습니다.",
   },
 ];
 
 export default function RebuildProjectPage() {
   return (
-    <main style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <section className="rb-card" style={{ padding: 22 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "#60708b" }}>Project Story</p>
-            <h1 style={{ margin: "6px 0 0", fontSize: "clamp(26px,4.4vw,38px)", lineHeight: 1.1 }}>Game PR Intelligence Dashboard</h1>
-            <p style={{ margin: "8px 0 0", fontSize: 14, color: "#5f6b7f" }}>개발자 도구가 아니라 홍보 실무 의사결정 도구로 바꾸는 리빌드입니다.</p>
-          </div>
-          <Link className="rb-btn" href="/rebuild">메인</Link>
-        </div>
-      </section>
+    <main className="space-y-4">
+      <RebuildNav
+        title="Game PR Intelligence Dashboard"
+        subtitle="개발자 지표 화면을 홍보팀 의사결정 도구로 재구성한 리디자인 프로젝트입니다."
+        actions={[{ label: "메인", href: "/rebuild" }]}
+      />
 
       <section className="rb-grid-3">
         {cards.map((c) => (
-          <article key={c.title} className="rb-card" style={{ padding: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 20 }}>{c.title}</h2>
-            <p style={{ margin: "10px 0 0", fontSize: 14, color: "#5f6b7f", lineHeight: 1.75 }}>{c.body}</p>
+          <article key={c.title} className="rb-card p-4 md:p-5">
+            <h2 className="text-xl font-black">{c.title}</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-600">{c.body}</p>
           </article>
         ))}
       </section>
 
-      <section className="rb-card" style={{ padding: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>바로 확인 가능한 화면</h2>
-        <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <Link className="rb-btn rb-btn-primary" href="/rebuild/nexon">실시간 모니터링</Link>
-          <Link className="rb-btn" href="/rebuild/compare">경쟁사 비교</Link>
-          <Link className="rb-btn" href="/rebuild/nexon/backtest">과거 분석</Link>
+      <section className="rb-card p-4 md:p-5">
+        <h2 className="text-xl font-black">확인 경로</h2>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a className="rb-btn rb-btn-primary" href="/rebuild/nexon">실시간 모니터링</a>
+          <a className="rb-btn" href="/rebuild/compare">경쟁사 비교</a>
+          <a className="rb-btn" href="/rebuild/nexon/backtest">과거 분석</a>
         </div>
       </section>
     </main>
