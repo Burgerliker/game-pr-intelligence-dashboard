@@ -145,6 +145,8 @@ SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
 LIVE_ARTICLE_RETENTION_DAYS = int(os.getenv("LIVE_ARTICLE_RETENTION_DAYS", "30"))
 RISK_TIMESERIES_RETENTION_DAYS = int(os.getenv("RISK_TIMESERIES_RETENTION_DAYS", "90"))
+LIVE_COLLECT_MAX_AGE_DAYS = max(1, int(os.getenv("LIVE_COLLECT_MAX_AGE_DAYS", str(LIVE_ARTICLE_RETENTION_DAYS))))
+RISK_DASHBOARD_DEFAULT_LOOKBACK_DAYS = max(7, int(os.getenv("RISK_DASHBOARD_DEFAULT_LOOKBACK_DAYS", "90")))
 CLEANUP_DRY_RUN = os.getenv("CLEANUP_DRY_RUN", "0") == "1"
 CLEANUP_MAX_DELETE_ROWS = int(os.getenv("CLEANUP_MAX_DELETE_ROWS", "5000"))
 ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
@@ -555,8 +557,9 @@ def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> 
                 (date_frame["title_clean"].fillna("") + " " + date_frame["description_clean"].fillna(""))
                 .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
             ]
-            if not date_filtered.empty:
-                frames.append(date_filtered)
+            date_recent = _filter_recent_pubdate_rows(date_filtered, LIVE_COLLECT_MAX_AGE_DAYS)
+            if not date_recent.empty:
+                frames.append(date_recent)
 
         if bool(strategy.get("include_sim", LIVE_COLLECT_INCLUDE_SIM)):
             for page in range(int(strategy.get("pages", max(1, LIVE_COLLECT_PAGES)))):
@@ -579,8 +582,9 @@ def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> 
                     (sim_frame["title_clean"].fillna("") + " " + sim_frame["description_clean"].fillna(""))
                     .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
                 ]
-                if not sim_filtered.empty:
-                    frames.append(sim_filtered)
+                sim_recent = _filter_recent_pubdate_rows(sim_filtered, LIVE_COLLECT_MAX_AGE_DAYS)
+                if not sim_recent.empty:
+                    frames.append(sim_recent)
 
     if not frames:
         return pd.DataFrame(), calls
@@ -794,6 +798,14 @@ def _to_nexon_df(items: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _filter_recent_pubdate_rows(df: pd.DataFrame, max_age_days: int) -> pd.DataFrame:
+    if df.empty or "pubDate_parsed" not in df.columns:
+        return df
+    parsed = pd.to_datetime(df["pubDate_parsed"], errors="coerce", utc=True).dt.tz_convert(None)
+    cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=max(1, int(max_age_days)))
+    return df.loc[parsed >= cutoff].copy()
+
+
 def _collect_backfill_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
     queries = BACKFILL_QUERIES.get(ip_id, [])
     if not queries:
@@ -813,8 +825,9 @@ def _collect_backfill_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
                 (frame["title_clean"].fillna("") + " " + frame["description_clean"].fillna(""))
                 .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
             ]
-            if not frame.empty:
-                frames.append(frame)
+            frame_recent = _filter_recent_pubdate_rows(frame, LIVE_COLLECT_MAX_AGE_DAYS)
+            if not frame_recent.empty:
+                frames.append(frame_recent)
     if not frames:
         return pd.DataFrame(), calls
     merged = pd.concat(frames, ignore_index=True)
@@ -1559,12 +1572,16 @@ def risk_ips() -> dict:
 @app.get("/api/risk-dashboard")
 def risk_dashboard(
     ip: str = Query(default="all"),
-    date_from: str = Query(default="2024-01-01"),
-    date_to: str = Query(default="2026-12-31"),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
 ) -> dict:
+    resolved_date_to = date_to or datetime.now().strftime("%Y-%m-%d")
+    resolved_date_from = date_from or (
+        datetime.now() - timedelta(days=RISK_DASHBOARD_DEFAULT_LOOKBACK_DAYS)
+    ).strftime("%Y-%m-%d")
     try:
-        start = datetime.strptime(date_from, "%Y-%m-%d")
-        end = datetime.strptime(date_to, "%Y-%m-%d")
+        start = datetime.strptime(resolved_date_from, "%Y-%m-%d")
+        end = datetime.strptime(resolved_date_to, "%Y-%m-%d")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="date_from/date_to 형식은 YYYY-MM-DD여야 합니다.") from exc
 
@@ -1572,7 +1589,7 @@ def risk_dashboard(
         raise HTTPException(status_code=400, detail="date_from은 date_to보다 이전이어야 합니다.")
 
     try:
-        return get_risk_dashboard(date_from=date_from, date_to=date_to, ip=ip)
+        return get_risk_dashboard(date_from=resolved_date_from, date_to=resolved_date_to, ip=ip)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
