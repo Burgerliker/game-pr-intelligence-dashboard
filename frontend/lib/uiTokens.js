@@ -5,13 +5,17 @@ export const pageShellSx = {
 
 export const pageContainerSx = {
   maxWidth: "1180px !important",
+  px: { xs: 1.2, sm: 2, md: 3 },
 };
 
 export const sectionCardSx = {
   borderRadius: 3,
   borderColor: "rgba(15,23,42,.1)",
+  borderStyle: "solid",
+  borderWidth: "1px",
   bgcolor: "#ffffff",
   boxShadow: "0 12px 28px rgba(15,23,42,.06)",
+  minHeight: 120,
 };
 
 export const actionButtonSx = {
@@ -95,4 +99,5 @@ export const metricCardSx = {
   bgcolor: "#ffffff",
   boxShadow: "0 1px 3px rgba(15,23,42,.05), 0 4px 12px rgba(15,23,42,.04)",
   overflow: "hidden",
+  minHeight: 160,
 };

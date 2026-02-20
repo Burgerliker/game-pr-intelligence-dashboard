@@ -910,7 +910,7 @@ export default function NexonPage() {
 
   return (
     <Box sx={{ ...pageShellSx, py: { xs: 1.5, sm: 2, md: 4 } }}>
-    <Container maxWidth="xl" sx={{ ...pageContainerSx, px: { xs: 1.2, sm: 2, md: 3 } }}>
+    <Container maxWidth="xl" sx={pageContainerSx}>
       <Stack spacing={{ xs: 1.4, md: 2 }}>
         <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
           <Stack

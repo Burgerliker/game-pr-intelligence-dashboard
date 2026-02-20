@@ -37,7 +37,7 @@ const sections = [
 export default function ProjectPage() {
   return (
     <Box sx={{ ...pageShellSx, py: { xs: 2, md: 5 } }}>
-      <Container maxWidth="lg" sx={{ ...pageContainerSx, maxWidth: "980px !important" }}>
+      <Container maxWidth="xl" sx={pageContainerSx}>
         <Card variant="outlined" sx={{ ...sectionCardSx, bgcolor: "#f8fafc" }}>
           <CardContent sx={{ p: { xs: 2.5, md: 4 } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
