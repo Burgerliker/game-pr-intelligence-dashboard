@@ -2,62 +2,74 @@
 
 import Link from "next/link";
 
-const principles = [
-  "1초 안에 상태를 판단할 수 있어야 합니다.",
-  "경영진 보고서에 바로 붙일 수 있는 카드 구조여야 합니다.",
-  "숫자만 보여주지 않고, 행동 방향을 함께 제시해야 합니다.",
-  "실시간 모니터링·경쟁사 비교·과거 분석을 같은 맥락으로 연결해야 합니다.",
+const SHELL = { minHeight: "100dvh", backgroundColor: "#eef0f3", fontFamily: "'Plus Jakarta Sans','Noto Sans KR','Apple SD Gothic Neo',sans-serif", paddingTop: 16, paddingBottom: 48 };
+const CONTAINER = { maxWidth: 1180, margin: "0 auto", padding: "0 16px" };
+const SECTION_CARD = { borderRadius: 24, border: "1px solid rgba(15,23,42,.1)", backgroundColor: "#ffffff", boxShadow: "0 12px 28px rgba(15,23,42,.06)" };
+const NAV_BTN = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 16px", borderRadius: 9999, border: "1px solid rgba(15,23,42,.24)", fontSize: 14, fontWeight: 700, backgroundColor: "transparent", color: "#0f172a", cursor: "pointer" };
+const ACTION_PRIMARY = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 16px", borderRadius: 8, border: "none", fontSize: 14, fontWeight: 700, backgroundColor: "#111827", color: "#ffffff", cursor: "pointer" };
+const ACTION_SECONDARY = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 16px", borderRadius: 8, border: "1px solid rgba(15,23,42,.24)", fontSize: 14, fontWeight: 700, backgroundColor: "transparent", color: "#0f172a", cursor: "pointer" };
+
+const sections = [
+  {
+    title: "문제 정의",
+    body: "게임 PR 운영에서는 기사량이 급증할 때 이슈가 실제 위기로 전환되는지 빠르게 판단하기 어렵습니다. 단순 모니터링만으로는 대응 우선순위를 정하기 어렵고, 사후 보고도 정량 근거가 약해지는 문제가 있습니다.",
+  },
+  {
+    title: "해결 접근",
+    body: "네이버 뉴스 수집 파이프라인과 IP별 위험도 산식(S/V/T/M)을 결합해 리스크 점수를 산출했습니다. 실시간 모드에서는 스케줄러 기반 자동 수집, 백테스트 모드에서는 과거 구간 재현으로 모델 반응을 검증하도록 설계했습니다.",
+  },
+  {
+    title: "실무 활용 가치",
+    body: "위험도 점수를 기사량, 테마, 확산 신호로 분해해 표시함으로써 PR 담당자가 '왜 위험한지'를 즉시 해석할 수 있습니다. 또한 경쟁사 비교/백테스트/실시간 모니터링을 분리해 보고 목적에 맞는 의사결정을 지원합니다.",
+  },
 ];
 
-const deliverables = [
-  "실시간 모니터링: 위험 상태, 노출량, 부정 비율, 급등 이벤트를 한 화면에서 확인",
-  "경쟁사 비교: 동일 시간대 조건으로 회사별 여론 분포와 기사 흐름 비교",
-  "과거 분석: 실제 사건 구간에 탐지 로직을 재적용해 대응 타이밍 검증",
-  "운영 가드레일: API 헬스, 스케줄러 상태, 데이터 모드 확인 경로 제공",
-];
-
-export default function RebuildProjectPage() {
+export default function ProjectPage() {
   return (
-    <main className="space-y-5">
-      <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Project Brief</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight">Game PR Intelligence Dashboard</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">개발자용 지표 화면이 아니라, 홍보팀이 당장 쓰는 의사결정 도구로 바꾸는 것이 목표입니다.</p>
+    <div style={SHELL}>
+      <div style={{ ...CONTAINER, maxWidth: 980 }}>
+        <div style={{ ...SECTION_CARD, backgroundColor: "#f8fafc", padding: "40px 48px", boxShadow: "0 14px 38px rgba(15,23,42,.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <h1 style={{ margin: 0, fontSize: "clamp(24px,3vw,30px)", fontWeight: 800, color: "#0f172a", letterSpacing: "-.02em" }}>
+              프로젝트 소개
+            </h1>
+            <Link href="/rebuild" style={NAV_BTN}>메인으로</Link>
           </div>
-          <Link href="/rebuild" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">메인</Link>
-        </div>
-      </header>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black">핵심 원칙</h2>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            {principles.map((p) => (
-              <li key={p} className="rounded-xl border border-slate-200 bg-slate-50 p-3">{p}</li>
+          <p style={{ margin: "0 0 32px", fontSize: "clamp(16px,2vw,18px)", color: "#64748b", lineHeight: 1.7 }}>
+            게임 PR 실무 의사결정에 바로 연결되는 분석 구조를 목표로 설계한 포트폴리오입니다.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+            {sections.map((section) => (
+              <div key={section.title}>
+                <h2 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: "#111827" }}>{section.title}</h2>
+                <p style={{ margin: 0, color: "#475569", lineHeight: 1.85, fontSize: 16 }}>{section.body}</p>
+              </div>
             ))}
-          </ul>
-        </article>
+          </div>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black">구현 범위</h2>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            {deliverables.map((d) => (
-              <li key={d} className="rounded-xl border border-slate-200 bg-slate-50 p-3">{d}</li>
-            ))}
-          </ul>
-        </article>
-      </section>
+          <hr style={{ margin: "32px 0", borderColor: "#e5e7eb", borderTop: "1px solid #e5e7eb" }} />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-black">바로 확인</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/rebuild/nexon" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white">실시간 모니터링</Link>
-          <Link href="/rebuild/compare" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">경쟁사 비교</Link>
-          <Link href="/rebuild/nexon/backtest" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">과거 분석</Link>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700, color: "#111827" }}>핵심 구성</h2>
+            <p style={{ margin: 0, color: "#475569", fontSize: 16, lineHeight: 1.75 }}>
+              1. 실시간 수집: IP별 스케줄링 + 중복 제거 + 운영 로그
+              <br />
+              2. 분석 엔진: 감성/볼륨/테마/매체 신호 결합 리스크 산식
+              <br />
+              3. 검증 체계: 백테스트 타임라인으로 임계치 반응 검증
+              <br />
+              4. 대시보드: 실시간 모니터링 + 설명 가능한 지표 표시
+            </p>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 9.6, marginTop: 32 }}>
+            <Link href="/rebuild/nexon" style={ACTION_PRIMARY}>넥슨 IP 리스크 보기</Link>
+            <Link href="/rebuild/nexon/backtest" style={ACTION_SECONDARY}>백테스트 보기</Link>
+          </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
