@@ -18,7 +18,6 @@ import {
   ListItem,
   ListItemText,
   LinearProgress,
-  MobileStepper,
   Paper,
   Stack,
   Typography,
@@ -48,7 +47,7 @@ import {
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
-const NEXON_LOGO = "/nexon-logo.png";
+const NEXON_LOGO = "/nexon-logo.svg";
 const ARTICLE_PAGE_SIZE = 20;
 const ARTICLE_ROW_HEIGHT = 122;
 const ARTICLE_LIST_MAX_HEIGHT = 640;
@@ -74,6 +73,19 @@ const IP_BANNER_STYLE = {
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
 const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
+const bannerPagerBtnSx = {
+  width: 34,
+  height: 34,
+  borderRadius: 99,
+  border: "1px solid rgba(15,23,42,.2)",
+  color: "#0f172a",
+  bgcolor: "#fff",
+  "&:hover": { bgcolor: "#f8fafc" },
+  "&.Mui-disabled": {
+    color: "#94a3b8",
+    borderColor: "rgba(148,163,184,.5)",
+  },
+};
 
 const MOCK_RISK = {
   meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
@@ -860,16 +872,18 @@ export default function NexonPage() {
                     component="img"
                     src={NEXON_LOGO}
                     alt="NEXON"
-                    width={64}
-                    height={64}
+                    width={160}
+                    height={48}
                     sx={{
                       position: "absolute",
                       right: { xs: 10, sm: 12, md: 14 },
                       top: { xs: 10, sm: 10, md: 12 },
-                      width: { xs: 30, sm: 36, md: 42 },
-                      p: { xs: 0.15, md: 0.25 },
-                      opacity: 0.65,
-                      filter: "grayscale(100%) contrast(1.02)",
+                      width: { xs: 56, sm: 68, md: 76 },
+                      height: "auto",
+                      aspectRatio: "160 / 48",
+                      objectFit: "contain",
+                      opacity: 0.78,
+                      filter: "grayscale(100%) contrast(1.06)",
                     }}
                   />
                   <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
@@ -908,34 +922,49 @@ export default function NexonPage() {
                   sx={{
                     ...panelPaperSx,
                     borderRadius: 99,
-                    overflow: "hidden",
                     borderColor: "rgba(15,23,42,.16)",
                     bgcolor: "#fff",
+                    px: 0.85,
+                    py: 0.6,
                   }}
                 >
-                  <MobileStepper
-                    variant="dots"
-                    steps={Math.max(bannerItems.length, 1)}
-                    position="static"
-                    activeStep={Math.max(currentBannerIndex, 0)}
-                    sx={{
-                      bgcolor: "transparent",
-                      py: 0.25,
-                      px: 0.6,
-                      minHeight: 40,
-                      "& .MuiMobileStepper-dot": { mx: 0.35 },
-                    }}
-                    nextButton={
-                      <Button size="small" sx={controlButtonSx} onClick={goNextBanner} disabled={currentBannerIndex >= bannerItems.length - 1}>
-                        다음 <ChevronRight {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: "4px" }} />
-                      </Button>
-                    }
-                    backButton={
-                      <Button size="small" sx={controlButtonSx} onClick={goPrevBanner} disabled={currentBannerIndex <= 0}>
-                        <ChevronLeft {...iconProps()} style={{ display: "inline-flex", verticalAlign: "middle", marginRight: "4px" }} />이전
-                      </Button>
-                    }
-                  />
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <IconButton
+                      size="small"
+                      aria-label="이전 IP"
+                      sx={bannerPagerBtnSx}
+                      onClick={goPrevBanner}
+                      disabled={currentBannerIndex <= 0}
+                    >
+                      <ChevronLeft {...iconProps({ size: 18 })} />
+                    </IconButton>
+                    <Stack direction="row" spacing={0.7} alignItems="center">
+                      {Array.from({ length: Math.max(bannerItems.length, 1) }).map((_, idx) => {
+                        const active = idx === Math.max(currentBannerIndex, 0);
+                        return (
+                          <Box
+                            key={`banner-dot-${idx}`}
+                            sx={{
+                              width: active ? 20 : 8,
+                              height: 8,
+                              borderRadius: 999,
+                              bgcolor: active ? "#2563eb" : "rgba(100,116,139,.45)",
+                              transition: "all .2s ease",
+                            }}
+                          />
+                        );
+                      })}
+                    </Stack>
+                    <IconButton
+                      size="small"
+                      aria-label="다음 IP"
+                      sx={bannerPagerBtnSx}
+                      onClick={goNextBanner}
+                      disabled={currentBannerIndex >= bannerItems.length - 1}
+                    >
+                      <ChevronRight {...iconProps({ size: 18 })} />
+                    </IconButton>
+                  </Stack>
                 </Paper>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
                   <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
