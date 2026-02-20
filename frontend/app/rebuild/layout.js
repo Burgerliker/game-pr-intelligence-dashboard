@@ -6,5 +6,9 @@ export const metadata = {
 };
 
 export default function RebuildLayout({ children }) {
-  return <div className="rebuild-shell">{children}</div>;
+  return (
+    <div className="rb-root">
+      <div className="rb-container">{children}</div>
+    </div>
+  );
 }

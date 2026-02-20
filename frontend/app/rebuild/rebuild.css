@@ -1,104 +1,104 @@
-.rebuild-shell {
+.rb-root {
+  --rb-bg: #f3f6fb;
+  --rb-surface: #ffffff;
+  --rb-line: #dbe3ef;
+  --rb-ink: #0f172a;
+  --rb-muted: #5f6b7f;
+  --rb-brand: #0f3b66;
+  --rb-brand-2: #9acb19;
+  --rb-good: #166534;
+  --rb-caution: #a16207;
+  --rb-warning: #c2410c;
+  --rb-danger: #b91c1c;
   min-height: 100dvh;
   background:
-    radial-gradient(1000px 480px at 0% -15%, rgba(27, 73, 130, 0.18), transparent 65%),
-    radial-gradient(1200px 520px at 100% -10%, rgba(154, 203, 25, 0.15), transparent 60%),
-    #eef3f9;
+    radial-gradient(1000px 460px at 0% -8%, rgba(15, 59, 102, 0.16), transparent 60%),
+    radial-gradient(1100px 440px at 100% -6%, rgba(154, 203, 25, 0.14), transparent 62%),
+    var(--rb-bg);
+  color: var(--rb-ink);
 }
 
-.rebuild-shell .MuiContainer-root {
-  max-width: 1260px !important;
+.rb-container {
+  margin: 0 auto;
+  max-width: 1240px;
+  padding: 20px 16px 36px;
 }
 
-.rebuild-shell .MuiPaper-root,
-.rebuild-shell .MuiCard-root {
-  border: 1px solid #dbe4f0 !important;
-  border-radius: 20px !important;
-  background: #ffffff !important;
-  box-shadow: 0 10px 26px rgba(13, 29, 56, 0.08) !important;
+.rb-card {
+  background: var(--rb-surface);
+  border: 1px solid var(--rb-line);
+  border-radius: 20px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 
-.rebuild-shell .MuiTypography-root {
-  color: #10233f;
-}
-
-.rebuild-shell .MuiTypography-h3,
-.rebuild-shell .MuiTypography-h4,
-.rebuild-shell .MuiTypography-h5,
-.rebuild-shell .MuiTypography-h6 {
-  letter-spacing: -0.02em;
+.rb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--rb-line);
+  background: #f8fbff;
+  font-size: 12px;
   font-weight: 800;
+  color: #1e3352;
 }
 
-.rebuild-shell .MuiDivider-root {
-  border-color: #dfe7f3 !important;
+.rb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #a7b7ce;
+  background: #f8fbff;
+  color: #193a63;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  min-height: 38px;
+  padding: 0 14px;
 }
 
-.rebuild-shell .MuiButton-root {
-  border-radius: 999px !important;
-  min-height: 40px;
-  text-transform: none !important;
-  font-weight: 800 !important;
-  letter-spacing: -0.01em;
+.rb-btn-primary {
+  border-color: #0f3b66;
+  background: linear-gradient(135deg, #0f3b66, #1e5a91);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(15, 59, 102, 0.24);
 }
 
-.rebuild-shell .MuiButton-contained,
-.rebuild-shell .MuiButton-containedPrimary {
-  color: #fff !important;
-  background: linear-gradient(135deg, #0f3b66 0%, #1e5488 100%) !important;
-  box-shadow: 0 8px 18px rgba(15, 59, 102, 0.3) !important;
+.rb-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.rebuild-shell .MuiButton-outlined {
-  color: #1a3963 !important;
-  border: 1px solid #9db3cf !important;
-  background: #f7faff !important;
+.rb-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.rebuild-shell .MuiChip-root {
-  border-radius: 999px !important;
-  border: 1px solid #d4deeb !important;
-  background: #f8fbff !important;
-  font-weight: 800 !important;
+.rb-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.rebuild-shell .MuiAlert-root {
-  border-radius: 14px !important;
-}
-
-.rebuild-shell .MuiLinearProgress-root {
-  border-radius: 999px !important;
-  background: #e3ebf6 !important;
-}
-
-.rebuild-shell .MuiLinearProgress-bar {
-  border-radius: 999px !important;
-}
-
-.rebuild-shell .MuiListItem-root {
-  border-radius: 12px;
-  transition: background-color 0.2s ease;
-}
-
-.rebuild-shell .MuiListItem-root:hover {
-  background: #f4f8ff;
-}
-
-.rebuild-shell [class*="MuiIconButton-root"] {
-  border-radius: 999px !important;
-}
-
-.rebuild-shell a {
-  text-underline-offset: 2px;
-}
-
-@media (max-width: 960px) {
-  .rebuild-shell .MuiButton-root {
-    min-height: 36px;
-    font-size: 13px !important;
+@media (max-width: 1024px) {
+  .rb-grid-4,
+  .rb-grid-3,
+  .rb-grid-2 {
+    grid-template-columns: 1fr;
   }
 
-  .rebuild-shell .MuiChip-root {
-    font-size: 12px !important;
+  .rb-container {
+    padding: 14px 12px 28px;
+  }
+
+  .rb-btn {
+    min-height: 36px;
+    font-size: 12px;
+    padding: 0 12px;
   }
 }
