@@ -36,6 +36,15 @@ const CHIP_WARNING = { display: "inline-flex", alignItems: "center", minHeight: 
 const ALERT_INFO = { display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, border: "1px solid #bfdbfe", backgroundColor: "#eff6ff", color: "#1e3a8a", fontSize: 13, lineHeight: 1.5 };
 const ALERT_WARNING = { display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, border: "1px solid #f6d596", backgroundColor: "#fff8eb", color: "#8a5700", fontSize: 13, lineHeight: 1.5 };
 
+function toDriverLabel(code) {
+  const key = String(code || "").trim().toUpperCase();
+  if (key === "S") return "기사량";
+  if (key === "V") return "확산도";
+  if (key === "T") return "테마강도";
+  if (key === "M") return "변동성";
+  return "-";
+}
+
 export default function NexonBacktestPage() {
   const chartRef = useRef(null);
   const chartInstRef = useRef(null);
@@ -140,7 +149,7 @@ export default function NexonBacktestPage() {
     const option = {
       animation: false,
       backgroundColor: "#ffffff",
-      legend: { top: 6, data: ["Risk", "Events", "Volume", "S", "V", "T", "M"] },
+      legend: { top: 6, data: ["위험도", "이벤트", "노출량", "기사량", "확산도", "테마강도", "변동성"] },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "cross" },
@@ -174,8 +183,8 @@ export default function NexonBacktestPage() {
         { type: "category", data: normalized.timestamps, gridIndex: 2, axisLabel: { rotate: 0, hideOverlap: true, formatter: (value) => { const s = String(value || ""); return s.length >= 16 ? `${s.slice(5, 10)} ${s.slice(11, 16)}` : s; } } },
       ],
       yAxis: [
-        { type: "value", name: "Risk", min: 0, max: 100 },
-        { type: "value", name: "Volume", gridIndex: 1, min: 0 },
+        { type: "value", name: "위험도", min: 0, max: 100 },
+        { type: "value", name: "노출량", gridIndex: 1, min: 0 },
         { type: "value", name: "요소 기여도", gridIndex: 2, min: 0, max: 1.2 },
       ],
       dataZoom: [
@@ -183,10 +192,15 @@ export default function NexonBacktestPage() {
         { type: "slider", xAxisIndex: [0, 1, 2], bottom: 0, height: 20, filterMode: "none" },
       ],
       series: [
-        { name: "Risk", type: "line", smooth: true, symbol: "none", sampling: "lttb", progressive: 2500, progressiveThreshold: 3200, data: normalized.risk, lineStyle: { width: 2.5, color: "#113f95" }, markLine: { symbol: ["none", "none"], label: { formatter: "{b}: {c}" }, lineStyle: { type: "dashed" }, data: [{ name: "P1", yAxis: normalized.thresholds.p1, lineStyle: { color: "#dc3c4a" } }, { name: "P2", yAxis: normalized.thresholds.p2, lineStyle: { color: "#e89c1c" } }] }, markArea: { itemStyle: { color: "rgba(220,60,74,0.12)" }, data: [[{ xAxis: BURST_START }, { xAxis: BURST_END }]] } },
-        { name: "Events", type: "scatter", data: eventScatter, symbolSize: 10, itemStyle: { color: "#d32f2f" }, tooltip: { trigger: "item" } },
-        { name: "Volume", type: "bar", xAxisIndex: 1, yAxisIndex: 1, data: normalized.volume, itemStyle: { color: "rgba(17,63,149,0.45)" }, barMaxWidth: 12, large: normalized.volume.length > 240, largeThreshold: 240, progressive: 2500, progressiveThreshold: 3200 },
-        ...["S", "V", "T", "M"].map((k) => ({ name: k, type: "line", xAxisIndex: 2, yAxisIndex: 2, stack: "svtm", smooth: true, symbol: "none", sampling: "lttb", progressive: 2500, progressiveThreshold: 3200, areaStyle: { opacity: 0.22 }, data: normalized.svtm[k] })),
+        { name: "위험도", type: "line", smooth: true, symbol: "none", sampling: "lttb", progressive: 2500, progressiveThreshold: 3200, data: normalized.risk, lineStyle: { width: 2.5, color: "#113f95" }, markLine: { symbol: ["none", "none"], label: { formatter: "{b}: {c}" }, lineStyle: { type: "dashed" }, data: [{ name: "고위험 기준선", yAxis: normalized.thresholds.p1, lineStyle: { color: "#dc3c4a" } }, { name: "주의 기준선", yAxis: normalized.thresholds.p2, lineStyle: { color: "#e89c1c" } }] }, markArea: { itemStyle: { color: "rgba(220,60,74,0.12)" }, data: [[{ xAxis: BURST_START }, { xAxis: BURST_END }]] } },
+        { name: "이벤트", type: "scatter", data: eventScatter, symbolSize: 10, itemStyle: { color: "#d32f2f" }, tooltip: { trigger: "item" } },
+        { name: "노출량", type: "bar", xAxisIndex: 1, yAxisIndex: 1, data: normalized.volume, itemStyle: { color: "rgba(17,63,149,0.45)" }, barMaxWidth: 12, large: normalized.volume.length > 240, largeThreshold: 240, progressive: 2500, progressiveThreshold: 3200 },
+        ...[
+          ["S", "기사량"],
+          ["V", "확산도"],
+          ["T", "테마강도"],
+          ["M", "변동성"],
+        ].map(([k, label]) => ({ name: label, type: "line", xAxisIndex: 2, yAxisIndex: 2, stack: "drivers", smooth: true, symbol: "none", sampling: "lttb", progressive: 2500, progressiveThreshold: 3200, areaStyle: { opacity: 0.22 }, data: normalized.svtm[k] })),
       ],
     };
     chartInstRef.current.setOption(option, { notMerge: true, lazyUpdate: true });
@@ -230,7 +244,7 @@ export default function NexonBacktestPage() {
           <div style={{ ...CARD, padding: "16px" }}>
             <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800 }}>백테스트 타임라인</h2>
             <p style={{ margin: "0 0 10px", fontSize: 14, color: "#64748b" }}>
-              maplestory 내부 이슈(case: maple_idle_probability_2026) 기준 리스크 반응
+              과거 데이터로 "그 시점에 위험도가 어떻게 움직였는지"를 재계산한 결과입니다.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
               <span style={{ ...STATUS_CHIP, fontSize: 12 }}>DB: {dbLabel}</span>
@@ -240,7 +254,7 @@ export default function NexonBacktestPage() {
               <div style={{ ...ALERT_WARNING, marginBottom: 12 }}>{modeMismatchWarning}</div>
             ) : null}
             <div style={{ ...ALERT_INFO, marginBottom: 12 }}>
-              백테스트는 임계치 기반 이벤트(히스테리시스 없음)로 계산합니다. 실시간 모드는 집중 수집 전환 로직을 사용합니다.
+              읽는 순서: 1) 위 칩에서 최대/평균 위험도 확인 → 2) 차트 상단 위험도 선으로 급등 시점 확인 → 3) 하단 노출량/요인선으로 급등 원인 확인
             </div>
 
             <div style={{ marginTop: 8 }}>
@@ -269,13 +283,16 @@ export default function NexonBacktestPage() {
             {!shouldShowBacktestEmpty && !error && hasSeries ? (
               <>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                  <span style={CHIP_ERROR}>Max Risk: {Number(payload?.summary?.max_risk || 0).toFixed(1)}</span>
-                  <span style={STATUS_CHIP}>Avg Risk: {Number(payload?.summary?.avg_risk || 0).toFixed(1)}</span>
-                  <span style={CHIP_ERROR}>P1 Buckets: {Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0)}</span>
-                  <span style={CHIP_WARNING}>P2 Buckets: {Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0)}</span>
-                  <span style={STATUS_CHIP}>Events: {Number(payload?.summary?.event_count || 0)}</span>
-                  <span style={STATUS_CHIP}>Dominant: {payload?.summary?.dominant_component || "-"}</span>
+                  <span style={CHIP_ERROR}>최대 위험도: {Number(payload?.summary?.max_risk || 0).toFixed(1)}</span>
+                  <span style={STATUS_CHIP}>평균 위험도: {Number(payload?.summary?.avg_risk || 0).toFixed(1)}</span>
+                  <span style={CHIP_ERROR}>고위험 구간 수: {Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0)}</span>
+                  <span style={CHIP_WARNING}>주의 구간 수: {Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0)}</span>
+                  <span style={STATUS_CHIP}>이벤트 수: {Number(payload?.summary?.event_count || 0)}</span>
+                  <span style={STATUS_CHIP}>주요 요인: {toDriverLabel(payload?.summary?.dominant_component)}</span>
                 </div>
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b" }}>
+                  고위험/주의 구간 수는 위험도가 기준선을 넘었던 시간 구간 개수입니다. 같은 하루에도 여러 번 발생할 수 있습니다.
+                </p>
                 <div ref={chartRef} style={{ marginTop: 12, width: "100%", height: "clamp(560px, 55vw, 700px)" }} />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 9.6, marginTop: 12 }}>
                   {[
@@ -290,7 +307,7 @@ export default function NexonBacktestPage() {
                   ))}
                 </div>
                 <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b" }}>
-                  급등 구간은 기사량 증가와 고위험 테마 비중이 주도했고, 확산도는 보조적으로 영향을 줍니다.
+                  하단 요인선은 위험도 구성요소입니다. 값이 클수록 해당 시점 위험도 상승에 더 크게 기여했다는 뜻입니다.
                 </p>
               </>
             ) : null}
