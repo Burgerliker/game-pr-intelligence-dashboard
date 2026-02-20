@@ -74,8 +74,8 @@ const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRi
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
+const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
 
-const getTotalExposure = (meta) => Number(meta?.total_exposure ?? meta?.total_articles ?? 0);
 const bannerPagerBtnSx = {
   width: 42,
   height: 42,
@@ -537,19 +537,23 @@ export default function NexonPage() {
     if (riskValue >= 20) return { label: "주의", color: "info" };
     return { label: "낮음", color: "success" };
   }, [riskValue]);
-  const recent24hArticles = Number(riskScore?.exposure_count_window ?? riskScore?.article_count_window ?? 0);
+  const recent24hArticles = Number(riskScore?.article_count_window ?? riskScore?.exposure_count_window ?? 0);
+  const totalArticleSum = useMemo(
+    () => (dailyRows || []).reduce((acc, row) => acc + getDailyArticleCount(row), 0),
+    [dailyRows]
+  );
   const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
   const weeklyBaselineAvg = useMemo(() => {
     if (!recentWeekRows.length) return 0;
-    return recentWeekRows.reduce((acc, row) => acc + getDailyExposure(row), 0) / recentWeekRows.length;
+    return recentWeekRows.reduce((acc, row) => acc + getDailyArticleCount(row), 0) / recentWeekRows.length;
   }, [recentWeekRows]);
   const weeklyBaselineMin = useMemo(() => {
     if (!recentWeekRows.length) return 0;
-    return Math.min(...recentWeekRows.map((row) => getDailyExposure(row)));
+    return Math.min(...recentWeekRows.map((row) => getDailyArticleCount(row)));
   }, [recentWeekRows]);
   const weeklyBaselineMax = useMemo(() => {
     if (!recentWeekRows.length) return 0;
-    return Math.max(...recentWeekRows.map((row) => getDailyExposure(row)));
+    return Math.max(...recentWeekRows.map((row) => getDailyArticleCount(row)));
   }, [recentWeekRows]);
   const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
   const spreadValue = Number(riskScore?.spread_ratio || 0);
@@ -707,7 +711,7 @@ export default function NexonPage() {
             name: "보도량",
             type: "bar",
             yAxisIndex: 0,
-            data: dailyRows.map((r) => getDailyExposure(r)),
+            data: dailyRows.map((r) => getDailyArticleCount(r)),
             itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
             barMaxWidth: 18,
             large: dailyRows.length > 220,
@@ -1128,7 +1132,7 @@ export default function NexonPage() {
         <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
           {[
             { k: "선택 게임", v: riskData?.meta?.ip || "-", s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}` },
-            { k: "총 보도량", v: getTotalExposure(riskData?.meta).toLocaleString(), s: "필터 기준" },
+            { k: "총 기사 수(일자 합계)", v: totalArticleSum.toLocaleString(), s: "필터 기간 합계" },
             { k: "핵심 위험 이슈", v: topRisk?.theme || "-", s: `위기 지수 ${topRisk?.risk_score ?? "-"}` },
             { k: "이슈 분류 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 그룹", tip: tipMap.cluster },
           ].map((item) => (
@@ -1148,7 +1152,7 @@ export default function NexonPage() {
           ))}
         </Grid>
         <Typography variant="caption" color="text.secondary" sx={{ px: 0.2, display: "block" }}>
-          보도량은 재배포 포함 수치입니다. 이슈 분류는 유사 기사 그룹 수입니다.
+          총 기사 수는 일자별 기사 수(article_count) 합계입니다. 이슈 분류는 유사 기사 그룹 수입니다.
         </Typography>
 
         <Card variant="outlined" sx={sectionCardSx}>
@@ -1245,7 +1249,7 @@ export default function NexonPage() {
                             상세 설명
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
-                            보도량은 최근 24시간 기준 총 기사 수(재배포 포함)입니다. 수치가 적으면 점수 신뢰도가 낮아질 수 있습니다.
+                            보도량은 최근 24시간 기준 기사 수입니다. 표본이 적으면 점수 신뢰도가 낮아질 수 있습니다.
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
                             확산도는 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
