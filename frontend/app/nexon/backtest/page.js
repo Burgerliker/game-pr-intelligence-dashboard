@@ -47,6 +47,7 @@ export default function NexonBacktestPage() {
   const [payload, setPayload] = useState(null);
   const [health, setHealth] = useState(null);
   const [reloadSeq, setReloadSeq] = useState(0);
+  const [chartReady, setChartReady] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -123,6 +124,7 @@ export default function NexonBacktestPage() {
       if (!active || !chartRef.current || chartInstRef.current) return;
       const chart = echarts.init(chartRef.current);
       chartInstRef.current = chart;
+      setChartReady(true);
       resizeObserverRef.current = new ResizeObserver(() => { chart.resize(); });
       resizeObserverRef.current.observe(chartRef.current);
       resizeHandlerRef.current = () => chart.resize();
@@ -133,7 +135,7 @@ export default function NexonBacktestPage() {
   }, [hasSeries]);
 
   useEffect(() => {
-    if (!hasSeries || !chartInstRef.current) return;
+    if (!hasSeries || !chartReady || !chartInstRef.current) return;
     const eventScatter = normalized.events.map((e) => ({ value: [e.ts, e.risk_at_ts], name: e.label, eventType: e.type }));
     const option = {
       animation: false,
@@ -188,7 +190,7 @@ export default function NexonBacktestPage() {
       ],
     };
     chartInstRef.current.setOption(option, { notMerge: true, lazyUpdate: true });
-  }, [detailsByTs, hasSeries, normalized]);
+  }, [chartReady, detailsByTs, hasSeries, normalized]);
 
   useEffect(
     () => () => {
@@ -196,6 +198,7 @@ export default function NexonBacktestPage() {
       if (resizeHandlerRef.current) window.removeEventListener("resize", resizeHandlerRef.current);
       chartInstRef.current?.dispose();
       chartInstRef.current = null;
+      setChartReady(false);
     },
     []
   );
