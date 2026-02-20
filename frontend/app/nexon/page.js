@@ -46,7 +46,6 @@ import {
 } from "../../lib/uiTokens";
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
-const SHOW_BACKTEST = process.env.NEXT_PUBLIC_SHOW_BACKTEST === "true";
 const NEXON_LOGO = "/nexon-logo.svg";
 const ARTICLE_PAGE_SIZE = 20;
 const ARTICLE_ROW_HEIGHT = 122;
@@ -848,7 +847,7 @@ export default function NexonPage() {
             <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}>
               <Button component={Link} href="/" variant="outlined" size="small" sx={controlButtonSx}>메인</Button>
               <Button component={Link} href="/compare" variant="outlined" size="small" sx={controlButtonSx}>경쟁사 비교</Button>
-              {SHOW_BACKTEST ? <Button component={Link} href="/nexon/backtest" variant="outlined" size="small" sx={controlButtonSx}>Backtest 보기</Button> : null}
+              <Button component={Link} href="/nexon/backtest" variant="outlined" size="small" sx={controlButtonSx}>Backtest 보기</Button>
             </Stack>
           </Stack>
         </Paper>
