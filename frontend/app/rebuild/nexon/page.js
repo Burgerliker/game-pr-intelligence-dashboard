@@ -1166,7 +1166,7 @@ export default function NexonPage() {
                   {item.tip ? (
                     <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
                   ) : (
-                    <Typography variant="body2" color="text.secondary">{item.k}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.k}</Typography>
                   )}
                   <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
                   <Typography variant="caption" color="text.secondary">{item.s}</Typography>
@@ -1290,9 +1290,10 @@ export default function NexonPage() {
                     <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.5 }}>
                       <LabelWithTip label="대응 우선순위" tip={tipMap.alert} />
                       <Chip
+                        size="small"
                         label={`${alertInfo.label} (${alertLevel})`}
                         color={alertInfo.color}
-                        sx={{ mt: 0.55, fontWeight: 700 }}
+                        sx={{ mt: 0.55, fontWeight: 700, minHeight: 30 }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
                         {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
@@ -1366,7 +1367,7 @@ export default function NexonPage() {
                         label={burstStatusLabel}
                         color={burstSummaryCount > 0 ? "warning" : "success"}
                         variant={burstSummaryCount > 0 ? "filled" : "outlined"}
-                        sx={{ fontWeight: 700 }}
+                        sx={{ fontWeight: 700, minHeight: 30 }}
                       />
                     </Stack>
                     <Stack direction="row" spacing={0.6} sx={{ justifyContent: { xs: "flex-start", sm: "flex-end" }, flexWrap: "wrap" }}>

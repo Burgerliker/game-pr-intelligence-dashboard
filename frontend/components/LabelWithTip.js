@@ -2,11 +2,11 @@
 
 import { Info } from "lucide-react";
 
-export default function LabelWithTip({ label, tip, variant = "body2", fontWeight = 700 }) {
+export default function LabelWithTip({ label, tip, variant = "body2", fontWeight = 700, color }) {
   const fontSize = variant === "h6" ? 18 : variant === "body1" ? 16 : 14;
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", gap: 2 }}>
-      <span style={{ fontSize, fontWeight, lineHeight: 1.35 }}>{label}</span>
+      <span style={{ fontSize, fontWeight, lineHeight: 1.35, ...(color ? { color } : {}) }}>{label}</span>
       <button
         type="button"
         title={tip || ""}
