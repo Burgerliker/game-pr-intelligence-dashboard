@@ -517,8 +517,6 @@ export default function NexonPage() {
     }
   };
   const riskValue = Number(riskScore?.risk_score || 0);
-  const hasConfidence = riskScore && riskScore.confidence != null;
-  const riskConfidence = hasConfidence ? Number(riskScore?.confidence || 0) : null;
   const riskFormulaVersion = riskScore?.risk_formula_version ? String(riskScore.risk_formula_version) : "";
   const isLowSample = String(riskScore?.data_quality_flag || "").toUpperCase() === "LOW_SAMPLE";
   const hasHeatValue = riskScore && riskScore.issue_heat != null;
@@ -570,20 +568,14 @@ export default function NexonPage() {
     return "감성 판정 안정";
   }, [uncertaintyValue]);
   const liveInterpretation = useMemo(() => {
-    if (recent24hArticles < 5) return "노출량이 매우 적어 위험도 신뢰도가 낮을 수 있습니다.";
+    if (recent24hArticles < 5) return "노출량이 매우 적어 점수 변동성이 클 수 있습니다.";
     if (riskValue >= 70) return "노출량 급증과 고위험 테마 집중으로 위험도가 심각 단계입니다.";
     if (riskValue >= 45) return "위험도가 높은 상태입니다. 확산도와 감성 변화를 밀착 모니터링하세요.";
     if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위험도는 낮지만 노출량 또는 확산도가 기준선보다 상승 중입니다.";
     return "노출량과 확산도가 안정적이라 현재 위험도는 낮은 상태입니다.";
   }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
-  const confidenceLabel = useMemo(() => {
-    if (!hasConfidence) return "신뢰도 정보 없음";
-    if (riskConfidence < 0.3) return `신뢰도 낮음 (${Math.round(riskConfidence * 100)}%)`;
-    if (riskConfidence < 0.7) return `신뢰도 보통 (${Math.round(riskConfidence * 100)}%)`;
-    return `신뢰도 높음 (${Math.round(riskConfidence * 100)}%)`;
-  }, [hasConfidence, riskConfidence]);
   const quickSummary = useMemo(() => {
-    if (recent24hArticles < 5) return "노출량이 적어 현재 점수는 참고용입니다.";
+    if (recent24hArticles < 5) return "노출량이 적어 현재 점수는 변동성이 큽니다.";
     if (riskValue >= 45) return "즉시 모니터링이 필요한 구간입니다.";
     return "현재는 급한 리스크 신호가 크지 않습니다.";
   }, [recent24hArticles, riskValue]);
@@ -1171,17 +1163,10 @@ export default function NexonPage() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>현재 위험 상태</Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
                         <Chip size="small" variant="outlined" label={riskFormulaVersion ? "판정 기준: 최신 모델" : "판정 기준: 기본 모델"} sx={controlChipSx} />
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color={hasConfidence && riskConfidence < 0.4 ? "warning" : "default"}
-                          label={confidenceLabel}
-                          sx={controlChipSx}
-                        />
                       </Stack>
                       {isLowSample ? (
                         <Alert severity="warning" icon={false} sx={{ mt: 0.8, borderRadius: 1.5 }}>
-                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />표본이 부족해 현재 위험도 신뢰도가 낮습니다. 수치 해석보다 추세 확인을 우선하세요.</span>
+                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />표본이 부족해 점수 변동성이 큽니다. 수치 단건보다 추세 확인을 우선하세요.</span>
                         </Alert>
                       ) : null}
                       <Typography
@@ -1245,7 +1230,7 @@ export default function NexonPage() {
                             상세 설명
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
-                            노출량은 최근 24시간 기준 총 노출(재배포 포함) 수치입니다. 수치가 적으면 점수 신뢰도가 낮아질 수 있습니다.
+                            노출량은 최근 24시간 기준 총 노출(재배포 포함) 수치입니다. 수치가 적으면 점수 변동성이 커질 수 있습니다.
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
                             확산은 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
