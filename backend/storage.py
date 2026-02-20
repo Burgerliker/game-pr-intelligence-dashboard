@@ -1958,13 +1958,44 @@ def force_burst_test_articles(ip: str, multiplier: int = 5, seed_limit: int = 50
     }
 
 
-def cleanup_scheduler_logs(retain_days: int = 7) -> int:
+def _normalize_delete_cap(max_delete_rows: int | None) -> int | None:
+    if max_delete_rows is None:
+        return None
+    cap = int(max_delete_rows)
+    if cap <= 0:
+        return None
+    return cap
+
+
+def cleanup_scheduler_logs(retain_days: int = 7, max_delete_rows: int | None = None, dry_run: bool = False) -> int:
     days = max(1, int(retain_days))
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    cap = _normalize_delete_cap(max_delete_rows)
     conn = _connect()
     try:
         try:
-            cur = conn.execute("DELETE FROM scheduler_logs WHERE run_time < ?", (cutoff,))
+            if dry_run:
+                row = conn.execute(
+                    "SELECT COUNT(1) AS cnt FROM scheduler_logs WHERE run_time < ?",
+                    (cutoff,),
+                ).fetchone()
+                total = int(row["cnt"] if row else 0)
+                return min(total, cap) if cap else total
+            if cap:
+                cur = conn.execute(
+                    """
+                    DELETE FROM scheduler_logs
+                    WHERE rowid IN (
+                        SELECT rowid FROM scheduler_logs
+                        WHERE run_time < ?
+                        ORDER BY run_time ASC
+                        LIMIT ?
+                    )
+                    """,
+                    (cutoff, cap),
+                )
+            else:
+                cur = conn.execute("DELETE FROM scheduler_logs WHERE run_time < ?", (cutoff,))
             conn.commit()
             return int(cur.rowcount or 0)
         except sqlite3.OperationalError:
@@ -1973,35 +2004,96 @@ def cleanup_scheduler_logs(retain_days: int = 7) -> int:
         conn.close()
 
 
-def cleanup_live_articles(retain_days: int = 30) -> int:
+def cleanup_live_articles(retain_days: int = 30, max_delete_rows: int | None = None, dry_run: bool = False) -> int:
     days = int(retain_days)
     if days <= 0:
         return 0
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    cap = _normalize_delete_cap(max_delete_rows)
+    where_sql = """
+        FROM articles
+        WHERE is_test = 0
+          AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) < datetime(?)
+    """
     conn = _connect()
     try:
-        cur = conn.execute(
-            """
-            DELETE FROM articles
-            WHERE is_test = 0
-              AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) < datetime(?)
-            """,
-            (cutoff,),
-        )
+        if dry_run:
+            row = conn.execute(f"SELECT COUNT(1) AS cnt {where_sql}", (cutoff,)).fetchone()
+            total = int(row["cnt"] if row else 0)
+            return min(total, cap) if cap else total
+        if cap:
+            cur = conn.execute(
+                f"""
+                DELETE FROM articles
+                WHERE rowid IN (
+                    SELECT rowid {where_sql}
+                    ORDER BY datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) ASC
+                    LIMIT ?
+                )
+                """,
+                (cutoff, cap),
+            )
+        else:
+            cur = conn.execute(
+                f"DELETE {where_sql}",
+                (cutoff,),
+            )
+        deleted_rows = int(cur.rowcount or 0)
+        if deleted_rows > 0:
+            # Keep source-group rollups consistent with the remaining article rows.
+            conn.execute(
+                """
+                UPDATE source_groups
+                SET repost_count = (
+                    SELECT COUNT(1)
+                    FROM articles
+                    WHERE COALESCE(source_group_id, '') = source_groups.group_id
+                )
+                """
+            )
+            conn.execute(
+                """
+                DELETE FROM source_groups
+                WHERE group_id NOT IN (
+                    SELECT DISTINCT COALESCE(source_group_id, '')
+                    FROM articles
+                    WHERE COALESCE(source_group_id, '') != ''
+                )
+                """
+            )
         conn.commit()
-        return int(cur.rowcount or 0)
+        return deleted_rows
     finally:
         conn.close()
 
 
-def cleanup_risk_timeseries(retain_days: int = 90) -> int:
+def cleanup_risk_timeseries(retain_days: int = 90, max_delete_rows: int | None = None, dry_run: bool = False) -> int:
     days = int(retain_days)
     if days <= 0:
         return 0
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    cap = _normalize_delete_cap(max_delete_rows)
     conn = _connect()
     try:
-        cur = conn.execute("DELETE FROM risk_timeseries WHERE ts < ?", (cutoff,))
+        if dry_run:
+            row = conn.execute("SELECT COUNT(1) AS cnt FROM risk_timeseries WHERE ts < ?", (cutoff,)).fetchone()
+            total = int(row["cnt"] if row else 0)
+            return min(total, cap) if cap else total
+        if cap:
+            cur = conn.execute(
+                """
+                DELETE FROM risk_timeseries
+                WHERE rowid IN (
+                    SELECT rowid FROM risk_timeseries
+                    WHERE ts < ?
+                    ORDER BY ts ASC
+                    LIMIT ?
+                )
+                """,
+                (cutoff, cap),
+            )
+        else:
+            cur = conn.execute("DELETE FROM risk_timeseries WHERE ts < ?", (cutoff,))
         conn.commit()
         return int(cur.rowcount or 0)
     finally:
@@ -2052,20 +2144,39 @@ def upsert_risk_daily_summary() -> int:
         conn.close()
 
 
-def cleanup_test_articles(retain_hours: int = 24) -> int:
+def cleanup_test_articles(retain_hours: int = 24, max_delete_rows: int | None = None, dry_run: bool = False) -> int:
     hours = max(1, int(retain_hours))
     cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    cap = _normalize_delete_cap(max_delete_rows)
+    where_sql = """
+        FROM articles
+        WHERE is_test = 1
+          AND datetime(COALESCE(NULLIF(created_at, ''), NULLIF(pub_date, ''), date || ' 00:00:00')) < datetime(?)
+    """
     conn = _connect()
     try:
         try:
-            cur = conn.execute(
-                """
-                DELETE FROM articles
-                WHERE is_test = 1
-                  AND datetime(COALESCE(NULLIF(created_at, ''), NULLIF(pub_date, ''), date || ' 00:00:00')) < datetime(?)
-                """,
-                (cutoff,),
-            )
+            if dry_run:
+                row = conn.execute(f"SELECT COUNT(1) AS cnt {where_sql}", (cutoff,)).fetchone()
+                total = int(row["cnt"] if row else 0)
+                return min(total, cap) if cap else total
+            if cap:
+                cur = conn.execute(
+                    f"""
+                    DELETE FROM articles
+                    WHERE rowid IN (
+                        SELECT rowid {where_sql}
+                        ORDER BY datetime(COALESCE(NULLIF(created_at, ''), NULLIF(pub_date, ''), date || ' 00:00:00')) ASC
+                        LIMIT ?
+                    )
+                    """,
+                    (cutoff, cap),
+                )
+            else:
+                cur = conn.execute(
+                    f"DELETE {where_sql}",
+                    (cutoff,),
+                )
             conn.commit()
             return int(cur.rowcount or 0)
         except sqlite3.OperationalError:
