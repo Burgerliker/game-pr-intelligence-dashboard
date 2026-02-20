@@ -144,6 +144,8 @@ SCHEDULER_LOG_TTL_DAYS = int(os.getenv("SCHEDULER_LOG_TTL_DAYS", "7"))
 TEST_ARTICLE_TTL_HOURS = int(os.getenv("TEST_ARTICLE_TTL_HOURS", "24"))
 LIVE_ARTICLE_RETENTION_DAYS = int(os.getenv("LIVE_ARTICLE_RETENTION_DAYS", "30"))
 RISK_TIMESERIES_RETENTION_DAYS = int(os.getenv("RISK_TIMESERIES_RETENTION_DAYS", "90"))
+CLEANUP_DRY_RUN = os.getenv("CLEANUP_DRY_RUN", "0") == "1"
+CLEANUP_MAX_DELETE_ROWS = int(os.getenv("CLEANUP_MAX_DELETE_ROWS", "5000"))
 ENABLE_DEBUG_ENDPOINTS = os.getenv("ENABLE_DEBUG_ENDPOINTS", "0") == "1"
 DISABLE_COMPETITOR_COMPARE = os.getenv("DISABLE_COMPETITOR_COMPARE", "1") == "1"
 ENABLE_MANUAL_COLLECTION = os.getenv("ENABLE_MANUAL_COLLECTION", "0") == "1"
@@ -552,8 +554,8 @@ def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> 
                 (date_frame["title_clean"].fillna("") + " " + date_frame["description_clean"].fillna(""))
                 .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
             ]
-            # 검색어 자체가 IP 전용인 경우가 많아 필터가 과도하게 비우면 원본 프레임을 사용한다.
-            frames.append(date_filtered if not date_filtered.empty else date_frame)
+            if not date_filtered.empty:
+                frames.append(date_filtered)
 
         if bool(strategy.get("include_sim", LIVE_COLLECT_INCLUDE_SIM)):
             for page in range(int(strategy.get("pages", max(1, LIVE_COLLECT_PAGES)))):
@@ -576,7 +578,8 @@ def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> 
                     (sim_frame["title_clean"].fillna("") + " " + sim_frame["description_clean"].fillna(""))
                     .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
                 ]
-                frames.append(sim_filtered if not sim_filtered.empty else sim_frame)
+                if not sim_filtered.empty:
+                    frames.append(sim_filtered)
 
     if not frames:
         return pd.DataFrame(), calls
@@ -678,10 +681,27 @@ def _run_maintenance_cleanup() -> None:
     run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     started = time.time()
     try:
-        deleted_logs = cleanup_scheduler_logs(retain_days=SCHEDULER_LOG_TTL_DAYS)
-        deleted_tests = cleanup_test_articles(retain_hours=TEST_ARTICLE_TTL_HOURS)
-        deleted_live_articles = cleanup_live_articles(retain_days=LIVE_ARTICLE_RETENTION_DAYS)
-        deleted_risk_rows = cleanup_risk_timeseries(retain_days=RISK_TIMESERIES_RETENTION_DAYS)
+        delete_cap = CLEANUP_MAX_DELETE_ROWS if CLEANUP_MAX_DELETE_ROWS > 0 else None
+        deleted_logs = cleanup_scheduler_logs(
+            retain_days=SCHEDULER_LOG_TTL_DAYS,
+            max_delete_rows=delete_cap,
+            dry_run=CLEANUP_DRY_RUN,
+        )
+        deleted_tests = cleanup_test_articles(
+            retain_hours=TEST_ARTICLE_TTL_HOURS,
+            max_delete_rows=delete_cap,
+            dry_run=CLEANUP_DRY_RUN,
+        )
+        deleted_live_articles = cleanup_live_articles(
+            retain_days=LIVE_ARTICLE_RETENTION_DAYS,
+            max_delete_rows=delete_cap,
+            dry_run=CLEANUP_DRY_RUN,
+        )
+        deleted_risk_rows = cleanup_risk_timeseries(
+            retain_days=RISK_TIMESERIES_RETENTION_DAYS,
+            max_delete_rows=delete_cap,
+            dry_run=CLEANUP_DRY_RUN,
+        )
         summary_rows_upserted = upsert_risk_daily_summary()
         cleanup_last_result.update(
             {
@@ -690,6 +710,8 @@ def _run_maintenance_cleanup() -> None:
                 "deleted_live_articles": int(deleted_live_articles),
                 "deleted_risk_rows": int(deleted_risk_rows),
                 "summary_rows_upserted": int(summary_rows_upserted),
+                "dry_run": bool(CLEANUP_DRY_RUN),
+                "max_delete_rows": int(delete_cap or 0),
                 "updated_at": run_ts,
             }
         )
@@ -711,7 +733,8 @@ def _run_maintenance_cleanup() -> None:
             error_message=(
                 f"deleted_logs={deleted_logs},deleted_tests={deleted_tests},"
                 f"deleted_live_articles={deleted_live_articles},deleted_risk_rows={deleted_risk_rows},"
-                f"summary_rows_upserted={summary_rows_upserted}"
+                f"summary_rows_upserted={summary_rows_upserted},dry_run={int(CLEANUP_DRY_RUN)},"
+                f"max_delete_rows={int(delete_cap or 0)}"
             ),
         )
     except Exception as exc:  # noqa: BLE001
@@ -1419,6 +1442,8 @@ def health() -> dict:
         "compare_live_rate_limited": int(compare_live_metrics.get("rate_limited", 0)),
         "live_article_retention_days": int(LIVE_ARTICLE_RETENTION_DAYS),
         "risk_timeseries_retention_days": int(RISK_TIMESERIES_RETENTION_DAYS),
+        "cleanup_dry_run": bool(CLEANUP_DRY_RUN),
+        "cleanup_max_delete_rows": int(CLEANUP_MAX_DELETE_ROWS),
         "deleted_live_articles": int(cleanup_last_result.get("deleted_live_articles", 0)),
         "deleted_risk_rows": int(cleanup_last_result.get("deleted_risk_rows", 0)),
         "summary_rows_upserted": int(cleanup_last_result.get("summary_rows_upserted", 0)),
