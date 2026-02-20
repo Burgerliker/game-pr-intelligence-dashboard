@@ -74,6 +74,7 @@ const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRi
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
+const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
 
 const getTotalExposure = (meta) => Number(meta?.total_exposure ?? meta?.total_articles ?? 0);
 const bannerPagerBtnSx = {
@@ -659,13 +660,17 @@ export default function NexonPage() {
           formatter: (params) => {
             if (!Array.isArray(params) || !params.length) return "";
             const title = String(params[0]?.axisValue || "-");
-            const lines = [title];
-            params.forEach((item) => {
-              const name = String(item?.seriesName || "");
-              const raw = Number(item?.value || 0);
-              const valueText = name === "부정 비율" ? `${raw.toFixed(1)}%` : `${raw.toLocaleString()}건`;
-              lines.push(`${item?.marker || ""}${name}: ${valueText}`);
-            });
+            const idx = Number(params[0]?.dataIndex ?? -1);
+            const row = idx >= 0 ? dailyRows[idx] : null;
+            const articleCount = getDailyArticleCount(row);
+            const totalMentions = getDailyExposure(row);
+            const negRatio = Number(row?.negative_ratio ?? 0);
+            const lines = [
+              title,
+              `${params[0]?.marker || ""}보도량: ${articleCount.toLocaleString()}건`,
+              `${params[0]?.marker || ""}확산량(재배포 포함): ${totalMentions.toLocaleString()}건`,
+              `${params[1]?.marker || ""}부정 비율: ${negRatio.toFixed(1)}%`,
+            ];
             return lines.join("<br/>");
           },
         },
@@ -680,7 +685,7 @@ export default function NexonPage() {
         yAxis: [
           {
             type: "value",
-            name: "노출량(건)",
+            name: "보도량(건)",
             axisLabel: {
               color: "#64748b",
               formatter: (v) => Number(v || 0).toLocaleString(),
@@ -696,10 +701,10 @@ export default function NexonPage() {
         ],
         series: [
           {
-            name: "노출량",
+            name: "보도량",
             type: "bar",
             yAxisIndex: 0,
-            data: dailyRows.map((r) => getDailyExposure(r)),
+            data: dailyRows.map((r) => getDailyArticleCount(r)),
             itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
             barMaxWidth: 18,
             large: dailyRows.length > 220,
@@ -1408,7 +1413,7 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 노출량/부정 추이</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>일자별 보도량/부정 추이</Typography>
             <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 220, sm: 260, md: 290 } }} />
           </CardContent>
         </Card>
