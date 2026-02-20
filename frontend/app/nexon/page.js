@@ -46,7 +46,6 @@ import {
 } from "../../lib/uiTokens";
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
-const NEXON_LOGO = "/nexon-logo.svg";
 const ARTICLE_PAGE_SIZE = 20;
 const ARTICLE_ROW_HEIGHT = 122;
 const ARTICLE_LIST_MAX_HEIGHT = 640;
@@ -78,16 +77,23 @@ const getDailyExposure = (row) =>
 
 const getTotalExposure = (meta) => Number(meta?.total_exposure ?? meta?.total_articles ?? 0);
 const bannerPagerBtnSx = {
-  width: 34,
-  height: 34,
+  width: 42,
+  height: 42,
   borderRadius: 99,
-  border: "1px solid rgba(15,23,42,.2)",
+  border: "1px solid rgba(15,23,42,.14)",
   color: "#0f172a",
-  bgcolor: "#fff",
-  "&:hover": { bgcolor: "#f8fafc" },
+  bgcolor: "rgba(255,255,255,.92)",
+  boxShadow: "0 8px 18px rgba(15,23,42,.12)",
+  transition: "all .2s ease",
+  "&:hover": {
+    bgcolor: "#fff",
+    transform: "translateY(-1px)",
+    boxShadow: "0 12px 24px rgba(15,23,42,.16)",
+  },
   "&.Mui-disabled": {
     color: "#94a3b8",
-    borderColor: "rgba(148,163,184,.5)",
+    borderColor: "rgba(148,163,184,.35)",
+    boxShadow: "none",
   },
 };
 
@@ -952,8 +958,8 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    height: { xs: 156, sm: 182, md: 204 },
-                    p: { xs: 1.5, sm: 2, md: 2.2 },
+                    minHeight: { xs: 220, sm: 248, md: 280 },
+                    p: { xs: 2, sm: 2.4, md: 3 },
                     borderRadius: 2.4,
                     color: "#eef2ff",
                     position: "relative",
@@ -984,34 +990,33 @@ export default function NexonPage() {
                       opacity: 0.9,
                     }}
                   />
-                  <Box
-                    component="img"
-                    src={NEXON_LOGO}
-                    alt="NEXON"
-                    width={160}
-                    height={48}
+                  <Chip
+                    label="NEXON"
+                    size="small"
                     sx={{
                       position: "absolute",
-                      right: { xs: 10, sm: 12, md: 14 },
-                      top: { xs: 10, sm: 10, md: 12 },
-                      width: { xs: 56, sm: 68, md: 76 },
-                      height: "auto",
-                      aspectRatio: "160 / 48",
-                      objectFit: "contain",
-                      opacity: 0.78,
-                      filter: "grayscale(100%) contrast(1.06)",
+                      right: { xs: 12, sm: 14, md: 16 },
+                      top: { xs: 12, sm: 14, md: 16 },
+                      height: 26,
+                      fontSize: 12,
+                      letterSpacing: ".22em",
+                      fontWeight: 800,
+                      color: "rgba(241,245,249,.95)",
+                      border: "1px solid rgba(241,245,249,.4)",
+                      backgroundColor: "rgba(15,23,42,.25)",
+                      backdropFilter: "blur(4px)",
                     }}
                   />
                   <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
-                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 30, sm: 32, md: 36 }, fontWeight: 900, lineHeight: 1.03, letterSpacing: "-.02em" }}>
+                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 36, sm: 42, md: 52 }, fontWeight: 900, lineHeight: 1.02, letterSpacing: "-.02em" }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 13, md: 14 }, color: "rgba(237,245,255,.86)" }}>
+                  <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 16 }, color: "rgba(237,245,255,.86)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 리스크/테마 흐름" : "해당 IP 리스크 흐름 · 이슈 묶음 · 집중 수집 모니터"}
                   </Typography>
-                  <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap" sx={{ mt: 1.1 }}>
+                  <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.2, md: 1.6 } }}>
                     <Chip
                       variant="outlined"
                       label={`위험도 ${riskValue.toFixed(1)}`}
@@ -1028,60 +1033,59 @@ export default function NexonPage() {
               ) : null}
 
               <Stack
-                direction={{ xs: "column", md: "row" }}
+                direction={{ xs: "column", lg: "row" }}
                 justifyContent="space-between"
-                alignItems={{ xs: "flex-start", md: "center" }}
+                alignItems={{ xs: "stretch", lg: "center" }}
                 spacing={1}
               >
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    ...panelPaperSx,
-                    borderRadius: 99,
-                    borderColor: "rgba(15,23,42,.16)",
-                    bgcolor: "#fff",
-                    px: 0.85,
-                    py: 0.6,
-                  }}
-                >
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <IconButton
-                      size="small"
-                      aria-label="이전 IP"
-                      sx={bannerPagerBtnSx}
-                      onClick={goPrevBanner}
-                      disabled={currentBannerIndex <= 0}
-                    >
-                      <ChevronLeft {...iconProps({ size: 18 })} />
-                    </IconButton>
-                    <Stack direction="row" spacing={0.7} alignItems="center">
+                <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minHeight: 42 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="이전 IP"
+                    sx={bannerPagerBtnSx}
+                    onClick={goPrevBanner}
+                    disabled={currentBannerIndex <= 0}
+                  >
+                    <ChevronLeft {...iconProps({ size: 20 })} />
+                  </IconButton>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      px: 1.2,
+                      py: 0.9,
+                      borderRadius: 99,
+                      borderColor: "rgba(15,23,42,.14)",
+                      backgroundColor: "#f8fafc",
+                    }}
+                  >
+                    <Stack direction="row" spacing={0.8} alignItems="center">
                       {Array.from({ length: Math.max(bannerItems.length, 1) }).map((_, idx) => {
                         const active = idx === Math.max(currentBannerIndex, 0);
                         return (
                           <Box
                             key={`banner-dot-${idx}`}
                             sx={{
-                              width: active ? 20 : 8,
-                              height: 8,
+                              width: active ? 26 : 10,
+                              height: 10,
                               borderRadius: 999,
-                              bgcolor: active ? "#2563eb" : "rgba(100,116,139,.45)",
+                              bgcolor: active ? "#2563eb" : "rgba(100,116,139,.35)",
                               transition: "all .2s ease",
                             }}
                           />
                         );
                       })}
                     </Stack>
-                    <IconButton
-                      size="small"
-                      aria-label="다음 IP"
-                      sx={bannerPagerBtnSx}
-                      onClick={goNextBanner}
-                      disabled={currentBannerIndex >= bannerItems.length - 1}
-                    >
-                      <ChevronRight {...iconProps({ size: 18 })} />
-                    </IconButton>
-                  </Stack>
-                </Paper>
+                  </Paper>
+                  <IconButton
+                    size="small"
+                    aria-label="다음 IP"
+                    sx={bannerPagerBtnSx}
+                    onClick={goNextBanner}
+                    disabled={currentBannerIndex >= bannerItems.length - 1}
+                  >
+                    <ChevronRight {...iconProps({ size: 20 })} />
+                  </IconButton>
+                </Stack>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
                   <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "자동 갱신 중" : "자동 갱신"}</span>} sx={statusChipSx} />
                   <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
