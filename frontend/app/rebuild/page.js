@@ -8,10 +8,12 @@ import ApiGuardBanner from "../../components/ApiGuardBanner";
 import PageStatusView from "../../components/PageStatusView";
 import {
   actionButtonSx,
+  metricCardSx,
   navButtonSx,
   pageContainerSx,
-  pageShellSx,
+  pageShellCleanSx,
   panelPaperSx,
+  riskAccent,
   sectionCardSx,
   statusChipSx,
 } from "../../lib/uiTokens";
@@ -161,7 +163,7 @@ export default function HomePage() {
   });
 
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 6 }, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif" }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2, md: 6 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={{ xs: 2.5, md: 3.5 }}
         >
@@ -215,11 +217,6 @@ export default function HomePage() {
             <Typography sx={{ mt: 1, fontSize: { xs: 17, md: 22 }, color: "#6b7280", letterSpacing: "-.01em" }}>
               리스크 분석 포트폴리오
             </Typography>
-            <Stack direction="row" spacing={1} justifyContent="center" useFlexGap flexWrap="wrap" sx={{ mt: 2 }}>
-              <Chip size="small" label={`최근 갱신 ${formatTime(lastUpdated)}`} variant="outlined" sx={statusChipSx} />
-              <Chip size="small" label={connStyle.text} variant="outlined" sx={{ ...statusChipSx, bgcolor: connStyle.bg, borderColor: connStyle.border, color: connStyle.color }} />
-              <Chip size="small" label={modeStyle.text} variant="outlined" sx={{ ...statusChipSx, bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color }} />
-            </Stack>
             <ApiGuardBanner />
             {healthDiagCode ? (
               <PageStatusView
@@ -251,6 +248,60 @@ export default function HomePage() {
             />
           </Stack>
 
+          {/* KPI Strip */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
+              gap: { xs: 1.2, md: 1.6 },
+              maxWidth: 900,
+              mx: "auto",
+              width: "100%",
+            }}
+          >
+            {[
+              {
+                label: "위기 지수",
+                value: stats.riskText,
+                sub: "메이플스토리 기준",
+                barColor: riskStyle.color,
+                bg: riskStyle.bg,
+                border: riskStyle.border,
+              },
+              {
+                label: "24h 보도량",
+                value: `${stats.recent}건`,
+                sub: "최근 24시간 기사",
+                barColor: "#2f67d8",
+                bg: "#f0f6ff",
+                border: "#bfdbfe",
+              },
+              {
+                label: "데이터 상태",
+                value: modeStyle.text,
+                sub: `갱신 ${formatTime(lastUpdated)}`,
+                barColor: modeStyle.color,
+                bg: modeStyle.bg,
+                border: modeStyle.border,
+              },
+            ].map((kpi) => (
+              <Box key={kpi.label} sx={{ ...metricCardSx, borderColor: kpi.border }}>
+                <Box sx={{ height: 3, bgcolor: kpi.barColor }} />
+                <Box sx={{ p: { xs: 1.6, md: 2 }, bgcolor: kpi.bg }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase" }}>
+                    {kpi.label}
+                  </Typography>
+                  <Typography sx={{ mt: 0.5, fontSize: { xs: 20, md: 24 }, fontWeight: 800, color: kpi.barColor, letterSpacing: "-.01em", lineHeight: 1.1 }}>
+                    {kpi.value}
+                  </Typography>
+                  <Typography sx={{ mt: 0.4, fontSize: 12, color: "#94a3b8" }}>
+                    {kpi.sub}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+
           <Box
             sx={{
               display: "grid",
@@ -276,6 +327,7 @@ export default function HomePage() {
                     position: "relative",
                     overflow: "hidden",
                     border: `1px solid ${active ? card.hoverBorder : "#e5e7eb"}`,
+                    borderLeft: `4px solid ${active ? card.accent : card.accent}`,
                     bgcolor: active ? card.hoverBg : "#ffffff",
                     color: active ? card.hoverText : "#111827",
                     boxShadow: active ? "0 16px 30px rgba(15,23,42,.12)" : "0 8px 18px rgba(15,23,42,.04)",
@@ -365,22 +417,7 @@ export default function HomePage() {
             })}
           </Box>
 
-          <Divider sx={{ my: 1, borderColor: "#e5e7eb" }} />
-
-          <Stack direction={{ xs: "column", md: "row" }} justifyContent="center" spacing={1.2}>
-            <Chip label={`최근 24시간 기사: ${stats.recent}`} variant="outlined" sx={{ ...statusChipSx, borderColor: "#d1d5db" }} />
-            <Chip
-              label={`현재 위험도: ${stats.riskText}`}
-              variant="outlined"
-              sx={{
-                ...statusChipSx,
-                bgcolor: riskStyle.bg,
-                borderColor: riskStyle.border,
-                color: riskStyle.color,
-              }}
-            />
-            <Chip label={`데이터 상태: ${stats.modeText}`} variant="outlined" sx={{ ...statusChipSx, bgcolor: modeStyle.bg, borderColor: modeStyle.border, color: modeStyle.color }} />
-          </Stack>
+          <Divider sx={{ my: 1, borderColor: "#f1f5f9" }} />
         </Stack>
       </Container>
     </Box>

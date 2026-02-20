@@ -24,10 +24,12 @@ import {
   toRequestErrorState,
 } from "../../../../lib/pageStatus";
 import {
+  metricCardSx,
   navButtonSx,
   pageContainerSx,
   pageShellSx,
   panelPaperSx,
+  riskAccent,
   sectionCardSx,
   statusChipSx,
 } from "../../../../lib/uiTokens";
@@ -320,41 +322,66 @@ export default function NexonBacktestPage() {
 
               {!shouldShowBacktestEmpty && !error && hasSeries ? (
                 <>
-                  <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap sx={{ mt: 1.5 }}>
-                    <Chip
-                      label={`최대 위기 지수: ${Number(payload?.summary?.max_risk || 0).toFixed(1)}`}
-                      color="error"
-                      variant="outlined"
-                      sx={statusChipSx}
-                    />
-                    <Chip
-                      label={`평균 위기 지수: ${Number(payload?.summary?.avg_risk || 0).toFixed(1)}`}
-                      variant="outlined"
-                      sx={statusChipSx}
-                    />
-                    <Chip
-                      label={`고위험 구간 수: ${Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0)}`}
-                      color="error"
-                      variant="outlined"
-                      sx={statusChipSx}
-                    />
-                    <Chip
-                      label={`주의 구간 수: ${Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0)}`}
-                      color="warning"
-                      variant="outlined"
-                      sx={statusChipSx}
-                    />
-                    <Chip
-                      label={`이벤트 수: ${Number(payload?.summary?.event_count || 0)}`}
-                      variant="outlined"
-                      sx={statusChipSx}
-                    />
-                    <Chip
-                      label={`주요 요인: ${toDriverLabel(payload?.summary?.dominant_component)}`}
-                      variant="outlined"
-                      sx={statusChipSx}
-                    />
-                  </Stack>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr 1fr", md: "1fr 1fr 1fr 1fr" },
+                      gap: { xs: 1.2, md: 1.5 },
+                      mt: 1.5,
+                    }}
+                  >
+                    {[
+                      {
+                        label: "최대 위기 지수",
+                        value: Number(payload?.summary?.max_risk || 0).toFixed(1),
+                        sub: "피크 위험 수준",
+                        barColor: riskAccent.critical.color,
+                        bg: riskAccent.critical.bg,
+                      },
+                      {
+                        label: "고위험 구간 수",
+                        value: Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0),
+                        sub: "P1 기준 초과 횟수",
+                        barColor: riskAccent.critical.color,
+                        bg: riskAccent.critical.bg,
+                      },
+                      {
+                        label: "주의 구간 수",
+                        value: Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0),
+                        sub: "P2 기준 초과 횟수",
+                        barColor: riskAccent.high.color,
+                        bg: riskAccent.high.bg,
+                      },
+                      {
+                        label: "평균 위기 지수",
+                        value: Number(payload?.summary?.avg_risk || 0).toFixed(1),
+                        sub: `주요 요인: ${toDriverLabel(payload?.summary?.dominant_component)}`,
+                        barColor: (() => {
+                          const avg = Number(payload?.summary?.avg_risk || 0);
+                          return avg >= 70 ? riskAccent.critical.color : avg >= 45 ? riskAccent.high.color : avg >= 20 ? riskAccent.caution.color : riskAccent.safe.color;
+                        })(),
+                        bg: (() => {
+                          const avg = Number(payload?.summary?.avg_risk || 0);
+                          return avg >= 70 ? riskAccent.critical.bg : avg >= 45 ? riskAccent.high.bg : avg >= 20 ? riskAccent.caution.bg : riskAccent.safe.bg;
+                        })(),
+                      },
+                    ].map((kpi) => (
+                      <Box key={kpi.label} sx={{ ...metricCardSx, display: "flex", flexDirection: "column" }}>
+                        <Box sx={{ height: 3, bgcolor: kpi.barColor, flexShrink: 0 }} />
+                        <Box sx={{ p: { xs: 1.4, md: 1.8 }, bgcolor: kpi.bg, flex: 1 }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase" }}>
+                            {kpi.label}
+                          </Typography>
+                          <Typography sx={{ mt: 0.4, fontSize: { xs: 22, md: 28 }, fontWeight: 800, color: kpi.barColor, letterSpacing: "-.01em", lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+                            {kpi.value}
+                          </Typography>
+                          <Typography sx={{ mt: 0.35, fontSize: 11, color: "#94a3b8" }}>
+                            {kpi.sub}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
                     고위험/주의 구간 수는 각 기준선을 넘긴 시간대의 횟수입니다. 하루에 여러 번 발생할 수 있습니다.
                   </Typography>
@@ -371,10 +398,10 @@ export default function NexonBacktestPage() {
                       { label: "확산 영향", latest: driverStats.spread.latest.toFixed(3), peak: driverStats.spread.peak.toFixed(3) },
                       { label: "불확실 신호 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
                     ].map((d) => (
-                      <Paper key={d.label} variant="outlined" sx={{ ...panelPaperSx, p: 1.2, flex: "1 1 180px", minWidth: 0 }}>
+                      <Box key={d.label} sx={{ ...metricCardSx, p: 1.4, flex: "1 1 180px", minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>{d.label}</Typography>
                         <Typography variant="caption" color="text.secondary">최근 {d.latest} · 최고 {d.peak}</Typography>
-                      </Paper>
+                      </Box>
                     ))}
                   </Stack>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>

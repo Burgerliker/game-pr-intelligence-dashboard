@@ -33,9 +33,10 @@ import {
 } from "../../../lib/pageStatus";
 import {
   filterChipSx,
+  metricCardSx,
   navButtonSx,
   pageContainerSx,
-  pageShellSx,
+  pageShellCleanSx,
   panelPaperSx,
   sectionCardSx,
   statusChipSx,
@@ -488,7 +489,7 @@ export default function ComparePage() {
   }, [retryAfterSec, scheduleFetch, startPolling]);
 
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 5 } }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2, md: 5 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={2.3}>
           <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.2, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
@@ -615,11 +616,9 @@ export default function ComparePage() {
               <Grid container spacing={{ xs: 1.1, md: 1.6 }}>
                 {companyCards.map(({ company, count, state }) => (
                   <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
-                    <Card
-                      variant="outlined"
-                      sx={{ ...sectionCardSx, height: "100%", width: "100%" }}
-                    >
-                      <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
+                    <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
+                      <Box sx={{ height: 3, bgcolor: state.barColor, flexShrink: 0 }} />
+                      <Box sx={{ p: { xs: 1.6, md: 2 }, flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.4 }}>
                           {company}
                         </Typography>
@@ -635,16 +634,14 @@ export default function ComparePage() {
                         <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.4 }}>
                           {state.helper}
                         </Typography>
-                      </CardContent>
-                    </Card>
+                      </Box>
+                    </Box>
                   </Grid>
                 ))}
                 <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
-                  <Card
-                    variant="outlined"
-                    sx={{ ...sectionCardSx, height: "100%", width: "100%" }}
-                  >
-                    <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
+                  <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
+                    <Box sx={{ height: 3, bgcolor: "#0f3b66", flexShrink: 0 }} />
+                    <Box sx={{ p: { xs: 1.6, md: 2 }, flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" color="text.secondary">
                         총합
                       </Typography>
@@ -654,8 +651,8 @@ export default function ComparePage() {
                       <Typography variant="caption" color="text.secondary">
                         전체 기사
                       </Typography>
-                    </CardContent>
-                  </Card>
+                    </Box>
+                  </Box>
                 </Grid>
               </Grid>
               <Stack direction="row" spacing={0.9} useFlexGap flexWrap="wrap" sx={{ mt: 0.8, mb: 0.4 }}>
@@ -671,7 +668,7 @@ export default function ComparePage() {
                     sx={{ ...sectionCardSx, width: "100%" }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, lineHeight: 1.3 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, lineHeight: 1.3, borderLeft: "3px solid #0f3b66", pl: 1.5 }}>
                         보도 추이 (최근 14일)
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
@@ -800,7 +797,7 @@ export default function ComparePage() {
                     sx={{ ...sectionCardSx, width: "100%" }}
                   >
                     <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, borderLeft: "3px solid #0f3b66", pl: 1.5 }}>
                         여론 분포
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>

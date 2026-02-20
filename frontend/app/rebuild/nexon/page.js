@@ -36,11 +36,13 @@ import {
 } from "../../../lib/normalizeNexon";
 import {
   filterChipSx,
+  metricCardSx,
   metricValueSx,
   navButtonSx,
   pageContainerSx,
   pageShellSx,
   panelPaperSx,
+  riskAccent,
   sectionCardSx,
   statusChipSx,
 } from "../../../lib/uiTokens";
@@ -1131,23 +1133,45 @@ export default function NexonPage() {
 
         <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
           {[
-            { k: "선택 게임", v: riskData?.meta?.ip || "-", s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}` },
-            { k: "총 기사 수(일자 합계)", v: totalArticleSum.toLocaleString(), s: "필터 기간 합계" },
-            { k: "핵심 위험 이슈", v: topRisk?.theme || "-", s: `위기 지수 ${topRisk?.risk_score ?? "-"}` },
-            { k: "이슈 분류 수", v: Number(clusterData?.meta?.cluster_count || 0), s: "유사 기사 그룹", tip: tipMap.cluster },
+            {
+              k: "선택 게임",
+              v: riskData?.meta?.ip || "-",
+              s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}`,
+              barColor: riskAccent.neutral.color,
+            },
+            {
+              k: "총 기사 수(일자 합계)",
+              v: totalArticleSum.toLocaleString(),
+              s: "필터 기간 합계",
+              barColor: riskAccent.neutral.color,
+            },
+            {
+              k: "핵심 위험 이슈",
+              v: topRisk?.theme || "-",
+              s: `위기 지수 ${topRisk?.risk_score ?? "-"}`,
+              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+            },
+            {
+              k: "이슈 분류 수",
+              v: Number(clusterData?.meta?.cluster_count || 0),
+              s: "유사 기사 그룹",
+              tip: tipMap.cluster,
+              barColor: riskAccent.neutral.color,
+            },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
-              <Card variant="outlined" sx={{ ...sectionCardSx, width: "100%", height: "100%" }}>
-                <CardContent sx={{ p: { xs: 1.3, sm: 1.6, md: 2 }, width: "100%", minWidth: 0 }}>
-                {item.tip ? (
-                  <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
-                ) : (
-                  <Typography variant="body2" color="text.secondary">{item.k}</Typography>
-                )}
-                <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
-                <Typography variant="caption" color="text.secondary">{item.s}</Typography>
-                </CardContent>
-              </Card>
+              <Box sx={{ ...metricCardSx, width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+                <Box sx={{ height: 3, bgcolor: item.barColor, flexShrink: 0 }} />
+                <Box sx={{ p: { xs: 1.3, sm: 1.6, md: 2 }, flex: 1, width: "100%", minWidth: 0 }}>
+                  {item.tip ? (
+                    <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">{item.k}</Typography>
+                  )}
+                  <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
+                  <Typography variant="caption" color="text.secondary">{item.s}</Typography>
+                </Box>
+              </Box>
             </Grid>
           ))}
         </Grid>
@@ -1157,7 +1181,7 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.3 } }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.8 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.8, borderLeft: `4px solid ${riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color}`, pl: 1.5 }}>
               현재 위기 상태
             </Typography>
             {riskScore ? (
