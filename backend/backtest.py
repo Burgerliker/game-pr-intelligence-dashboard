@@ -10,7 +10,14 @@ from typing import Any
 
 import pandas as pd
 
-from backend.storage import IP_RULES, OUTLET_GAME_MEDIA, OUTLET_TIER1
+from backend.storage import (
+    IP_RULES,
+    OUTLET_GAME_MEDIA,
+    OUTLET_TIER1,
+    RISK_FORMULA_VERSION,
+    THEME_WEIGHTS_HEAT,
+    THEME_WEIGHTS_RISK,
+)
 from utils.sentiment import analyze_sentiment_rule_v1
 
 
@@ -98,14 +105,7 @@ RISK_THEME_RULES: dict[str, list[str]] = {
     "여론/논란": ["논란", "비판", "불만", "시위", "잡음"],
     "신작/성과": ["신작", "출시", "흥행", "매출", "사전예약", "수상"],
 }
-THEME_WEIGHTS: dict[str, float] = {
-    "확률형/BM": 1.0,
-    "규제/법적": 0.9,
-    "보상/환불": 0.8,
-    "운영/장애": 0.7,
-    "여론/논란": 0.7,
-    "신작/성과": 0.4,
-}
+LIVE_RISK_WEIGHTS: dict[str, float] = {"S": 0.50, "V": 0.25, "T": 0.15, "M": 0.10}
 
 
 @dataclass
@@ -306,7 +306,8 @@ def run_backtest(
     if start > end:
         raise ValueError("date_from은 date_to보다 이전이어야 합니다.")
 
-    norm_w = _normalize_weights(weights)
+    requested_weights = _normalize_weights(weights)
+    risk_weights = dict(LIVE_RISK_WEIGHTS)
     baseline_start = start - timedelta(days=7)
     debug_backtest = os.getenv("DEBUG_BACKTEST", "").strip().lower() in {"1", "true", "yes", "on"}
     debug_timestamps = {
@@ -325,7 +326,7 @@ def run_backtest(
                    COALESCE(date, '') AS date,
                    COALESCE(source_group_id, '') AS source_group_id
             FROM articles
-            WHERE company = ? AND date BETWEEN ? AND ?
+            WHERE company = ? AND date BETWEEN ? AND ? AND is_test = 0
             ORDER BY COALESCE(pub_date, date, created_at) ASC, id ASC
             """,
             ("넥슨", baseline_start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")),
@@ -370,100 +371,104 @@ def run_backtest(
         ema_alpha = None
         ema_prev = prev_risk
         ema_next = None
+        group_map: dict[str, Mention] = {}
+        for m in window_mentions:
+            group_map.setdefault(m.group_id, m)
+        group_mentions = list(group_map.values())
+        group_count = len(group_mentions)
+        spread_ratio = float(mention_count / max(group_count, 1))
 
-        if mention_count == 0:
-            raw = 0.0
-            score = float(prev_risk * 0.9) if prev_risk is not None else 0.0
-            components = {"S": 0.0, "V": 0.0, "T": 0.0, "M": 0.0}
-            uncertain_ratio = 0.0
-            dominant = "S"
-            ema_alpha = 0.1 if prev_risk is not None else 1.0
-            ema_next = score
-        else:
-            group_map: dict[str, Mention] = {}
-            for m in window_mentions:
-                group_map.setdefault(m.group_id, m)
-            group_mentions = list(group_map.values())
-            group_count = len(group_mentions)
-            spread_ratio = float(mention_count / max(group_count, 1))
+        weighted_scores: list[float] = []
+        uncertain_count = 0  # live 계산과 동일하게 현재는 사실상 0
+        negative_group_count = 0
+        for m in group_mentions:
+            entry = sentiment_by_group.get(
+                m.group_id,
+                {"score": 0.0, "label": "neutral", "confidence": 0.0},
+            )
+            label = str(entry["label"])
+            confidence = float(entry["confidence"])
+            weight = max(0.2, confidence)
+            negative_value = max(0.0, -float(entry["score"]))
+            weighted_scores.append(negative_value * weight)
+            if label == "negative":
+                negative_group_count += 1
+        S_t = float(sum(weighted_scores) / max(group_count, 1))
+        uncertain_ratio = float(uncertain_count / max(group_count, 1))
+        negative_ratio_window = float(negative_group_count / max(group_count, 1))
 
-            weighted_scores: list[float] = []
-            uncertain_count = 0
-            for m in group_mentions:
-                entry = sentiment_by_group.get(
-                    m.group_id,
-                    {"score": 0.0, "label": "uncertain", "confidence": 0.0},
-                )
-                label = str(entry["label"])
-                confidence = float(entry["confidence"])
-                weight = confidence if label != "uncertain" else 0.3
-                negative_value = max(0.0, -float(entry["score"]))
-                weighted_scores.append(negative_value * weight)
-                if label == "uncertain":
-                    uncertain_count += 1
-            S_t = float(sum(weighted_scores) / max(group_count, 1))
-            uncertain_ratio = float(uncertain_count / max(group_count, 1))
+        one_hour_start = current - timedelta(hours=1)
+        count_1h = sum(1 for m in scoped if one_hour_start <= m.dt <= current)
+        baseline_mentions = [m for m in scoped if (current - timedelta(days=7)) <= m.dt < current]
+        hourly_counter: Counter[str] = Counter(m.dt.strftime("%Y-%m-%d %H") for m in baseline_mentions)
+        same_hour_values = []
+        for key, value in hourly_counter.items():
+            dt_key = datetime.strptime(key, "%Y-%m-%d %H")
+            if dt_key.hour == current.hour:
+                same_hour_values.append(value)
+        baseline_values = same_hour_values if len(same_hour_values) >= 3 else list(hourly_counter.values())
+        baseline_mean = float(sum(baseline_values) / max(len(baseline_values), 1))
+        baseline_std = float(pd.Series(baseline_values).std(ddof=0)) if baseline_values else 0.0
+        z_score = (float(count_1h) - baseline_mean) / max(baseline_std, 1.0)
+        V_heat = float(_sigmoid(z_score))
+        V_risk = float(V_heat * negative_ratio_window)
 
-            one_hour_start = current - timedelta(hours=1)
-            count_1h = sum(1 for m in scoped if one_hour_start <= m.dt <= current)
-            baseline_mentions = [m for m in scoped if (current - timedelta(days=7)) <= m.dt < current]
-            hourly_counter: Counter[str] = Counter(m.dt.strftime("%Y-%m-%d %H") for m in baseline_mentions)
-            same_hour_values = []
-            for key, value in hourly_counter.items():
-                dt_key = datetime.strptime(key, "%Y-%m-%d %H")
-                if dt_key.hour == current.hour:
-                    same_hour_values.append(value)
-            baseline_values = same_hour_values if len(same_hour_values) >= 3 else list(hourly_counter.values())
-            baseline_mean = float(sum(baseline_values) / max(len(baseline_values), 1))
-            baseline_std = float(pd.Series(baseline_values).std(ddof=0)) if baseline_values else 0.0
-            z_score = (float(count_1h) - baseline_mean) / max(baseline_std, 1.0)
-            V_t = float(_sigmoid(z_score))
+        theme_counter_heat: Counter[str] = Counter()
+        theme_counter_risk: Counter[str] = Counter()
+        for m in group_mentions:
+            for theme, keywords in RISK_THEME_RULES.items():
+                if any(k.lower() in m.text for k in keywords):
+                    theme_counter_heat[theme] += 1
+                    if theme in THEME_WEIGHTS_RISK:
+                        theme_counter_risk[theme] += 1
+                    break
+        T_heat = 0.0
+        T_risk = 0.0
+        if group_mentions:
+            total_recent = float(len(group_mentions))
+            for theme, cnt in theme_counter_heat.items():
+                share = float(cnt) / total_recent
+                T_heat += share * float(THEME_WEIGHTS_HEAT.get(theme, 0.4))
+            for theme, cnt in theme_counter_risk.items():
+                share = float(cnt) / total_recent
+                T_risk += share * float(THEME_WEIGHTS_RISK.get(theme, 0.0))
 
-            theme_counter: Counter[str] = Counter()
-            for m in group_mentions:
-                for theme, keywords in RISK_THEME_RULES.items():
-                    if any(k.lower() in m.text for k in keywords):
-                        theme_counter[theme] += 1
-                        break
-            T_t = 0.0
-            for theme, cnt in theme_counter.items():
-                share = float(cnt) / max(group_count, 1)
-                T_t += share * float(THEME_WEIGHTS.get(theme, 0.4))
-
-            outlet_counter: Counter[str] = Counter(m.outlet for m in window_mentions)
-            M_t = 0.0
+        outlet_counter: Counter[str] = Counter(m.outlet for m in window_mentions)
+        M_t = 0.0
+        if mention_count:
             for outlet, cnt in outlet_counter.items():
                 share = float(cnt) / max(mention_count, 1)
                 M_t += share * _outlet_weight(outlet)
 
-            raw = 100.0 * (
-                norm_w["S"] * S_t
-                + norm_w["V"] * V_t
-                + norm_w["T"] * T_t
-                + norm_w["M"] * M_t
-            )
+        raw_issue_heat = 100.0 * (0.45 * V_heat + 0.35 * T_heat + 0.20 * M_t)
+        raw = 100.0 * (
+            0.50 * S_t
+            + 0.25 * V_risk
+            + 0.15 * T_risk
+            + 0.10 * (M_t * negative_ratio_window)
+        )
 
-            if prev_risk is None:
-                score = raw
-                ema_alpha = 1.0
-            elif mention_count < 10:
-                score = 0.9 * prev_risk + 0.1 * raw
-                ema_alpha = 0.1
-            else:
-                score = 0.7 * prev_risk + 0.3 * raw
-                ema_alpha = 0.3
-            ema_next = score
+        if prev_risk is None:
+            score = raw
+            ema_alpha = 1.0
+        elif count_1h < 10:
+            score = 0.9 * prev_risk + 0.1 * raw
+            ema_alpha = 0.1
+        else:
+            score = 0.7 * prev_risk + 0.3 * raw
+            ema_alpha = 0.3
+        ema_next = score
 
-            components = {
-                "S": round(float(S_t), 3),
-                "V": round(float(V_t), 3),
-                "T": round(float(T_t), 3),
-                "M": round(float(M_t), 3),
-            }
-            dominant = max(
-                [("S", norm_w["S"] * S_t), ("V", norm_w["V"] * V_t), ("T", norm_w["T"] * T_t), ("M", norm_w["M"] * M_t)],
-                key=lambda x: x[1],
-            )[0]
+        components = {
+            "S": round(float(S_t), 3),
+            "V": round(float(V_risk), 3),
+            "T": round(float(T_risk), 3),
+            "M": round(float(M_t), 3),
+        }
+        dominant = max(
+            [("S", risk_weights["S"] * S_t), ("V", risk_weights["V"] * V_risk), ("T", risk_weights["T"] * T_risk), ("M", risk_weights["M"] * M_t)],
+            key=lambda x: x[1],
+        )[0]
 
         score = float(max(0.0, min(100.0, score)))
         alert = _alert_level(score)
@@ -494,10 +499,10 @@ def run_backtest(
         }
         if debug_backtest and (not debug_timestamps or row["timestamp"] in debug_timestamps):
             weighted_raw = 100.0 * (
-                norm_w["S"] * float(components.get("S", 0.0))
-                + norm_w["V"] * float(components.get("V", 0.0))
-                + norm_w["T"] * float(components.get("T", 0.0))
-                + norm_w["M"] * float(components.get("M", 0.0))
+                risk_weights["S"] * float(components.get("S", 0.0))
+                + risk_weights["V"] * float(components.get("V", 0.0))
+                + risk_weights["T"] * float(components.get("T", 0.0))
+                + risk_weights["M"] * float(components.get("M", 0.0))
             )
             print(
                 "[BACKTEST_DEBUG]",
@@ -508,7 +513,7 @@ def run_backtest(
                     "spread_ratio": round(spread_ratio, 3),
                     "uncertain_ratio": row["uncertain_ratio"],
                     "components": components,
-                    "weights": norm_w,
+                    "weights": risk_weights,
                     "weighted_raw_from_components": round(weighted_raw, 3),
                     "raw_risk": row["raw_risk"],
                     "z_score": round(float(z_score), 3),
@@ -525,7 +530,7 @@ def run_backtest(
 
     events = _detect_events(timeseries)
     event_count_by_type = dict(Counter(str(e.get("type") or e.get("event") or "") for e in events))
-    summary = _calc_summary(timeseries, norm_w, event_count_by_type=event_count_by_type)
+    summary = _calc_summary(timeseries, risk_weights, event_count_by_type=event_count_by_type)
     period_mentions = [m for m in scoped if start <= m.dt <= end]
     unique_groups = {m.group_id for m in period_mentions}
     db_path = get_backtest_db_path()
@@ -541,9 +546,11 @@ def run_backtest(
             "total_articles": int(len(period_mentions)),
             "unique_articles": int(len(unique_groups)),
             "total_steps": int(len(timeseries)),
-            "weights": {k: round(float(v), 4) for k, v in norm_w.items()},
+            "weights": {k: round(float(v), 4) for k, v in risk_weights.items()},
+            "requested_weights": {k: round(float(v), 4) for k, v in requested_weights.items()},
             "db_path": str(db_path),
             "db_file_name": os.path.basename(db_path),
+            "risk_formula_version": RISK_FORMULA_VERSION,
         },
         "thresholds": {"p1": 70, "p2": 45},
         "timeseries": timeseries,
