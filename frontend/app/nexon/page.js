@@ -159,6 +159,7 @@ export default function NexonPage() {
   const [riskData, setRiskData] = useState(() => createEmptyRisk("maplestory"));
   const [clusterData, setClusterData] = useState(() => createEmptyCluster("maplestory"));
   const [riskScore, setRiskScore] = useState(null);
+  const [riskTimeseries, setRiskTimeseries] = useState([]);
   const [burstStatus, setBurstStatus] = useState(null);
   const [burstEvents, setBurstEvents] = useState([]);
   const [health, setHealth] = useState(null);
@@ -177,6 +178,9 @@ export default function NexonPage() {
   const [articleErrorCode, setArticleErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
   const [showMetricDetails, setShowMetricDetails] = useState(false);
+  const [showBurstEventList, setShowBurstEventList] = useState(false);
+  const [burstRange, setBurstRange] = useState("24h");
+  const [burstVisibleCount, setBurstVisibleCount] = useState(10);
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
   const swipeStartXRef = useRef(null);
@@ -186,10 +190,12 @@ export default function NexonPage() {
   const outletChartRef = useRef(null);
   const themeChartRef = useRef(null);
   const keywordChartRef = useRef(null);
+  const riskHeatChartRef = useRef(null);
   const trendChartInstRef = useRef(null);
   const outletChartInstRef = useRef(null);
   const themeChartInstRef = useRef(null);
   const keywordChartInstRef = useRef(null);
+  const riskHeatChartInstRef = useRef(null);
   const [chartsReady, setChartsReady] = useState(false);
   const formatUpdatedAt = useCallback((date = new Date()) => {
     const d = date instanceof Date ? date : new Date(date);
@@ -222,6 +228,7 @@ export default function NexonPage() {
       setRiskData(cache.riskData);
       setClusterData(cache.clusterData);
       setRiskScore(cache.riskScore);
+      setRiskTimeseries(cache.riskTimeseries || []);
       setBurstStatus(cache.burstStatus);
       setBurstEvents(cache.burstEvents);
       setHealth(cache.health || null);
@@ -235,10 +242,11 @@ export default function NexonPage() {
 
     try {
       const base = new URLSearchParams({ ip: targetIp });
-      const [riskPayload, clusterPayload, riskScorePayload, burstStatusPayload, burstEventsPayload, healthState] = await Promise.all([
+      const [riskPayload, clusterPayload, riskScorePayload, riskTimeseriesPayload, burstStatusPayload, burstEventsPayload, healthState] = await Promise.all([
         apiGet(`/api/risk-dashboard?${base.toString()}`),
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
         apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
+        apiGet(`/api/risk-timeseries?ip=${targetIp}&hours=168&limit=600`).catch(() => null),
         apiGet("/api/burst-status").catch(() => null),
         apiGet("/api/burst-events?limit=50").catch(() => null),
         apiGet("/api/health")
@@ -266,6 +274,7 @@ export default function NexonPage() {
       setClusterData(resolvedCluster);
       setUsingMock(resolvedUsingMock);
       setRiskScore(riskScorePayload || null);
+      setRiskTimeseries(riskTimeseriesPayload?.items || []);
       setBurstStatus(burstStatusPayload || null);
       setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
       setHealth(healthState.data || null);
@@ -277,6 +286,7 @@ export default function NexonPage() {
         riskData: resolvedRisk,
         clusterData: resolvedCluster,
         riskScore: riskScorePayload || null,
+        riskTimeseries: riskTimeseriesPayload?.items || [],
         burstStatus: burstStatusPayload || null,
         burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
         health: healthState.data || null,
@@ -417,14 +427,16 @@ export default function NexonPage() {
     const timer = setInterval(async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
-        const [rs, bs, healthState] = await Promise.all([
+        const [rs, rt, bs, healthState] = await Promise.all([
           apiGet(`/api/risk-score?ip=${ip}`).catch(() => null),
+          apiGet(`/api/risk-timeseries?ip=${ip}&hours=168&limit=600`).catch(() => null),
           apiGet("/api/burst-status").catch(() => null),
           apiGet("/api/health")
             .then((data) => ({ data, error: null }))
             .catch((error) => ({ data: null, error })),
         ]);
         if (rs) setRiskScore(rs);
+        if (rt?.items) setRiskTimeseries(rt.items);
         if (bs) setBurstStatus(bs);
         if (healthState.data) setHealth(healthState.data);
         setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
@@ -457,6 +469,36 @@ export default function NexonPage() {
     () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
     [burstEvents, ip]
   );
+  const burstRangeHours = burstRange === "7d" ? 24 * 7 : 24;
+  const rangedBurstEvents = useMemo(() => {
+    const now = Date.now();
+    const windowMs = burstRangeHours * 60 * 60 * 1000;
+    return filteredBurstEvents
+      .filter((evt) => {
+        const ts = new Date(String(evt.occurred_at || "").replace(" ", "T")).getTime();
+        return Number.isFinite(ts) && now - ts <= windowMs;
+      })
+      .sort((a, b) => {
+        const ta = new Date(String(a.occurred_at || "").replace(" ", "T")).getTime();
+        const tb = new Date(String(b.occurred_at || "").replace(" ", "T")).getTime();
+        return tb - ta;
+      });
+  }, [burstRangeHours, filteredBurstEvents]);
+  const burstSummaryCount = rangedBurstEvents.length;
+  const burstSummaryLastOccurredAt = useMemo(() => {
+    if (!rangedBurstEvents.length) return "-";
+    const raw = String(rangedBurstEvents[0]?.occurred_at || "").replace(" ", "T");
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return String(rangedBurstEvents[0]?.occurred_at || "-");
+    return dt.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  }, [rangedBurstEvents]);
+  const burstStatusLabel = burstSummaryCount > 0 ? "있음" : "없음";
+  const visibleBurstEvents = rangedBurstEvents.slice(0, burstVisibleCount);
+  const canLoadMoreBurstEvents = visibleBurstEvents.length < rangedBurstEvents.length;
+
+  useEffect(() => {
+    setBurstVisibleCount(10);
+  }, [burstRange, ip]);
   const articleListHeight = useMemo(() => {
     const estimated = articleItems.length * ARTICLE_ROW_HEIGHT;
     if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
@@ -577,12 +619,14 @@ export default function NexonPage() {
       if (outletChartRef.current && !outletChartInstRef.current) outletChartInstRef.current = echarts.init(outletChartRef.current);
       if (themeChartRef.current && !themeChartInstRef.current) themeChartInstRef.current = echarts.init(themeChartRef.current);
       if (keywordChartRef.current && !keywordChartInstRef.current) keywordChartInstRef.current = echarts.init(keywordChartRef.current);
+      if (riskHeatChartRef.current && !riskHeatChartInstRef.current) riskHeatChartInstRef.current = echarts.init(riskHeatChartRef.current);
       setChartsReady(true);
       onResize = () => {
         trendChartInstRef.current?.resize();
         outletChartInstRef.current?.resize();
         themeChartInstRef.current?.resize();
         keywordChartInstRef.current?.resize();
+        riskHeatChartInstRef.current?.resize();
       };
       window.addEventListener("resize", onResize);
     };
@@ -596,10 +640,12 @@ export default function NexonPage() {
       outletChartInstRef.current?.dispose();
       themeChartInstRef.current?.dispose();
       keywordChartInstRef.current?.dispose();
+      riskHeatChartInstRef.current?.dispose();
       trendChartInstRef.current = null;
       outletChartInstRef.current = null;
       themeChartInstRef.current = null;
       keywordChartInstRef.current = null;
+      riskHeatChartInstRef.current = null;
     };
   }, []);
 
@@ -814,6 +860,41 @@ export default function NexonPage() {
       { notMerge: true, lazyUpdate: true }
     );
   }, [chartsReady, keywordCloud]);
+
+  useEffect(() => {
+    if (!chartsReady || !riskHeatChartInstRef.current) return;
+    const rows = (riskTimeseries || []).slice(-168);
+    const x = rows.map((r) => String(r.ts || "").slice(5, 16));
+    riskHeatChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 38, right: 20, top: 26, bottom: 42 },
+        tooltip: { trigger: "axis" },
+        legend: { top: 0, data: ["Risk", "Heat"] },
+        xAxis: { type: "category", data: x, axisLabel: { color: "#64748b", hideOverlap: true } },
+        yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: "#64748b", formatter: "{value}" } },
+        series: [
+          {
+            name: "Risk",
+            type: "line",
+            data: rows.map((r) => Number(r.risk_score || 0)),
+            smooth: true,
+            symbol: "none",
+            lineStyle: { width: 2, color: "#dc3c4a" },
+          },
+          {
+            name: "Heat",
+            type: "line",
+            data: rows.map((r) => Number(r.issue_heat || 0)),
+            smooth: true,
+            symbol: "none",
+            lineStyle: { width: 2, color: "#2f67d8" },
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, riskTimeseries]);
 
   return (
     <Box sx={{ ...pageShellSx, py: { xs: 1.5, sm: 2, md: 4 } }}>
@@ -1197,6 +1278,7 @@ export default function NexonPage() {
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
                         Risk는 "부정 신호 강도", Heat는 "언급량/관심도"입니다. 언급이 많아도 부정이 적으면 Risk는 낮을 수 있습니다.
                       </Typography>
+                      <Box ref={riskHeatChartRef} sx={{ mt: 0.8, width: "100%", height: { xs: 180, sm: 200 } }} />
                     </Paper>
                   </Stack>
                 </Box>
@@ -1235,35 +1317,91 @@ export default function NexonPage() {
                   </Collapse>
                 </Box>
 
-                <Paper variant="outlined" sx={{ ...panelPaperSx, mt: 1.6, p: { xs: 0.2, sm: 0.6, md: 0.8 } }}>
+                <Paper variant="outlined" sx={{ ...panelPaperSx, mt: 1.6, p: { xs: 1, sm: 1.2, md: 1.4 } }}>
                   <Box sx={{ px: 1.2, pt: 0.6 }}>
                     <LabelWithTip label="버스트 이벤트" tip={tipMap.burst} />
                   </Box>
-                  <List dense disablePadding>
-                    {filteredBurstEvents.length ? (
-                      filteredBurstEvents.slice(0, 5).map((evt, idx) => (
-                        <ListItem key={`${evt.occurred_at}-${idx}`} divider>
-                          <ListItemText
-                            primary={`${String(evt.occurred_at).slice(5, 16)} · ${evt.ip_name} · ${String(evt.event_type).toUpperCase()}`}
-                            secondary={evt.trigger_reason}
-                            primaryTypographyProps={{ variant: "body2" }}
-                            secondaryTypographyProps={{ variant: "caption" }}
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{ px: 1.2, pb: 0.8, pt: 0.8, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}
+                  >
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={0.8} useFlexGap flexWrap="wrap" sx={{ minWidth: 0 }}>
+                      <Chip size="small" variant="outlined" label={`최근 ${burstRange} 이벤트 ${burstSummaryCount}건`} sx={statusChipSx} />
+                      <Chip size="small" variant="outlined" label={`최근 발생 ${burstSummaryLastOccurredAt}`} sx={statusChipSx} />
+                      <Chip
+                        size="small"
+                        label={burstStatusLabel}
+                        color={burstSummaryCount > 0 ? "warning" : "success"}
+                        variant={burstSummaryCount > 0 ? "filled" : "outlined"}
+                        sx={{ fontWeight: 700 }}
+                      />
+                    </Stack>
+                    <Stack direction="row" spacing={0.6} sx={{ justifyContent: { xs: "flex-start", sm: "flex-end" }, flexWrap: "wrap" }}>
+                      <Button
+                        size="small"
+                        variant={burstRange === "24h" ? "contained" : "outlined"}
+                        onClick={() => setBurstRange("24h")}
+                      >
+                        24h
+                      </Button>
+                      <Button
+                        size="small"
+                        variant={burstRange === "7d" ? "contained" : "outlined"}
+                        onClick={() => setBurstRange("7d")}
+                      >
+                        7d
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          setShowBurstEventList((prev) => {
+                            const next = !prev;
+                            if (next) setBurstVisibleCount(10);
+                            return next;
+                          });
+                        }}
+                      >
+                        {showBurstEventList ? "이벤트 닫기" : "이벤트 보기"}
+                      </Button>
+                    </Stack>
+                  </Stack>
+
+                  <Collapse in={showBurstEventList}>
+                    <List dense disablePadding>
+                      {visibleBurstEvents.length ? (
+                        visibleBurstEvents.map((evt, idx) => (
+                          <ListItem key={`${evt.occurred_at}-${idx}`} divider>
+                            <ListItemText
+                              primary={`${String(evt.occurred_at).slice(5, 16)} · ${evt.ip_name} · ${String(evt.event_type).toUpperCase()}`}
+                              secondary={evt.trigger_reason}
+                              primaryTypographyProps={{ variant: "body2" }}
+                              secondaryTypographyProps={{ variant: "caption" }}
+                            />
+                          </ListItem>
+                        ))
+                      ) : (
+                        <Box sx={{ p: 1 }}>
+                          <PageStatusView
+                            empty={{
+                              show: true,
+                              title: "버스트 이벤트 없음",
+                              subtitle: `선택한 기간(${burstRange})에는 집중 수집 전환 기록이 없습니다.`,
+                              compact: true,
+                            }}
                           />
-                        </ListItem>
-                      ))
-                    ) : (
-                      <Box sx={{ p: 1 }}>
-                        <PageStatusView
-                          empty={{
-                            show: true,
-                            title: "버스트 이벤트 없음",
-                            subtitle: "아직 집중 수집 전환 기록이 없습니다. (실시간 신호 대기 중)",
-                            compact: true,
-                          }}
-                        />
+                        </Box>
+                      )}
+                    </List>
+                    {canLoadMoreBurstEvents ? (
+                      <Box sx={{ px: 1.2, pb: 1, pt: 0.6, display: "flex", justifyContent: "center" }}>
+                        <Button size="small" variant="outlined" onClick={() => setBurstVisibleCount((prev) => prev + 10)}>
+                          더보기 (+10)
+                        </Button>
                       </Box>
-                    )}
-                  </List>
+                    ) : null}
+                  </Collapse>
                 </Paper>
               </Box>
             ) : (

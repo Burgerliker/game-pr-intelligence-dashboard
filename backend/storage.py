@@ -1414,6 +1414,12 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                 recent_group_items[gid] = r
         recent_groups = sorted(recent_group_items.keys())
         recent_real_group_ids = sorted(g for g in recent_groups if not g.startswith("legacy:"))
+        recent_legacy_count = sum(1 for g in recent_groups if g.startswith("legacy:"))
+        recent_total_mentions = int(len(recent))
+        if recent_real_group_ids:
+            volume = _compute_group_volume(conn, set(recent_real_group_ids))
+            computed_mentions = int(volume.get("total_mentions", 0)) + int(recent_legacy_count)
+            recent_total_mentions = max(int(len(recent)), computed_mentions)
 
         sentiment_by_group: dict[str, dict[str, float | str]] = {}
         if recent_real_group_ids:
@@ -1592,7 +1598,8 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             "data_quality_flag": quality_flag,
             "article_count_window": int(len(recent)),
             "group_count_window": int(len(recent_groups)),
-            "mention_count_window": int(len(recent)),
+            "mention_count_window": int(recent_total_mentions),
+            "exposure_count_window": int(recent_total_mentions),
             "count_1h": int(count_1h),
             "z_score": round(float(z_score), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
@@ -1656,6 +1663,12 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
                 recent_group_items[gid] = r
         recent_groups = sorted(recent_group_items.keys())
         recent_real_group_ids = sorted(g for g in recent_groups if not g.startswith("legacy:"))
+        recent_legacy_count = sum(1 for g in recent_groups if g.startswith("legacy:"))
+        recent_total_mentions = int(len(recent))
+        if recent_real_group_ids:
+            volume = _compute_group_volume(conn, set(recent_real_group_ids))
+            computed_mentions = int(volume.get("total_mentions", 0)) + int(recent_legacy_count)
+            recent_total_mentions = max(int(len(recent)), computed_mentions)
 
         sentiment_by_group: dict[str, dict[str, float | str]] = {}
         if recent_real_group_ids:
@@ -1840,7 +1853,8 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
             "data_quality_flag": quality_flag,
             "article_count_window": int(len(recent)),
             "group_count_window": int(len(recent_groups)),
-            "mention_count_window": int(len(recent)),
+            "mention_count_window": int(recent_total_mentions),
+            "exposure_count_window": int(recent_total_mentions),
             "count_1h": int(count_1h),
             "z_score": round(float(z_score), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
@@ -1865,6 +1879,48 @@ def get_recent_risk_scores(ip_id: str, minutes: int = 30) -> list[float]:
             (ip_val, since),
         ).fetchall()
         return [float(r["risk_score"] or 0.0) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_risk_timeseries(ip_id: str = "all", hours: int = 24 * 7, limit: int = 600) -> dict[str, Any]:
+    ip_val = (ip_id or "all").strip().lower()
+    since = (datetime.now() - timedelta(hours=max(1, int(hours)))).strftime("%Y-%m-%d %H:%M:%S")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT ts, risk_score, issue_heat, alert_level, s_comp, v_comp, t_comp, m_comp
+            FROM risk_timeseries
+            WHERE ip_id = ? AND ts >= ?
+            ORDER BY ts ASC, id ASC
+            LIMIT ?
+            """,
+            (ip_val, since, int(limit)),
+        ).fetchall()
+        items = []
+        for r in rows:
+            items.append(
+                {
+                    "ts": str(r["ts"] or ""),
+                    "risk_score": float(r["risk_score"] or 0.0),
+                    "issue_heat": float(r["issue_heat"] or 0.0),
+                    "alert_level": str(r["alert_level"] or "P3"),
+                    "s_comp": float(r["s_comp"] or 0.0),
+                    "v_comp": float(r["v_comp"] or 0.0),
+                    "t_comp": float(r["t_comp"] or 0.0),
+                    "m_comp": float(r["m_comp"] or 0.0),
+                }
+            )
+        return {
+            "meta": {
+                "ip_id": ip_val,
+                "hours": int(hours),
+                "limit": int(limit),
+                "count": len(items),
+            },
+            "items": items,
+        }
     finally:
         conn.close()
 

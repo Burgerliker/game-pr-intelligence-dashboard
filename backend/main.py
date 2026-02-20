@@ -48,6 +48,7 @@ from backend.storage import (
     get_nexon_dashboard,
     get_recent_burst_events,
     get_recent_risk_scores,
+    get_risk_timeseries,
     get_risk_dashboard,
     get_risk_ip_catalog,
     init_db,
@@ -1584,6 +1585,18 @@ def risk_score(
 ) -> dict:
     try:
         return get_live_risk_with_options(ip=ip, window_hours=window_hours, include_test=bool(include_test))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/risk-timeseries")
+def risk_timeseries(
+    ip: str = Query(default="all"),
+    hours: int = Query(default=24 * 7, ge=24, le=24 * 30),
+    limit: int = Query(default=600, ge=50, le=2000),
+) -> dict:
+    try:
+        return get_risk_timeseries(ip_id=ip, hours=hours, limit=limit)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
