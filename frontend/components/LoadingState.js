@@ -1,21 +1,19 @@
 "use client";
 
-import { Box, CircularProgress, Typography } from "@mui/material";
-
 const TONE = {
   info: {
-    bg: "#eff6ff",
-    border: "#bfdbfe",
-    title: "#1e3a8a",
-    subtitle: "#334155",
-    spinner: "#2563eb",
+    bg: "bg-blue-50",
+    border: "border-blue-200",
+    title: "text-blue-900",
+    subtitle: "text-slate-700",
+    spinner: "border-blue-600",
   },
   warning: {
-    bg: "#fff9eb",
-    border: "#f9d48f",
-    title: "#8a5b00",
-    subtitle: "#8b6b2d",
-    spinner: "#d97706",
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    title: "text-amber-900",
+    subtitle: "text-amber-800",
+    spinner: "border-amber-600",
   },
 };
 
@@ -27,32 +25,14 @@ export default function LoadingState({
   const palette = TONE[tone] || TONE.info;
 
   return (
-    <Box
-      sx={{
-        px: 1.4,
-        py: 1.2,
-        minHeight: 44,
-        border: "1px solid",
-        borderColor: palette.border,
-        borderRadius: 2,
-        bgcolor: palette.bg,
-        display: "flex",
-        alignItems: "center",
-        gap: 1.1,
-      }}
-    >
-      <CircularProgress size={18} thickness={5} sx={{ color: palette.spinner }} />
-      <Box>
-        <Typography variant="body2" sx={{ fontWeight: 700, color: palette.title, lineHeight: 1.35 }}>
-          {title}
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{ color: palette.subtitle, fontSize: 13, lineHeight: 1.35, fontVariantNumeric: "tabular-nums" }}
-        >
-          {subtitle}
-        </Typography>
-      </Box>
-    </Box>
+    <div className={`w-full rounded-2xl border px-4 py-3 ${palette.bg} ${palette.border}`}>
+      <div className="flex items-center gap-3">
+        <span className={`inline-block h-[18px] w-[18px] animate-spin rounded-full border-2 border-transparent border-t-current ${palette.spinner}`} />
+        <div>
+          <p className={`text-sm font-bold leading-5 ${palette.title}`}>{title}</p>
+          <p className={`text-[13px] leading-5 ${palette.subtitle}`}>{subtitle}</p>
+        </div>
+      </div>
+    </div>
   );
 }
