@@ -555,7 +555,7 @@ def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> 
                 continue
             date_filtered = date_frame[
                 (date_frame["title_clean"].fillna("") + " " + date_frame["description_clean"].fillna(""))
-                .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
+                .apply(lambda x: _matches_ip_slug_local(str(x), ip_id))
             ]
             date_recent = _filter_recent_pubdate_rows(date_filtered, LIVE_COLLECT_MAX_AGE_DAYS)
             if not date_recent.empty:
@@ -580,7 +580,7 @@ def _collect_live_for_ip(ip_id: str, strategy: dict[str, Any] | None = None) -> 
                     continue
                 sim_filtered = sim_frame[
                     (sim_frame["title_clean"].fillna("") + " " + sim_frame["description_clean"].fillna(""))
-                    .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
+                    .apply(lambda x: _matches_ip_slug_local(str(x), ip_id))
                 ]
                 sim_recent = _filter_recent_pubdate_rows(sim_filtered, LIVE_COLLECT_MAX_AGE_DAYS)
                 if not sim_recent.empty:
@@ -773,6 +773,20 @@ def _detect_ip_slug_local(text: str) -> str:
     return "other"
 
 
+def _matches_ip_slug_local(text: str, ip_id: str) -> bool:
+    target = (ip_id or "").strip().lower()
+    if target in {"", "all"}:
+        return True
+    low = (text or "").lower()
+    for _, meta in IP_RULES.items():
+        slug = str(meta.get("slug", "")).strip().lower()
+        if slug != target:
+            continue
+        keywords = meta.get("keywords", []) or []
+        return any(str(k).lower() in low for k in keywords)
+    return False
+
+
 def _to_nexon_df(items: list[dict[str, Any]]) -> pd.DataFrame:
     if not items:
         return pd.DataFrame()
@@ -823,7 +837,7 @@ def _collect_backfill_for_ip(ip_id: str) -> tuple[pd.DataFrame, int]:
                 continue
             frame = frame[
                 (frame["title_clean"].fillna("") + " " + frame["description_clean"].fillna(""))
-                .apply(lambda x: _detect_ip_slug_local(str(x)) == ip_id)
+                .apply(lambda x: _matches_ip_slug_local(str(x), ip_id))
             ]
             frame_recent = _filter_recent_pubdate_rows(frame, LIVE_COLLECT_MAX_AGE_DAYS)
             if not frame_recent.empty:

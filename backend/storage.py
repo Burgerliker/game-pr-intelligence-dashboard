@@ -870,6 +870,16 @@ def _detect_ip(text: str) -> str:
     return "기타"
 
 
+def _matches_ip_name(text: str, ip_name: str) -> bool:
+    target = (ip_name or "").strip()
+    if target in {"", "전체"}:
+        return True
+    meta = IP_RULES.get(target, {})
+    keywords = meta.get("keywords", []) or []
+    low = (text or "").lower()
+    return any(str(k).lower() in low for k in keywords)
+
+
 def _build_ip_sql_filter(ip_name: str) -> tuple[str, list[str]]:
     if ip_name == "전체":
         return "", []
@@ -881,8 +891,7 @@ def _build_ip_sql_filter(ip_name: str) -> tuple[str, list[str]]:
     # 운영 조회 성능 개선:
     # IP 필터를 Python 후처리가 아니라 SQL WHERE 단계에서 처리한다.
     # 주의:
-    # 다중 IP 키워드가 함께 포함된 기사에서는 _detect_ip(첫 매칭 우선) 결과와
-    # SQL 포함 여부가 다를 수 있다(조회 포함은 되지만 표기 ip는 첫 매칭 IP).
+    # 다중 IP 키워드가 함께 포함된 기사도 조회 대상에 포함된다.
     clauses: list[str] = []
     params: list[str] = []
     for keyword in keywords:
@@ -959,7 +968,7 @@ def get_ip_clusters(
     for r in rows:
         text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
         detected_ip = _detect_ip(text)
-        if ip_name != "전체" and detected_ip != ip_name:
+        if ip_name != "전체" and not _matches_ip_name(text, ip_name):
             continue
 
         total += 1
@@ -1127,7 +1136,7 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
         detected_ip = _detect_ip(text)
         ip_breakdown_acc[detected_ip] = ip_breakdown_acc.get(detected_ip, 0) + 1
 
-        if ip_name != "전체" and detected_ip != ip_name:
+        if ip_name != "전체" and not _matches_ip_name(text, ip_name):
             continue
 
         total += 1
@@ -1365,7 +1374,7 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
         scoped = []
         for r in rows:
             text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
-            if ip_name != "전체" and _detect_ip(text) != ip_name:
+            if ip_name != "전체" and not _matches_ip_name(text, ip_name):
                 continue
             dt = _parse_article_dt(str(r["pub_date"] or ""), str(r["date"] or ""))
             if not dt:
@@ -1608,7 +1617,7 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
         scoped = []
         for r in rows:
             text = f"{r['title_clean'] or ''} {r['description_clean'] or ''}"
-            if ip_name != "전체" and _detect_ip(text) != ip_name:
+            if ip_name != "전체" and not _matches_ip_name(text, ip_name):
                 continue
             dt = _parse_article_dt(str(r["pub_date"] or ""), str(r["date"] or ""))
             if not dt:
@@ -2023,7 +2032,7 @@ def force_burst_test_articles(ip: str, multiplier: int = 5, seed_limit: int = 50
         title = str(r["title_clean"] or "")
         desc = str(r["description_clean"] or "")
         text = f"{title} {desc}"
-        if _detect_ip(text) != ip_name:
+        if not _matches_ip_name(text, ip_name):
             continue
         seeds.append(dict(r))
         if len(seeds) >= seeds_n:
