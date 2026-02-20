@@ -898,6 +898,7 @@ def _run_competitor_collect_tick() -> None:
         frames: list[pd.DataFrame] = []
         for company in companies:
             part = fetch_company_news_compare(company=company, total=max(10, min(COMPETITOR_COLLECT_ARTICLES, 100)))
+            part = _filter_recent_pubdate_rows(part, LIVE_COLLECT_MAX_AGE_DAYS)
             if not part.empty:
                 frames.append(part)
 
