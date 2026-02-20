@@ -1156,47 +1156,21 @@ def get_risk_dashboard(date_from: str = "2024-01-01", date_to: str = "2026-12-31
                 if sentiment == "부정":
                     theme_counts[theme]["negative_count"] += 1
 
-    # 일자별 노출량(재배포 포함) 계산:
-    # source_group repost_count를 사용해 day-level mention_count를 산출한다.
-    daily_group_ids: set[str] = set()
-    for day_row in daily_acc.values():
-        daily_group_ids.update(day_row["group_ids"])
-    group_repost_map: dict[str, int] = {}
-    real_group_ids = [gid for gid in sorted(daily_group_ids) if not gid.startswith("legacy:")]
-    if real_group_ids:
-        placeholders = ",".join(["?"] * len(real_group_ids))
-        conn = _connect()
-        try:
-            grows = conn.execute(
-                f"""
-                SELECT group_id, repost_count
-                FROM source_groups
-                WHERE group_id IN ({placeholders})
-                """,
-                real_group_ids,
-            ).fetchall()
-        finally:
-            conn.close()
-        group_repost_map = {str(g["group_id"] or ""): max(1, int(g["repost_count"] or 1)) for g in grows}
-
     daily = []
     for date in sorted(daily_acc.keys()):
         count = daily_acc[date]["article_count"]
         neg = daily_acc[date]["negative_count"]
         ratio = round(100.0 * neg / max(count, 1), 1)
-        total_mentions_daily = sum(
-            max(1, int(group_repost_map.get(str(gid), 1)))
-            for gid in daily_acc[date]["group_ids"]
-        )
         daily.append(
             {
                 "date": date,
                 "article_count": count,
                 "negative_ratio": ratio,
-                # daily 표준 계약 필드: total_mentions(재배포 포함 노출량)
-                "total_mentions": int(total_mentions_daily),
+                # daily 표준 계약 필드: total_mentions
+                # 운영 해석 혼선을 막기 위해 당일 기사 수와 동일하게 제공한다.
+                "total_mentions": int(count),
                 # mention_count는 기존 프론트 역호환 alias로 유지(신규 사용 비권장)
-                "mention_count": int(total_mentions_daily),
+                "mention_count": int(count),
             }
         )
 
@@ -1414,12 +1388,6 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
                 recent_group_items[gid] = r
         recent_groups = sorted(recent_group_items.keys())
         recent_real_group_ids = sorted(g for g in recent_groups if not g.startswith("legacy:"))
-        recent_legacy_count = sum(1 for g in recent_groups if g.startswith("legacy:"))
-        recent_total_mentions = int(len(recent))
-        if recent_real_group_ids:
-            volume = _compute_group_volume(conn, set(recent_real_group_ids))
-            computed_mentions = int(volume.get("total_mentions", 0)) + int(recent_legacy_count)
-            recent_total_mentions = max(int(len(recent)), computed_mentions)
 
         sentiment_by_group: dict[str, dict[str, float | str]] = {}
         if recent_real_group_ids:
@@ -1598,8 +1566,8 @@ def get_live_risk(ip: str = "all", window_hours: int = 24) -> dict[str, Any]:
             "data_quality_flag": quality_flag,
             "article_count_window": int(len(recent)),
             "group_count_window": int(len(recent_groups)),
-            "mention_count_window": int(recent_total_mentions),
-            "exposure_count_window": int(recent_total_mentions),
+            "mention_count_window": int(len(recent)),
+            "exposure_count_window": int(len(recent)),
             "count_1h": int(count_1h),
             "z_score": round(float(z_score), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
@@ -1663,12 +1631,6 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
                 recent_group_items[gid] = r
         recent_groups = sorted(recent_group_items.keys())
         recent_real_group_ids = sorted(g for g in recent_groups if not g.startswith("legacy:"))
-        recent_legacy_count = sum(1 for g in recent_groups if g.startswith("legacy:"))
-        recent_total_mentions = int(len(recent))
-        if recent_real_group_ids:
-            volume = _compute_group_volume(conn, set(recent_real_group_ids))
-            computed_mentions = int(volume.get("total_mentions", 0)) + int(recent_legacy_count)
-            recent_total_mentions = max(int(len(recent)), computed_mentions)
 
         sentiment_by_group: dict[str, dict[str, float | str]] = {}
         if recent_real_group_ids:
@@ -1853,8 +1815,8 @@ def get_live_risk_with_options(ip: str = "all", window_hours: int = 24, include_
             "data_quality_flag": quality_flag,
             "article_count_window": int(len(recent)),
             "group_count_window": int(len(recent_groups)),
-            "mention_count_window": int(recent_total_mentions),
-            "exposure_count_window": int(recent_total_mentions),
+            "mention_count_window": int(len(recent)),
+            "exposure_count_window": int(len(recent)),
             "count_1h": int(count_1h),
             "z_score": round(float(z_score), 3),
             "uncertain_ratio": round(float(uncertain_ratio), 3),
