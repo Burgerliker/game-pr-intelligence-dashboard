@@ -28,15 +28,15 @@ import {
 const INSIGHTS = [
   {
     title: "기사량 증가 ≠ 위기",
-    body: "신작 출시나 대규모 업데이트 때 기사가 쏟아져도 내용이 긍정적이면 위기가 아닙니다. 반대로 기사 수가 적어도 확률형 논란이나 규제 이슈라면 빠르게 대응해야 합니다. '얼마나 많은가'보다 '어떤 기사인가'가 핵심입니다.",
+    body: "신작 출시나 대규모 업데이트 때 쏟아지는 기사들을 고려해 가중치를 조절했습니다.",
   },
   {
     title: "주요 매체 노출이 리스크를 키운다",
-    body: "같은 내용의 부정 기사라도 인벤·게임메카 같은 게임 전문 매체에 그치는 것과 조선·연합뉴스 같은 종합 매체로 번지는 것은 파급력이 다릅니다. 보도 채널을 함께 봐야 실제 위기 수준을 가늠할 수 있습니다.",
+    body: "같은 내용의 부정 기사라도 게임 전문 매체에 그치는 것과 조선·연합뉴스 같은 종합 매체로 번지는 것은 다른 파급력을 가집니다.",
   },
   {
     title: "'왜 위험한지'를 설명할 수 있어야 한다",
-    body: "위험도 점수 하나만 내놓으면 현장에서 신뢰받기 어렵습니다. 감성 논조·기사량 변화·위험 주제·보도 채널 4가지 신호를 분해해서 보여줘야 PR 담당자가 즉시 상황을 해석하고 보고할 수 있습니다.",
+    body: "감성 논조·기사량 변화·위험 주제·보도 채널 4가지 신호를 분석해서 PR 담당자가 즉시 상황을 해석하고 보고할 수 있습니다.",
   },
 ];
 
@@ -51,19 +51,19 @@ const SIGNALS = [
     label: "기사량 급증",
     weight: "25%",
     question: "평소 대비 갑자기 기사가 쏟아지고 있는가?",
-    body: "최근 1시간 기사 수를 과거 7일 같은 시간대 평균과 비교합니다. '2배 많다'가 아니라 통계적으로 얼마나 비정상인지를 측정해 노이즈를 줄입니다.",
+    body: "최근 1시간 기사 수를 과거 7일 같은 시간대 평균과 비교합니다. 통계적으로 얼마나 비정상인지를 측정해 노이즈를 줄입니다.",
   },
   {
     label: "위험 주제",
     weight: "15%",
     question: "어떤 주제의 기사인가?",
-    body: "확률형·규제·환불·운영 장애·여론 악화 등 PR 위기 유형별로 가중치를 달리 줍니다. 같은 부정 기사여도 '소송' 기사와 '점검 불만' 기사의 심각도는 다릅니다.",
+    body: "확률형·규제·환불·운영 장애·여론 악화 등 PR 위기 유형별로 가중치를 달리 줍니다. 같은 부정 기사여도 '소송' 기사와 '점검 불만' 기사의 심각도는 다르기 때문입니다.",
   },
   {
     label: "보도 채널",
     weight: "10%",
     question: "어느 매체가 다루고 있는가?",
-    body: "조선·연합·KBS 등 종합 매체 보도일수록 높은 가중치를 줍니다. 게임 전문 매체와 일반 블로그는 파급력이 다르기 때문입니다.",
+    body: "조선·연합·KBS 등 종합 매체 보도일수록 높은 가중치를 줍니다. 파급력이 다르기 때문입니다.",
   },
 ];
 
@@ -86,19 +86,19 @@ const ALERT_LEVELS = [
 const USE_CASES = [
   {
     title: "일일 리스크 브리핑 자동화",
-    body: "매일 아침 리스크 점수와 위험 주제 현황을 확인해 팀장 보고 자료를 빠르게 구성할 수 있습니다. 감으로 '오늘 좀 위험한 것 같아요' 대신 수치로 설명할 수 있습니다.",
+    body: "매일 아침 리스크 점수와 위험 주제 현황을 확인해 팀장 보고 자료를 빠르게 구성할 수 있습니다. 수치로 설명할 수 있습니다.",
   },
   {
     title: "이슈 확산 전 선제 감지",
-    body: "기사량 급증 신호(통계적 이상치)가 감지되면 아직 여론이 확대되기 전 단계에서 모니터링 강도를 높이고 대응 시나리오를 준비할 수 있습니다.",
+    body: "기사량 급증 신호가 감지되면 모니터링 강도를 높이고 대응 시나리오를 준비할 수 있습니다.",
   },
   {
     title: "경쟁사 비교로 맥락 파악",
     body: "자사 위험도가 높아 보여도 경쟁사 전체가 비슷한 수준이면 업계 이슈일 수 있습니다. 나란히 비교해 자사만의 문제인지 판단합니다.",
   },
   {
-    title: "과거 이슈 회고와 가설 검증",
-    body: "특정 시점으로 돌아가 '그 때 이 공식이 제대로 경고했는가'를 확인합니다. 대응 보고서 작성이나 위기 관리 체계 개선에 근거 데이터를 제공합니다.",
+    title: "과거 이슈 회고와 가설 검증 (백테스트)",
+    body: "특정 시점으로 돌아가 '공식이 제대로 작동했는가'를 확인합니다. 대응 보고서 작성이나 위기 관리 체계 개선에 근거 데이터를 제공합니다.",
   },
 ];
 
@@ -107,7 +107,7 @@ const IPS = ["메이플스토리", "던전앤파이터", "아크레이더스", "
 const STACK = [
   { group: "프론트엔드",       items: ["Next.js 14", "React 18", "MUI v7", "ECharts 6", "Tailwind CSS"] },
   { group: "백엔드 / 데이터", items: ["FastAPI (Python)", "SQLite", "pandas", "APScheduler", "네이버 뉴스 API", "규칙 기반 감성 분석"] },
-  { group: "인프라",           items: ["Docker", "AWS EC2", "Jenkins"] },
+  { group: "인프라",           items: ["Docker", "AWS EC2", "GitHub Actions"] },
 ];
 
 /* ─────────── 서브 컴포넌트 ─────────── */
@@ -162,7 +162,7 @@ export default function ProjectPage() {
                   PR 실시간 이슈 현황판
                 </Typography>
                 <Typography sx={{ ...specTypeSx.body1, color: "#94a3b8", maxWidth: 600, lineHeight: 1.85 }}>
-                  게임 PR 현장에서 '이게 위기인가 아닌가'를 빠르게 판단하기 위해 직접 만든 모니터링 도구입니다.
+                  게임 PR 현장에서 위기 상황을 빠르게 판단하기 위해 제작한 모니터링 도구입니다.
                   넥슨 주요 IP 5종의 뉴스를 자동 수집해 감성 논조·기사량 변화·위험 주제·보도 채널을 종합한
                   위험도 점수를 실시간으로 산출합니다.
                 </Typography>
@@ -175,7 +175,7 @@ export default function ProjectPage() {
                 <Box>
                   <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0" }}>문종원</Typography>
                   <Typography sx={{ fontSize: 13, color: "#64748b", mt: 0.2 }}>
-                    기획·설계·개발 전 과정 직접 수행 · rmrmfwhddnjs@gmail.com
+                    기획·설계·개발 수행 · rmrmfwhddnjs@gmail.com
                   </Typography>
                 </Box>
               </Stack>
@@ -184,8 +184,8 @@ export default function ProjectPage() {
 
           {/* PR 인사이트 — 왜 만들었나 */}
           <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
-            <SectionTitle>이 도구를 만들게 된 PR 현장의 문제</SectionTitle>
-            <SectionSub>단순히 '기사를 모아보는 것'을 넘어서기 위해, 게임 PR 운영에서 반복되는 판단 오류를 먼저 정리했습니다.</SectionSub>
+            <SectionTitle>PR 현장의 문제</SectionTitle>
+            <SectionSub>게임 PR 운영에서 일어날 수 있는 위험 요소를 먼저 정리했습니다.</SectionSub>
             <Stack spacing={1.5}>
               {INSIGHTS.map((item) => (
                 <Box key={item.title} sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.07)" }}>
@@ -222,7 +222,7 @@ export default function ProjectPage() {
             {/* 감성 키워드 사전 */}
             <Box sx={{ mb: 3 }}>
               <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase", mb: 1.5 }}>
-                감성 분석 키워드 사전 (rule_v2)
+                감성 분석 키워드 사전
               </Typography>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1.5 }}>
                 <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#fef2f2", border: "1px solid #fecaca" }}>
@@ -321,7 +321,7 @@ export default function ProjectPage() {
           {/* PR 실무 활용 */}
           <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
             <SectionTitle>PR 실무에서 어떻게 쓰이나요?</SectionTitle>
-            <SectionSub>위험도 점수가 높은 게 목적이 아닙니다. PR 담당자가 더 빠르고 명확한 판단을 내릴 수 있도록 돕는 것이 목적입니다.</SectionSub>
+            <SectionSub>PR 담당자가 더 빠르고 명확한 판단을 내릴 수 있도록 돕는 것이 목표로 제작했습니다.</SectionSub>
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2,1fr)" }, gap: 2 }}>
               {USE_CASES.map((f) => (
                 <Box key={f.title} sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.07)" }}>
@@ -508,7 +508,7 @@ export default function ProjectPage() {
           {/* 기술 스택 — 하단, 간략하게 */}
           <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
             <SectionTitle>구현 스택</SectionTitle>
-            <SectionSub>기획·설계·개발·배포 전 과정을 직접 수행했습니다.</SectionSub>
+            <SectionSub>기획·설계·개발·배포 전 과정을 직접 수행</SectionSub>
             <Stack spacing={2}>
               {STACK.map((g) => (
                 <Box key={g.group}>
