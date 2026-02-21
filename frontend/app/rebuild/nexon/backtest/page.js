@@ -187,7 +187,7 @@ export default function NexonBacktestPage() {
             lines.push(`완화 반영 점수: ${Number(d.risk_score_ema || d.risk_score || 0).toFixed(1)}`);
             lines.push(`해당 구간 기사 수: ${Number(d.article_count_window || d.article_count || 0).toLocaleString()}건`);
             lines.push(`확산 강도: ${Number(d.spread_ratio || 0).toFixed(2)}`);
-            lines.push(`신호 불확실도: ${Number(d.uncertain_ratio || 0).toFixed(2)}`);
+            lines.push(`판정 유보 비중: ${Number(d.uncertain_ratio || 0).toFixed(2)}`);
           }
           params.filter((p) => p.seriesName === "관측 이벤트").forEach((p) => {
             lines.push(`${p.marker} ${p.data?.name || "이벤트 발생"}`);
@@ -399,7 +399,7 @@ export default function NexonBacktestPage() {
                     {[
                       { label: "기사량 영향", latest: driverStats.volume.latest.toLocaleString(), peak: driverStats.volume.peak.toLocaleString() },
                       { label: "확산 영향", latest: driverStats.spread.latest.toFixed(3), peak: driverStats.spread.peak.toFixed(3) },
-                      { label: "불확실 신호 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
+                      { label: "판정 유보 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
                     ].map((d) => (
                       <Box key={d.label} sx={{ ...metricCardSx, p: 1.5, flex: "1 1 180px", minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>{d.label}</Typography>

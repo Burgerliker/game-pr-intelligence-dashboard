@@ -699,7 +699,7 @@ export default function ComparePage() {
                       ) : null}
                       {hasTrendLowSample ? (
                         <Alert severity="warning" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />기사 수가 적은 구간이 포함되어 있어 정확도가 낮을 수 있습니다.</span>
+                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />기사 수가 적은 구간이 포함되어 있어 해석 시 변동성이 클 수 있습니다.</span>
                         </Alert>
                       ) : null}
                       {!trendSeries.length ? (

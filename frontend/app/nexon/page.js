@@ -524,10 +524,7 @@ export default function NexonPage() {
     }
   };
   const riskValue = Number(riskScore?.risk_score || 0);
-  const hasConfidence = riskScore && riskScore.confidence != null;
-  const riskConfidence = hasConfidence ? Number(riskScore?.confidence || 0) : null;
   const riskFormulaVersion = riskScore?.risk_formula_version ? String(riskScore.risk_formula_version) : "";
-  const isLowSample = String(riskScore?.data_quality_flag || "").toUpperCase() === "LOW_SAMPLE";
   const hasHeatValue = riskScore && riskScore.issue_heat != null;
   const heatValue = hasHeatValue ? Number(riskScore?.issue_heat || 0) : null;
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
@@ -581,18 +578,12 @@ export default function NexonPage() {
     return "여론 판정 안정";
   }, [uncertaintyValue]);
   const liveInterpretation = useMemo(() => {
-    if (recent24hArticles < 5) return "보도량이 매우 적어 위기 지수의 신뢰도가 낮을 수 있습니다.";
+    if (recent24hArticles < 5) return "보도량이 매우 적어 단기 변동성이 큽니다.";
     if (riskValue >= 70) return "보도량 급증과 고위험 이슈 집중으로 위기 지수가 심각 단계입니다.";
     if (riskValue >= 45) return "위기 지수가 높은 상태입니다. 확산도와 여론 변화를 밀착 모니터링하세요.";
     if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위기 지수는 낮지만 보도량 또는 확산도가 평균보다 상승 중입니다.";
     return "보도량과 확산도가 안정적이라 현재 위기 지수는 낮은 상태입니다.";
   }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
-  const confidenceLabel = useMemo(() => {
-    if (!hasConfidence) return "신뢰도 정보 없음";
-    if (riskConfidence < 0.3) return `신뢰도 낮음 (${Math.round(riskConfidence * 100)}%)`;
-    if (riskConfidence < 0.7) return `신뢰도 보통 (${Math.round(riskConfidence * 100)}%)`;
-    return `신뢰도 높음 (${Math.round(riskConfidence * 100)}%)`;
-  }, [hasConfidence, riskConfidence]);
   const quickSummary = useMemo(() => {
     if (recent24hArticles < 5) return "보도량이 적어 현재 점수는 참고용입니다.";
     if (riskValue >= 45) return "즉시 모니터링이 필요한 구간입니다.";
@@ -1254,22 +1245,10 @@ export default function NexonPage() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>위기 지수</Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
                         <Chip size="small" variant="outlined" label={riskFormulaVersion ? "최신 분석 기준 적용 중" : "기본 분석 기준 적용 중"} sx={controlChipSx} />
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color={hasConfidence && riskConfidence < 0.4 ? "warning" : "default"}
-                          label={confidenceLabel}
-                          sx={controlChipSx}
-                        />
                       </Stack>
-                      {isLowSample ? (
-                        <Alert severity="warning" icon={false} sx={{ mt: 0.8, borderRadius: 1.5 }}>
-                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />기사 수가 적어 위기 지수의 정확도가 낮을 수 있습니다. 추세 변화를 우선 확인하세요.</span>
-                        </Alert>
-                      ) : null}
                       <Typography
-                        variant={isLowSample ? "h5" : "h4"}
-                        sx={{ mt: 0.3, ...metricValueSx, opacity: isLowSample ? 0.82 : 1 }}
+                        variant="h4"
+                        sx={{ mt: 0.3, ...metricValueSx }}
                       >
                         {riskValue.toFixed(1)}
                       </Typography>
@@ -1328,7 +1307,7 @@ export default function NexonPage() {
                             상세 설명
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
-                            보도량은 최근 24시간 기준 기사 수입니다. 표본이 적으면 점수 신뢰도가 낮아질 수 있습니다.
+                            보도량은 최근 24시간 기준 기사 수입니다. 표본이 적은 구간은 추세 중심으로 해석하세요.
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
                             확산도는 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
@@ -1351,7 +1330,7 @@ export default function NexonPage() {
                         sx={{ mt: 0.55, fontWeight: 700, minHeight: 30 }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
-                        {alertInfo.desc} · 저신뢰 비율 {Math.round(Number(riskScore?.uncertain_ratio || 0) * 100)}%
+                        {alertInfo.desc}
                       </Typography>
                     </Paper>
                     <Paper variant="outlined" sx={subPanelSx}>
