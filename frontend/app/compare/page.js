@@ -32,13 +32,19 @@ import {
   toRequestErrorState,
 } from "../../lib/pageStatus";
 import {
+  contentCardSx,
   filterChipSx,
+  MUI_SPEC,
+  metricCardSx,
   navButtonSx,
   pageContainerSx,
-  pageShellSx,
+  pageShellCleanSx,
   panelPaperSx,
   sectionCardSx,
+  sectionTitleSx,
+  specTypeSx,
   statusChipSx,
+  subPanelSx,
 } from "../../lib/uiTokens";
 
 const SENTIMENTS = ["긍정", "중립", "부정"];
@@ -57,9 +63,9 @@ const WINDOW_HOURS_OPTIONS = [
   { hours: 168, label: "일주일" },
 ];
 const TREND_METRIC_OPTIONS = [
-  { key: "count", label: "기사수" },
-  { key: "risk", label: "Risk(위험도)" },
-  { key: "heat", label: "Heat(이슈량)" },
+  { key: "count", label: "보도 건수" },
+  { key: "risk", label: "위기 지수" },
+  { key: "heat", label: "이슈량" },
 ];
 const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
 const INTERACTIVE_CHIP_SX = filterChipSx;
@@ -73,22 +79,22 @@ function getVolumeState(count) {
     return {
       label: "0건",
       chipColor: "warning",
-      helper: "수집 기사 없음",
+      helper: "기사 없음",
       barColor: "#e2e8f0",
     };
   }
   if (safeCount < LOW_SAMPLE_THRESHOLD) {
     return {
-      label: "저건수",
+      label: "소량",
       chipColor: "warning",
-      helper: `표본 ${LOW_SAMPLE_THRESHOLD}건 미만`,
+      helper: `${LOW_SAMPLE_THRESHOLD}건 미만`,
       barColor: "#f59e0b",
     };
   }
   return {
-    label: "정상",
+    label: "충분",
     chipColor: "success",
-    helper: "표본 안정 구간",
+    helper: "분석 가능",
     barColor: "#2f67d8",
   };
 }
@@ -237,7 +243,7 @@ export default function ComparePage() {
       } else {
         const nextError = toRequestErrorState(e, {
           scope: DIAG_SCOPE.live,
-          fallback: "경쟁사 조회에 실패했습니다.",
+          fallback: "경쟁사 분석에 실패했습니다.",
         });
         setError(nextError.message);
         setRetryAfterSec(null);
@@ -488,10 +494,10 @@ export default function ComparePage() {
   }, [retryAfterSec, scheduleFetch, startPolling]);
 
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 5 } }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
-        <Stack spacing={2.3}>
-          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.2, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
+        <Stack spacing={2.5}>
+          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.5, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -510,10 +516,9 @@ export default function ComparePage() {
                 />
                 <Typography
                   sx={{
-                    fontSize: 20,
-                    fontWeight: 800,
+                    ...specTypeSx.h6,
+                    fontSize: { xs: 20, md: 22 },
                     color: "#0f172a",
-                    letterSpacing: "-.01em",
                   }}
                 >
                   경쟁사 비교 현황판
@@ -533,10 +538,9 @@ export default function ComparePage() {
               <Chip
                 size="small"
                 variant="outlined"
-                label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />자동 갱신: {Math.round(refreshMs / 1000)}초</span>}
+                label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{Math.round(refreshMs / 1000)}초마다 자동 업데이트</span>}
                 sx={statusChipSx}
               />
-              <Chip size="small" color="primary" variant="outlined" label="조회 전용" sx={statusChipSx} />
             </Stack>
           </Paper>
 
@@ -549,10 +553,10 @@ export default function ComparePage() {
             <CardContent>
               <Stack spacing={1.3}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  조회 대상 회사
+                  비교할 게임사
                 </Typography>
                 <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
-                  <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 수집 기준입니다.</span>
+                  <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 기사 기준입니다.</span>
                 </Alert>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   {DEFAULT_COMPANIES.map((name) => (
@@ -589,14 +593,14 @@ export default function ComparePage() {
                   spacing={1}
                   error={{
                     show: hasBlockingError,
-                    title: "조회 실패",
+                    title: "분석 실패",
                     details: error,
                     diagnosticCode: errorCode,
                   }}
                   loading={{
                     show: loading,
-                    title: "경쟁사 비교 데이터 조회 중",
-                    subtitle: "최신 기사와 지표를 갱신하고 있습니다.",
+                    title: "경쟁사 비교 데이터 확인 중",
+                    subtitle: "최신 기사와 지표를 업데이트하고 있습니다.",
                   }}
                 />
               </Stack>
@@ -607,7 +611,7 @@ export default function ComparePage() {
             empty={{
               show: shouldShowCompareEmpty,
               title: "표시할 비교 데이터가 없습니다.",
-              subtitle: "잠시 후 자동으로 다시 조회합니다.",
+              subtitle: "잠시 후 자동으로 다시 확인합니다.",
             }}
           />
 
@@ -616,15 +620,13 @@ export default function ComparePage() {
               <Grid container spacing={{ xs: 1.1, md: 1.6 }}>
                 {companyCards.map(({ company, count, state }) => (
                   <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
-                    <Card
-                      variant="outlined"
-                      sx={{ ...sectionCardSx, height: "100%", width: "100%" }}
-                    >
-                      <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.4 }}>
+                    <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
+                      <Box sx={{ height: 3, bgcolor: state.barColor, flexShrink: 0 }} />
+                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.6 }}>
                           {company}
                         </Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.12, fontVariantNumeric: "tabular-nums" }}>
+                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.08, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 } }}>
                           {Number(count).toLocaleString()}
                         </Typography>
                         <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.6 }}>
@@ -636,33 +638,31 @@ export default function ComparePage() {
                         <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.4 }}>
                           {state.helper}
                         </Typography>
-                      </CardContent>
-                    </Card>
+                      </Box>
+                    </Box>
                   </Grid>
                 ))}
                 <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
-                  <Card
-                    variant="outlined"
-                    sx={{ ...sectionCardSx, height: "100%", width: "100%" }}
-                  >
-                    <CardContent sx={{ p: { xs: 1.2, md: 1.45 }, width: "100%", minWidth: 0 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        총합
-                      </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                  <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
+                    <Box sx={{ height: 3, bgcolor: "#0f3b66", flexShrink: 0 }} />
+                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          총합
+                        </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 }, lineHeight: 1.08 }}>
                         {Number(total).toLocaleString()}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         전체 기사
                       </Typography>
-                    </CardContent>
-                  </Card>
+                    </Box>
+                  </Box>
                 </Grid>
               </Grid>
               <Stack direction="row" spacing={0.9} useFlexGap flexWrap="wrap" sx={{ mt: 0.8, mb: 0.4 }}>
-                <Chip label="0건: 수집 없음" color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-                <Chip label={`저건수: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-                <Chip label="정상: 표본 안정 구간" color="success" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
+                <Chip label="0건: 기사 없음" color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
+                <Chip label={`소량: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
+                <Chip label="충분: 분석 가능" color="success" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
               </Stack>
 
               <Grid container spacing={{ xs: 1.2, md: 1.6 }}>
@@ -671,12 +671,12 @@ export default function ComparePage() {
                     variant="outlined"
                     sx={{ ...sectionCardSx, width: "100%" }}
                   >
-                    <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, lineHeight: 1.3 }}>
-                        일별 보도량 추이 (최근 14일)
+                    <CardContent sx={contentCardSx}>
+                      <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4, lineHeight: 1.3 }}>
+                        보도 추이 (최근 14일)
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
-                        기사수/위험도/이슈량은 백엔드 산출값만 사용합니다.
+                        지표는 시스템 산출값입니다.
                       </Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mb: 1 }}>
                         {TREND_METRIC_OPTIONS.map((option) => (
@@ -693,18 +693,18 @@ export default function ComparePage() {
                       </Stack>
                       {!hasTrendMetricRows && trendMetric !== "count" ? (
                         <Alert severity="info" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          <span><Info {...iconProps()} style={inlineIconSx} />현재 서버 응답에 Risk/Heat 일자별 지표가 없어 기사수 추이로 대체 표시 중입니다.</span>
+                          <span><Info {...iconProps()} style={inlineIconSx} />위기 지수 추이 데이터가 없어 보도량 추이로 표시합니다.</span>
                         </Alert>
                       ) : null}
                       {hasTrendLowSample ? (
                         <Alert severity="warning" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />표본 부족 구간이 포함되어 Risk/Heat 해석 신뢰도가 낮습니다.</span>
+                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />기사 수가 적은 구간이 포함되어 있어 정확도가 낮을 수 있습니다.</span>
                         </Alert>
                       ) : null}
                       {!trendSeries.length ? (
-                        <EmptyState title="추이 데이터가 없습니다." subtitle="운영자가 확인할 일자별 집계 데이터가 아직 생성되지 않았습니다." compact />
+                        <EmptyState title="추이 데이터가 없습니다." subtitle="일자별 집계 데이터가 아직 생성되지 않았습니다." compact />
                       ) : !hasAnyTrendData ? (
-                        <EmptyState title="모든 회사가 0건입니다." subtitle="현재 윈도우에는 수집 기사가 없어 추이를 해석할 수 없습니다." tone="warning" compact />
+                        <EmptyState title="모든 게임사가 0건입니다." subtitle="현재 기간에는 기사가 없어 추이를 표시할 수 없습니다." tone="warning" compact />
                       ) : (
                         <Stack spacing={1.45}>
                           {trendSeries.map((series) => (
@@ -720,8 +720,8 @@ export default function ComparePage() {
                                     trendMetric === "count"
                                       ? `${getVolumeState(series.max).label} (최대 ${series.max}건)`
                                       : trendMetric === "risk"
-                                        ? `Risk 최대 ${series.max.toFixed(1)}`
-                                        : `Heat 최대 ${series.max.toFixed(1)}`
+                                        ? `위기 지수 최대 ${series.max.toFixed(1)}`
+                                        : `이슈량 최대 ${series.max.toFixed(1)}`
                                   }
                                   sx={INTERACTIVE_CHIP_SX}
                                 />
@@ -744,7 +744,7 @@ export default function ComparePage() {
                                     return (
                                       <Box
                                         key={`${series.company}-${p.date}`}
-                                        title={`${p.date}: ${p.value}${trendMetric === "count" ? "건" : trendMetric === "risk" ? " Risk" : " Heat"}${p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count" ? " (표본 부족)" : ""}`}
+                                        title={`${p.date}: ${p.value}${trendMetric === "count" ? "건" : trendMetric === "risk" ? " 위기 지수" : " 이슈량"}${p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count" ? " (기사 부족)" : ""}`}
                                         sx={{ flex: 1 }}
                                       >
                                         {p.value > 0 ? (
@@ -773,7 +773,7 @@ export default function ComparePage() {
                               ) : (
                                 <EmptyState
                                   title={`${series.company} · 0건`}
-                                  subtitle="해당 기간 집계 표본이 없어 추이를 표시할 수 없습니다."
+                                  subtitle="해당 기간 기사가 없어 추이를 표시할 수 없습니다."
                                   tone="warning"
                                   compact
                                 />
@@ -800,12 +800,12 @@ export default function ComparePage() {
                     variant="outlined"
                     sx={{ ...sectionCardSx, width: "100%" }}
                   >
-                    <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4 }}>
-                        감성 분석
+                    <CardContent sx={contentCardSx}>
+                      <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4 }}>
+                        여론 분포
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
-                        표본 0건은 비율 대신 상태 안내만 표시됩니다.
+                        기사가 없으면 여론 비율을 계산할 수 없습니다.
                       </Typography>
                       <Stack spacing={1.4}>
                         {companiesForView.map((company) => {
@@ -829,8 +829,8 @@ export default function ComparePage() {
                                 <EmptyState
                                   compact
                                   tone="warning"
-                                  title="표본 없음"
-                                  subtitle="감성 비율을 계산할 수 없습니다."
+                                  title="기사 없음"
+                                  subtitle="여론 비율을 계산할 수 없습니다."
                                 />
                               ) : null}
                               {SENTIMENTS.map((s) => (
@@ -867,14 +867,14 @@ export default function ComparePage() {
                 variant="outlined"
                 sx={sectionCardSx}
               >
-                <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
-                    회사별 키워드
+                <CardContent sx={contentCardSx}>
+                  <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
+                    게임사별 주요 키워드
                   </Typography>
                   <Grid container spacing={1.1}>
                     {keywordCards.map((card) => (
                       <Grid item xs={12} md={6} key={card.company} sx={{ display: "flex", minWidth: 0 }}>
-                        <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, width: "100%", height: "100%" }}>
+                        <Paper variant="outlined" sx={{ ...subPanelSx, width: "100%", height: "100%" }}>
                           <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                             {card.company}
                           </Typography>
@@ -900,15 +900,15 @@ export default function ComparePage() {
                 variant="outlined"
                 sx={sectionCardSx}
               >
-                <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
-                    핵심 인사이트
+                <CardContent sx={contentCardSx}>
+                  <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
+                    대응 인사이트
                   </Typography>
                   <Grid container spacing={1.1}>
                     <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, height: "100%", width: "100%" }}>
+                      <Paper variant="outlined" sx={{ ...subPanelSx, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
-                          Top 5 이슈
+                          주목 이슈 TOP 5
                         </Typography>
                         <Stack spacing={0.8}>
                           {(insights.top_issues || []).map((item, idx) => (
@@ -924,7 +924,7 @@ export default function ComparePage() {
                       </Paper>
                     </Grid>
                     <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, height: "100%", width: "100%" }}>
+                      <Paper variant="outlined" sx={{ ...subPanelSx, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           실행 제안
                         </Typography>
@@ -949,34 +949,34 @@ export default function ComparePage() {
                 variant="outlined"
                 sx={sectionCardSx}
               >
-                <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
+                <CardContent sx={contentCardSx}>
                   <Stack
                     direction={{ xs: "column", md: "row" }}
                     justifyContent="space-between"
                     spacing={1.2}
                     sx={{ mb: 1.2 }}
                   >
-                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                      최신 기사 목록
+                    <Typography variant="h6" sx={sectionTitleSx}>
+                      최신 기사
                     </Typography>
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                       <Chip
                         size="small"
-                        label={`회사: ${filterCompany}`}
+                        label={`게임사: ${filterCompany}`}
                         variant="outlined"
                         onClick={() => setFilterCompany((prev) => cycleListValue(articleCompanyFilters, prev))}
                         sx={INTERACTIVE_CHIP_SX}
                       />
                       <Chip
                         size="small"
-                        label={`감성: ${filterSentiment}`}
+                        label={`여론: ${filterSentiment}`}
                         variant="outlined"
                         onClick={() => setFilterSentiment((prev) => cycleListValue(SENTIMENT_FILTER_OPTIONS, prev))}
                         sx={INTERACTIVE_CHIP_SX}
                       />
                       <Chip
                         size="small"
-                        label={`필터 결과: ${displayedArticles.length}`}
+                        label={`표시 중: ${displayedArticles.length}건`}
                         variant="outlined"
                         sx={INTERACTIVE_CHIP_SX}
                       />
@@ -996,9 +996,9 @@ export default function ComparePage() {
                         fontWeight: 700,
                       }}
                     >
-                      <Box>회사</Box>
+                      <Box>게임사</Box>
                       <Box>제목</Box>
-                      <Box>감성</Box>
+                      <Box>여론</Box>
                       <Box>날짜</Box>
                     </Box>
                     {displayedArticles.length ? (
@@ -1067,7 +1067,7 @@ export default function ComparePage() {
 
           <Divider sx={{ my: 1 }} />
           <Typography variant="caption" color="text.secondary" align="center">
-            포트폴리오 비교 화면 · compare는 조회 전용이며 자동 갱신으로 최신 상태를 유지합니다.
+            실시간으로 자동 업데이트됩니다.
           </Typography>
         </Stack>
       </Container>

@@ -2,6 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Container,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import ApiGuardBanner from "../../../components/ApiGuardBanner";
 import PageStatusView from "../../../components/PageStatusView";
 import { apiGet } from "../../../lib/api";
@@ -11,6 +23,19 @@ import {
   shouldShowEmptyState,
   toRequestErrorState,
 } from "../../../lib/pageStatus";
+import {
+  contentCardSx,
+  metricCardSx,
+  navButtonSx,
+  pageContainerSx,
+  pageShellCleanSx,
+  panelPaperSx,
+  riskAccent,
+  sectionCardSx,
+  sectionTitleSx,
+  specTypeSx,
+  statusChipSx,
+} from "../../../lib/uiTokens";
 
 const FIXED_PARAMS = {
   ip: "maplestory",
@@ -24,17 +49,6 @@ const BURST_END = "2026-01-29T23:59:59";
 const DIAG_SCOPE = {
   data: buildDiagnosticScope("NEX-BACKTEST", "DATA"),
 };
-
-const SHELL = { minHeight: "100dvh", backgroundColor: "#eef0f3", fontFamily: "'Plus Jakarta Sans','Noto Sans KR','Apple SD Gothic Neo',sans-serif", paddingTop: 16, paddingBottom: 48 };
-const CONTAINER = { maxWidth: 1180, margin: "0 auto", padding: "0 16px" };
-const PANEL = { borderRadius: 17.6, border: "1px solid rgba(15,23,42,.12)", backgroundColor: "#ffffff" };
-const CARD = { borderRadius: 24, border: "1px solid rgba(15,23,42,.1)", backgroundColor: "#ffffff", boxShadow: "0 12px 28px rgba(15,23,42,.06)" };
-const NAV_BTN = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minHeight: 40, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(15,23,42,.24)", fontSize: 14, fontWeight: 700, backgroundColor: "transparent", color: "#0f172a", cursor: "pointer" };
-const STATUS_CHIP = { display: "inline-flex", alignItems: "center", minHeight: 30, padding: "0 12px", borderRadius: 9999, border: "1px solid #e2e8f0", backgroundColor: "#ffffff", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" };
-const CHIP_ERROR = { display: "inline-flex", alignItems: "center", minHeight: 30, padding: "0 12px", borderRadius: 9999, border: "1px solid #fecaca", backgroundColor: "#fff4f4", color: "#b91c1c", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" };
-const CHIP_WARNING = { display: "inline-flex", alignItems: "center", minHeight: 30, padding: "0 12px", borderRadius: 9999, border: "1px solid #f6d596", backgroundColor: "#fff8eb", color: "#d97706", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" };
-const ALERT_INFO = { display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, border: "1px solid #bfdbfe", backgroundColor: "#eff6ff", color: "#1e3a8a", fontSize: 13, lineHeight: 1.5 };
-const ALERT_WARNING = { display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderRadius: 8, border: "1px solid #f6d596", backgroundColor: "#fff8eb", color: "#8a5700", fontSize: 13, lineHeight: 1.5 };
 
 function toDriverLabel(code) {
   const key = String(code || "").trim().toUpperCase();
@@ -86,7 +100,7 @@ export default function NexonBacktestPage() {
         if (e?.name === "AbortError") return;
         const nextError = toRequestErrorState(e, {
           scope: DIAG_SCOPE.data,
-          fallback: "백테스트 데이터를 불러오지 못했습니다.",
+          fallback: "과거 분석 데이터를 불러오지 못했습니다.",
         });
         setError(nextError.message);
         setErrorCode(nextError.code);
@@ -101,7 +115,7 @@ export default function NexonBacktestPage() {
   const normalized = useMemo(() => normalizeBacktestPayload(payload), [payload]);
   const hasSeries = normalized.timestamps.length > 0;
   const dbLabel = health?.db_file_name || health?.db_path || "-";
-  const modeMismatchWarning = health?.mode === "live" ? "현재 백테스트 페이지가 운영 DB를 참조 중입니다." : "";
+  const modeMismatchWarning = health?.mode === "live" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const shouldShowBacktestEmpty = shouldShowEmptyState({ loading, error, hasData: hasSeries });
   const detailsByTs = useMemo(() => {
     const out = new Map();
@@ -158,7 +172,7 @@ export default function NexonBacktestPage() {
     const option = {
       animation: false,
       backgroundColor: "#ffffff",
-      legend: { top: 6, data: ["위험도", "관측 이벤트", "노출량", "기사량", "확산도", "테마강도", "변동성"] },
+      legend: { top: 6, data: ["위기 지수", "관측 이벤트", "보도량", "기사량", "확산도", "테마강도", "변동성"] },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "cross" },
@@ -168,7 +182,7 @@ export default function NexonBacktestPage() {
           const d = detailsByTs.get(String(ts));
           const lines = [`<strong>${ts}</strong>`];
           if (d) {
-            lines.push(`위험도 점수: ${Number(d.risk_score || 0).toFixed(1)}`);
+            lines.push(`위기 지수: ${Number(d.risk_score || 0).toFixed(1)}`);
             lines.push(`즉시 반응 점수: ${Number(d.raw_risk || 0).toFixed(1)}`);
             lines.push(`완화 반영 점수: ${Number(d.risk_score_ema || d.risk_score || 0).toFixed(1)}`);
             lines.push(`해당 구간 기사 수: ${Number(d.article_count_window || d.article_count || 0).toLocaleString()}건`);
@@ -192,8 +206,8 @@ export default function NexonBacktestPage() {
         { type: "category", data: normalized.timestamps, gridIndex: 2, axisLabel: { rotate: 0, hideOverlap: true, formatter: (value) => { const s = String(value || ""); return s.length >= 16 ? `${s.slice(5, 10)} ${s.slice(11, 16)}` : s; } } },
       ],
       yAxis: [
-        { type: "value", name: "위험도", min: 0, max: 100 },
-        { type: "value", name: "노출량", gridIndex: 1, min: 0 },
+        { type: "value", name: "위기 지수", min: 0, max: 100 },
+        { type: "value", name: "보도량", gridIndex: 1, min: 0 },
         { type: "value", name: "영향도", gridIndex: 2, min: 0, max: 1.2 },
       ],
       dataZoom: [
@@ -201,9 +215,9 @@ export default function NexonBacktestPage() {
         { type: "slider", xAxisIndex: [0, 1, 2], bottom: 0, height: 20, filterMode: "none" },
       ],
       series: [
-        { name: "위험도", type: "line", smooth: true, symbol: "none", sampling: "lttb", progressive: 2500, progressiveThreshold: 3200, data: normalized.risk, lineStyle: { width: 2.5, color: "#113f95" }, markLine: { symbol: ["none", "none"], label: { formatter: "{b}: {c}" }, lineStyle: { type: "dashed" }, data: [{ name: "경보선(높음)", yAxis: normalized.thresholds.p1, lineStyle: { color: "#dc3c4a" } }, { name: "경보선(주의)", yAxis: normalized.thresholds.p2, lineStyle: { color: "#e89c1c" } }] }, markArea: { itemStyle: { color: "rgba(220,60,74,0.12)" }, data: [[{ xAxis: BURST_START }, { xAxis: BURST_END }]] } },
+        { name: "위기 지수", type: "line", smooth: true, symbol: "none", sampling: "lttb", progressive: 2500, progressiveThreshold: 3200, data: normalized.risk, lineStyle: { width: 2.5, color: "#113f95" }, markLine: { symbol: ["none", "none"], label: { formatter: "{b}: {c}" }, lineStyle: { type: "dashed" }, data: [{ name: "경보선(높음)", yAxis: normalized.thresholds.p1, lineStyle: { color: "#dc3c4a" } }, { name: "경보선(주의)", yAxis: normalized.thresholds.p2, lineStyle: { color: "#e89c1c" } }] }, markArea: { itemStyle: { color: "rgba(220,60,74,0.12)" }, data: [[{ xAxis: BURST_START }, { xAxis: BURST_END }]] } },
         { name: "관측 이벤트", type: "scatter", data: eventScatter.map((e) => ({ ...e, name: toEventLabel(e.eventType) })), symbolSize: 10, itemStyle: { color: "#d32f2f" }, tooltip: { trigger: "item" } },
-        { name: "노출량", type: "bar", xAxisIndex: 1, yAxisIndex: 1, data: normalized.volume, itemStyle: { color: "rgba(17,63,149,0.45)" }, barMaxWidth: 12, large: normalized.volume.length > 240, largeThreshold: 240, progressive: 2500, progressiveThreshold: 3200 },
+        { name: "보도량", type: "bar", xAxisIndex: 1, yAxisIndex: 1, data: normalized.volume, itemStyle: { color: "rgba(17,63,149,0.45)" }, barMaxWidth: 12, large: normalized.volume.length > 240, largeThreshold: 240, progressive: 2500, progressiveThreshold: 3200 },
         ...[
           ["S", "기사량"],
           ["V", "확산도"],
@@ -227,102 +241,181 @@ export default function NexonBacktestPage() {
   );
 
   return (
-    <div style={SHELL}>
-      <div style={CONTAINER}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 4 } }}>
+      <Container maxWidth="xl" sx={pageContainerSx}>
+        <Stack spacing={2}>
 
           {/* Nav bar */}
-          <div style={{ ...PANEL, padding: "0 12px", position: "sticky", top: 10, zIndex: 20, backgroundColor: "#f8fafc", borderColor: "#e5e7eb", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "6px 0" }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <span style={STATUS_CHIP}>대상 IP: 메이플스토리</span>
-                <span style={STATUS_CHIP}>시나리오: {FIXED_CASE}</span>
-                <span style={STATUS_CHIP}>분석 기간: 2025-11-01 ~ 2026-02-10</span>
-                <span style={STATUS_CHIP}>집계 단위: 6시간</span>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <Link href="/nexon" style={NAV_BTN}>넥슨 대시보드</Link>
-                <Link href="/" style={NAV_BTN}>메인</Link>
-              </div>
-            </div>
-          </div>
+          <Paper
+            sx={{
+              ...panelPaperSx,
+              bgcolor: "#f8fafc",
+              borderColor: "#e5e7eb",
+              boxShadow: "0 8px 24px rgba(15,23,42,.04)",
+              position: "sticky",
+              top: 10,
+              zIndex: 20,
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              flexWrap="wrap"
+              spacing={1}
+              sx={{ px: 2, py: 1.2 }}
+            >
+              <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap>
+                <Chip size="small" variant="outlined" label="대상 게임: 메이플스토리" sx={statusChipSx} />
+                <Chip size="small" variant="outlined" label={`시나리오: ${FIXED_CASE}`} sx={statusChipSx} />
+                <Chip size="small" variant="outlined" label="분석 기간: 2025-11-01 ~ 2026-02-10" sx={statusChipSx} />
+                <Chip size="small" variant="outlined" label="집계 단위: 6시간" sx={statusChipSx} />
+              </Stack>
+              <Stack direction="row" spacing={1}>
+                <Button component={Link} href="/nexon" variant="outlined" size="small" sx={navButtonSx}>넥슨 대시보드</Button>
+                <Button component={Link} href="/" variant="outlined" size="small" sx={navButtonSx}>메인</Button>
+              </Stack>
+            </Stack>
+          </Paper>
 
           <ApiGuardBanner />
 
           {/* Main card */}
-          <div style={{ ...CARD, padding: "16px" }}>
-            <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800 }}>백테스트 타임라인</h2>
-            <p style={{ margin: "0 0 10px", fontSize: 14, color: "#64748b" }}>
-              메이플 키우기 이슈 기간에 여론 위험도가 어떻게 올라가고 내려갔는지 재현한 화면입니다.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              <span style={{ ...STATUS_CHIP, fontSize: 12 }}>DB: {dbLabel}</span>
-              <span style={{ ...STATUS_CHIP, fontSize: 12 }}>Backend: {health?.ok ? "healthy" : "unknown"}</span>
-            </div>
-            {modeMismatchWarning ? (
-              <div style={{ ...ALERT_WARNING, marginBottom: 12 }}>{modeMismatchWarning}</div>
-            ) : null}
-            <div style={{ ...ALERT_INFO, marginBottom: 12 }}>
-              읽는 순서: 1) 최대·평균 위험도 확인 2) 상단 선 그래프로 급등 시점 확인 3) 아래 노출량/영향도 그래프로 원인 파악
-            </div>
+          <Card variant="outlined" sx={sectionCardSx}>
+            <CardContent sx={contentCardSx}>
+              <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.5 }}>
+                과거 분석 타임라인
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1.5, color: "#64748b" }}>
+                메이플 키우기 이슈 기간에 위기 지수가 어떻게 변화했는지 재현한 화면입니다.
+              </Typography>
 
-            <div style={{ marginTop: 8 }}>
+              <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap sx={{ mb: 1.5 }}>
+                <Chip size="small" variant="outlined" label={`DB: ${dbLabel}`} sx={{ ...statusChipSx, fontSize: 12 }} />
+                <Chip size="small" variant="outlined" label={`Backend: ${health?.ok ? "healthy" : "unknown"}`} sx={{ ...statusChipSx, fontSize: 12 }} />
+              </Stack>
+
+              {modeMismatchWarning ? (
+                <Alert severity="warning" icon={false} sx={{ mb: 1.5, borderRadius: 2 }}>{modeMismatchWarning}</Alert>
+              ) : null}
+
+              <Alert severity="info" icon={false} sx={{ mb: 1.5, borderRadius: 2 }}>
+                읽는 순서: 1) 최대·평균 위기 지수 확인 2) 상단 선 그래프로 급등 시점 확인 3) 아래 보도량/영향도 그래프로 원인 파악
+              </Alert>
+
               <PageStatusView
-                loading={{ show: loading, title: "백테스트 로딩 중", subtitle: "리스크 타임라인을 계산하고 있습니다." }}
+                loading={{ show: loading, title: "과거 분석 데이터를 불러오는 중", subtitle: "위기 지수 타임라인을 계산하고 있습니다." }}
                 error={{
                   show: Boolean(error),
-                  title: "백테스트 데이터를 불러오지 못했습니다.",
-                  details: `${String(error)}\n백엔드 API와 백테스트 데이터 파일 상태를 확인해주세요.`,
+                  title: "과거 분석 데이터를 불러오지 못했습니다.",
+                  details: `${String(error)}\n시스템 연동 상태를 확인해주세요.`,
                   diagnosticCode: errorCode,
                   actionLabel: "다시 시도",
                   onAction: () => setReloadSeq((prev) => prev + 1),
                 }}
               />
-            </div>
-            <div style={{ marginTop: 8 }}>
+
               <PageStatusView
                 empty={{
                   show: shouldShowBacktestEmpty,
-                  title: "백테스트 데이터가 없습니다.",
-                  subtitle: "백테스트 전용 데이터가 아직 적재되지 않았습니다. 데이터 수집 후 다시 확인해주세요.",
+                  title: "과거 분석 데이터가 없습니다.",
+                  subtitle: "분석 데이터가 아직 없습니다. 잠시 후 다시 확인해주세요.",
                 }}
               />
-            </div>
 
-            {!shouldShowBacktestEmpty && !error && hasSeries ? (
-              <>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                  <span style={CHIP_ERROR}>최대 위험도: {Number(payload?.summary?.max_risk || 0).toFixed(1)}</span>
-                  <span style={STATUS_CHIP}>평균 위험도: {Number(payload?.summary?.avg_risk || 0).toFixed(1)}</span>
-                  <span style={CHIP_ERROR}>고위험 구간 수: {Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0)}</span>
-                  <span style={CHIP_WARNING}>주의 구간 수: {Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0)}</span>
-                  <span style={STATUS_CHIP}>이벤트 수: {Number(payload?.summary?.event_count || 0)}</span>
-                  <span style={STATUS_CHIP}>주요 요인: {toDriverLabel(payload?.summary?.dominant_component)}</span>
-                </div>
-                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b" }}>
-                  고위험/주의 구간 수는 각 기준선을 넘긴 시간대의 횟수입니다. 하루에 여러 번 발생할 수 있습니다.
-                </p>
-                <div ref={chartRef} style={{ marginTop: 12, width: "100%", height: "clamp(560px, 55vw, 700px)" }} />
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 9.6, marginTop: 12 }}>
-                  {[
-                    { label: "기사량 영향", latest: driverStats.volume.latest.toLocaleString(), peak: driverStats.volume.peak.toLocaleString() },
-                    { label: "확산 영향", latest: driverStats.spread.latest.toFixed(3), peak: driverStats.spread.peak.toFixed(3) },
-                    { label: "불확실 신호 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
-                  ].map((d) => (
-                    <div key={d.label} style={{ ...PANEL, padding: "9.6px 12px" }}>
-                      <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 14 }}>{d.label}</p>
-                      <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>최근 {d.latest} · 최고 {d.peak}</p>
-                    </div>
-                  ))}
-                </div>
-                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b" }}>
-                  하단 영향도 선은 위험도 변동의 원인 비중을 보여줍니다. 값이 클수록 해당 요인의 영향이 큽니다.
-                </p>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </div>
+              {!shouldShowBacktestEmpty && !error && hasSeries ? (
+                <>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr 1fr", md: "1fr 1fr 1fr 1fr" },
+                  gap: { xs: 1.4, md: 1.6 },
+                  mt: 1.5,
+                }}
+              >
+                    {[
+                      {
+                        label: "최대 위기 지수",
+                        value: Number(payload?.summary?.max_risk || 0).toFixed(1),
+                        sub: "피크 위험 수준",
+                        barColor: riskAccent.critical.color,
+                        bg: riskAccent.critical.bg,
+                      },
+                      {
+                        label: "고위험 구간 수",
+                        value: Number((payload?.summary?.p1_bucket_count ?? payload?.summary?.p1_count) || 0),
+                        sub: "P1 기준 초과 횟수",
+                        barColor: riskAccent.critical.color,
+                        bg: riskAccent.critical.bg,
+                      },
+                      {
+                        label: "주의 구간 수",
+                        value: Number((payload?.summary?.p2_bucket_count ?? payload?.summary?.p2_count) || 0),
+                        sub: "P2 기준 초과 횟수",
+                        barColor: riskAccent.high.color,
+                        bg: riskAccent.high.bg,
+                      },
+                      {
+                        label: "평균 위기 지수",
+                        value: Number(payload?.summary?.avg_risk || 0).toFixed(1),
+                        sub: `주요 요인: ${toDriverLabel(payload?.summary?.dominant_component)}`,
+                        barColor: (() => {
+                          const avg = Number(payload?.summary?.avg_risk || 0);
+                          return avg >= 70 ? riskAccent.critical.color : avg >= 45 ? riskAccent.high.color : avg >= 20 ? riskAccent.caution.color : riskAccent.safe.color;
+                        })(),
+                        bg: (() => {
+                          const avg = Number(payload?.summary?.avg_risk || 0);
+                          return avg >= 70 ? riskAccent.critical.bg : avg >= 45 ? riskAccent.high.bg : avg >= 20 ? riskAccent.caution.bg : riskAccent.safe.bg;
+                        })(),
+                      },
+                    ].map((kpi) => (
+                      <Box key={kpi.label} sx={{ ...metricCardSx, display: "flex", flexDirection: "column" }}>
+                        <Box sx={{ height: 3, bgcolor: kpi.barColor, flexShrink: 0 }} />
+                        <Box sx={{ p: { xs: 1.4, md: 1.8 }, bgcolor: kpi.bg, flex: 1 }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase" }}>
+                            {kpi.label}
+                          </Typography>
+                          <Typography sx={{ ...specTypeSx.h5, mt: 0.4, fontSize: { xs: 22, md: 28 }, color: kpi.barColor, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+                            {kpi.value}
+                          </Typography>
+                          <Typography sx={{ mt: 0.35, fontSize: 11, color: "#94a3b8" }}>
+                            {kpi.sub}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                    고위험/주의 구간 수는 각 기준선을 넘긴 시간대의 횟수입니다. 하루에 여러 번 발생할 수 있습니다.
+                  </Typography>
+                  <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: "clamp(560px, 55vw, 700px)" }} />
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.2}
+                    useFlexGap
+                    flexWrap="wrap"
+                    sx={{ mt: 1.5 }}
+                  >
+                    {[
+                      { label: "기사량 영향", latest: driverStats.volume.latest.toLocaleString(), peak: driverStats.volume.peak.toLocaleString() },
+                      { label: "확산 영향", latest: driverStats.spread.latest.toFixed(3), peak: driverStats.spread.peak.toFixed(3) },
+                      { label: "불확실 신호 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
+                    ].map((d) => (
+                      <Box key={d.label} sx={{ ...metricCardSx, p: 1.5, flex: "1 1 180px", minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>{d.label}</Typography>
+                        <Typography variant="caption" color="text.secondary">최근 {d.latest} · 최고 {d.peak}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                    하단 영향도 선은 위기 지수 변동의 원인 비중을 보여줍니다. 값이 클수록 해당 요인의 영향이 큽니다.
+                  </Typography>
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
+        </Stack>
+      </Container>
+    </Box>
   );
 }
