@@ -466,7 +466,21 @@ export default function NexonPage() {
   const themes = riskData?.risk_themes || [];
   const clusters = clusterData?.clusters || [];
   const keywordCloud = clusterData?.keyword_cloud || [];
-  const topRisk = themes[0];
+  const topRisk = useMemo(() => {
+    if (!Array.isArray(themes) || themes.length === 0) return null;
+    const prioritized = themes
+      .filter((row) => String(row?.theme || "") !== "신작/성과")
+      .filter((row) => Number(row?.negative_ratio || 0) >= 5);
+    const source = prioritized.length ? prioritized : themes;
+    return [...source].sort((a, b) => {
+      const diffNeg = Number(b?.negative_ratio || 0) - Number(a?.negative_ratio || 0);
+      if (diffNeg !== 0) return diffNeg;
+      const diffCount = Number(b?.article_count || 0) - Number(a?.article_count || 0);
+      if (diffCount !== 0) return diffCount;
+      return Number(b?.risk_score || 0) - Number(a?.risk_score || 0);
+    })[0] || null;
+  }, [themes]);
+  const topRiskThemeScore = topRisk ? Math.round(Number(topRisk?.risk_score || 0) * 1000) / 10 : null;
   const selectedBurstStatus = useMemo(() => {
     const items = burstStatus?.items || [];
     return items.find((x) => x.ip_id === ip) || items.find((x) => x.ip_id === "all") || items[0] || null;
@@ -1144,7 +1158,7 @@ export default function NexonPage() {
             {
               k: "핵심 위험 이슈",
               v: topRisk?.theme || "-",
-              s: `위기 지수 ${topRisk?.risk_score ?? "-"}`,
+              s: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}% · 이슈 점수 ${topRiskThemeScore}점` : "-",
               barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
               valueType: "label",
             },
@@ -1535,7 +1549,7 @@ export default function NexonPage() {
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 위험 이슈</Typography>
                 <Typography variant="h6" sx={{ mt: 1 }}>{topRisk?.theme || "-"}</Typography>
                 <Typography variant="caption" color="text.secondary">
-                  위험도 {topRisk?.risk_score ?? "-"} · 부정 {topRisk?.negative_ratio ?? "-"}%
+                  이슈 점수 {topRiskThemeScore ?? "-"}점 · 부정 {topRisk?.negative_ratio ?? "-"}%
                 </Typography>
               </Paper>
             </Grid>
