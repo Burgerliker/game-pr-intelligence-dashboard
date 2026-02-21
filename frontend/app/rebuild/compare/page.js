@@ -53,6 +53,7 @@ const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
 const DEFAULT_WINDOW_HOURS = 72;
+const COMPARE_FETCH_LIMIT = 100;
 const LOW_SAMPLE_THRESHOLD = 5;
 const ARTICLE_ROW_HEIGHT = 62;
 const ARTICLE_LIST_MAX_HEIGHT = 500;
@@ -215,7 +216,7 @@ export default function ComparePage() {
       const query = new URLSearchParams({
         companies: selectedCompanies.join(","),
         window_hours: String(windowHours),
-        limit: "40",
+        limit: String(COMPARE_FETCH_LIMIT),
       });
       const payload = await apiGet(`/api/compare-live?${query.toString()}`, {
         signal: controller.signal,
