@@ -21,7 +21,7 @@ import {
   sectionTitleSx,
   specTypeSx,
   statusChipSx,
-} from "../../../lib/uiTokens";
+} from "../../lib/uiTokens";
 
 /* ─────────── 데이터 ─────────── */
 
