@@ -15,7 +15,7 @@ import {
   actionButtonSx,
   navButtonSx,
   pageContainerSx,
-  pageShellSx,
+  pageShellCleanSx,
   sectionCardSx,
 } from "../../../lib/uiTokens";
 
@@ -36,14 +36,14 @@ const sections = [
 
 export default function ProjectPage() {
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 5 } }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
         <Card variant="outlined" sx={{ ...sectionCardSx, bgcolor: "#f8fafc" }}>
           <CardContent sx={{ p: { xs: 2.5, md: 4 } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
               <Typography
                 sx={{
-                  fontSize: { xs: 24, md: 30 },
+                  fontSize: { xs: 26, md: 34 },
                   fontWeight: 800,
                   color: "#0f172a",
                   letterSpacing: "-.02em",
@@ -56,17 +56,17 @@ export default function ProjectPage() {
               </Button>
             </Stack>
 
-            <Typography sx={{ mb: 4, fontSize: { xs: 16, md: 18 }, color: "#64748b", lineHeight: 1.7 }}>
+            <Typography sx={{ mb: 4, fontSize: { xs: 16, md: 19 }, color: "#64748b", lineHeight: 1.8 }}>
               게임 PR 실무 의사결정에 바로 연결되는 분석 구조를 목표로 설계한 포트폴리오입니다.
             </Typography>
 
             <Stack spacing={3.5}>
               {sections.map((section) => (
                 <Box key={section.title}>
-                  <Typography sx={{ mb: 1, fontSize: 22, fontWeight: 700, color: "#111827", borderLeft: "3px solid #9acb19", pl: 1.5 }}>
+                  <Typography sx={{ mb: 1, fontSize: { xs: 20, md: 24 }, fontWeight: 700, color: "#111827", borderLeft: "3px solid #9acb19", pl: 1.5 }}>
                     {section.title}
                   </Typography>
-                  <Typography sx={{ color: "#475569", lineHeight: 1.85, fontSize: 16 }}>
+                  <Typography sx={{ color: "#475569", lineHeight: 1.85, fontSize: { xs: 15, md: 17 } }}>
                     {section.body}
                   </Typography>
                 </Box>
@@ -76,10 +76,10 @@ export default function ProjectPage() {
             <Divider sx={{ my: 4 }} />
 
             <Stack spacing={1}>
-              <Typography sx={{ mb: 0.5, fontSize: 22, fontWeight: 700, color: "#111827", borderLeft: "3px solid #9acb19", pl: 1.5 }}>
+              <Typography sx={{ mb: 0.5, fontSize: { xs: 20, md: 24 }, fontWeight: 700, color: "#111827", borderLeft: "3px solid #9acb19", pl: 1.5 }}>
                 핵심 구성
               </Typography>
-              <Typography sx={{ color: "#475569", fontSize: 16, lineHeight: 1.75 }}>
+              <Typography sx={{ color: "#475569", fontSize: { xs: 15, md: 17 }, lineHeight: 1.75 }}>
                 1. 실시간 수집: IP별 스케줄링 + 중복 제거 + 운영 로그
                 <br />
                 2. 분석 엔진: 감성/볼륨/테마/매체 신호 결합 리스크 산식

@@ -27,7 +27,7 @@ import {
   metricCardSx,
   navButtonSx,
   pageContainerSx,
-  pageShellSx,
+  pageShellCleanSx,
   panelPaperSx,
   riskAccent,
   sectionCardSx,
@@ -238,9 +238,9 @@ export default function NexonBacktestPage() {
   );
 
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 2, md: 3 } }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 4 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
-        <Stack spacing={1.5}>
+        <Stack spacing={2}>
 
           {/* Nav bar */}
           <Paper
@@ -260,7 +260,7 @@ export default function NexonBacktestPage() {
               alignItems={{ xs: "flex-start", sm: "center" }}
               flexWrap="wrap"
               spacing={1}
-              sx={{ px: 1.5, py: 0.75 }}
+              sx={{ px: 2, py: 1.2 }}
             >
               <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap>
                 <Chip size="small" variant="outlined" label="대상 게임: 메이플스토리" sx={statusChipSx} />
@@ -279,7 +279,7 @@ export default function NexonBacktestPage() {
 
           {/* Main card */}
           <Card variant="outlined" sx={sectionCardSx}>
-            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+            <CardContent sx={{ p: { xs: 2.25, md: 2.75 } }}>
               <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
                 과거 분석 타임라인
               </Typography>
@@ -326,10 +326,10 @@ export default function NexonBacktestPage() {
                     sx={{
                       display: "grid",
                       gridTemplateColumns: { xs: "1fr 1fr", md: "1fr 1fr 1fr 1fr" },
-                      gap: { xs: 1.2, md: 1.5 },
-                      mt: 1.5,
-                    }}
-                  >
+                  gap: { xs: 1.4, md: 1.6 },
+                  mt: 1.5,
+                }}
+              >
                     {[
                       {
                         label: "최대 위기 지수",

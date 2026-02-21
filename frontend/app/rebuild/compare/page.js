@@ -489,10 +489,10 @@ export default function ComparePage() {
   }, [retryAfterSec, scheduleFetch, startPolling]);
 
   return (
-    <Box sx={{ ...pageShellCleanSx, py: { xs: 2, md: 5 } }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
-        <Stack spacing={2.3}>
-          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.2, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
+        <Stack spacing={2.5}>
+          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.5, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -511,7 +511,7 @@ export default function ComparePage() {
                 />
                 <Typography
                   sx={{
-                    fontSize: 20,
+                    fontSize: { xs: 20, md: 22 },
                     fontWeight: 800,
                     color: "#0f172a",
                     letterSpacing: "-.01em",
@@ -618,11 +618,11 @@ export default function ComparePage() {
                   <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
                     <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
                       <Box sx={{ height: 3, bgcolor: state.barColor, flexShrink: 0 }} />
-                      <Box sx={{ p: { xs: 1.6, md: 2 }, flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.4 }}>
+                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.6 }}>
                           {company}
                         </Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.12, fontVariantNumeric: "tabular-nums" }}>
+                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.08, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: 40 } }}>
                           {Number(count).toLocaleString()}
                         </Typography>
                         <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.6 }}>
@@ -641,11 +641,11 @@ export default function ComparePage() {
                 <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
                   <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
                     <Box sx={{ height: 3, bgcolor: "#0f3b66", flexShrink: 0 }} />
-                    <Box sx={{ p: { xs: 1.6, md: 2 }, flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        총합
-                      </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          총합
+                        </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
                         {Number(total).toLocaleString()}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">

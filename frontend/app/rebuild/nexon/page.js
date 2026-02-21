@@ -40,7 +40,7 @@ import {
   metricValueSx,
   navButtonSx,
   pageContainerSx,
-  pageShellSx,
+  pageShellCleanSx,
   panelPaperSx,
   riskAccent,
   sectionCardSx,
@@ -909,23 +909,23 @@ export default function NexonPage() {
   }, [chartsReady, riskTimeseries]);
 
   return (
-    <Box sx={{ ...pageShellSx, py: { xs: 1.5, sm: 2, md: 4 } }}>
+    <Box sx={{ ...pageShellCleanSx, py: { xs: 2, sm: 2.5, md: 4.5 } }}>
     <Container maxWidth="xl" sx={pageContainerSx}>
-      <Stack spacing={{ xs: 1.4, md: 2 }}>
+      <Stack spacing={{ xs: 1.7, md: 2.4 }}>
         <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
           <Stack
             direction={{ xs: "column", sm: "row" }}
             alignItems={{ xs: "flex-start", sm: "center" }}
             justifyContent="space-between"
             spacing={1.2}
-            sx={{ px: { xs: 2, md: 3 }, py: 1.2 }}
+            sx={{ px: { xs: 2, md: 3 }, py: 1.5 }}
           >
             <Stack direction="row" alignItems="center" spacing={1.2}>
               <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
               <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
-                    fontSize: { xs: 20, md: 20 },
+                    fontSize: { xs: 20, md: 22 },
                     fontWeight: 800,
                     color: "#0f172a",
                     letterSpacing: "-.01em",
@@ -964,8 +964,8 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    minHeight: { xs: 220, sm: 248, md: 280 },
-                    p: { xs: 2, sm: 2.4, md: 3 },
+                    minHeight: { xs: 212, sm: 236, md: 256 },
+                    p: { xs: 2, sm: 2.25, md: 2.5 },
                     borderRadius: 2.4,
                     color: "#eef2ff",
                     position: "relative",
@@ -1016,10 +1016,10 @@ export default function NexonPage() {
                   <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
-                  <Typography sx={{ mt: 0.45, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 36, sm: 42, md: 52 }, fontWeight: 900, lineHeight: 1.02, letterSpacing: "-.02em" }}>
+                  <Typography sx={{ mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, fontWeight: 800, lineHeight: 1.06, letterSpacing: "-.02em" }}>
                     {currentBanner.name}
                   </Typography>
-                  <Typography sx={{ mt: 0.6, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 16 }, color: "rgba(237,245,255,.86)" }}>
+                  <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.86)" }}>
                     {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 위기 지수/이슈 흐름" : "위기 흐름 · 이슈 분류 · 집중 모니터링"}
                   </Typography>
                   <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.2, md: 1.6 } }}>
@@ -1138,18 +1138,21 @@ export default function NexonPage() {
               v: riskData?.meta?.ip || "-",
               s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}`,
               barColor: riskAccent.neutral.color,
+              valueType: "label",
             },
             {
               k: "총 기사 수(일자 합계)",
               v: totalArticleSum.toLocaleString(),
               s: "필터 기간 합계",
               barColor: riskAccent.neutral.color,
+              valueType: "number",
             },
             {
               k: "핵심 위험 이슈",
               v: topRisk?.theme || "-",
               s: `위기 지수 ${topRisk?.risk_score ?? "-"}`,
               barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+              valueType: "label",
             },
             {
               k: "이슈 분류 수",
@@ -1157,6 +1160,7 @@ export default function NexonPage() {
               s: "유사 기사 그룹",
               tip: tipMap.cluster,
               barColor: riskAccent.neutral.color,
+              valueType: "number",
             },
           ].map((item) => (
             <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
@@ -1164,14 +1168,14 @@ export default function NexonPage() {
                 <Box sx={{ height: 3, bgcolor: item.barColor, flexShrink: 0 }} />
                 <Box
                   sx={{
-                    p: { xs: 1.3, sm: 1.6, md: 2 },
+                    p: { xs: 2, sm: 2.25, md: 2.5 },
                     flex: 1,
                     width: "100%",
                     minWidth: 0,
                     display: "grid",
-                    gridTemplateRows: "28px 56px 24px",
-                    alignItems: "center",
-                    rowGap: 0.2,
+                    gridTemplateRows: "32px minmax(76px,1fr) 28px",
+                    alignItems: "start",
+                    rowGap: 0.8,
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
@@ -1179,7 +1183,7 @@ export default function NexonPage() {
                       variant="body2"
                       sx={{
                         fontWeight: 700,
-                        color: "#111827",
+                        color: "#334155",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -1195,11 +1199,12 @@ export default function NexonPage() {
                     variant="h5"
                     sx={{
                       ...metricValueSx,
-                      fontSize: { xs: 42, sm: 48, md: 52 },
-                      lineHeight: 1.02,
+                      fontSize: item.valueType === "number" ? { xs: 44, sm: 50, md: 56 } : { xs: 28, sm: 34, md: 40 },
+                      lineHeight: item.valueType === "number" ? 1.02 : 1.1,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
+                      letterSpacing: item.valueType === "number" ? "-.02em" : "-.01em",
                     }}
                   >
                     {item.v}
@@ -1209,6 +1214,7 @@ export default function NexonPage() {
                     color="text.secondary"
                     sx={{
                       display: "block",
+                      fontSize: 14,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",

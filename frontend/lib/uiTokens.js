@@ -1,38 +1,42 @@
 export const pageShellSx = {
   minHeight: "100dvh",
-  bgcolor: "#eef0f3",
+  bgcolor: "#edf1f5",
 };
 
 export const pageContainerSx = {
-  maxWidth: "1180px !important",
-  px: { xs: 1.2, sm: 2, md: 3 },
+  maxWidth: "1200px !important",
+  px: { xs: 2, sm: 3, md: 4 },
 };
 
 export const sectionCardSx = {
-  borderRadius: 3,
-  borderColor: "rgba(15,23,42,.1)",
+  borderRadius: 2,
+  borderColor: "rgba(15,23,42,.08)",
   borderStyle: "solid",
   borderWidth: "1px",
   bgcolor: "#ffffff",
-  boxShadow: "0 12px 28px rgba(15,23,42,.06)",
-  minHeight: 120,
+  boxShadow: "0 1px 3px rgba(15,23,42,.06), 0 6px 20px rgba(15,23,42,.06)",
+  minHeight: 0,
 };
 
 export const actionButtonSx = {
   primary: {
     textTransform: "none",
-    borderRadius: 2,
-    px: 2,
-    py: 0.8,
+    borderRadius: 2.5,
+    px: 2.25,
+    py: 1,
+    minHeight: 40,
+    fontSize: 14,
     fontWeight: 700,
     bgcolor: "#111827",
     "&:hover": { bgcolor: "#0b1220" },
   },
   secondary: {
     textTransform: "none",
-    borderRadius: 2,
-    px: 2,
-    py: 0.8,
+    borderRadius: 2.5,
+    px: 2.25,
+    py: 1,
+    minHeight: 40,
+    fontSize: 14,
     fontWeight: 700,
     borderColor: "rgba(15,23,42,.24)",
     color: "#0f172a",
@@ -42,6 +46,7 @@ export const actionButtonSx = {
 
 export const navButtonSx = {
   minHeight: 40,
+  px: 2,
   fontSize: 14,
   fontWeight: 700,
   textTransform: "none",
@@ -50,7 +55,7 @@ export const navButtonSx = {
 
 export const statusChipSx = {
   minHeight: 30,
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 700,
   borderRadius: 999,
   bgcolor: "#ffffff",
@@ -58,14 +63,14 @@ export const statusChipSx = {
 
 export const filterChipSx = {
   minHeight: 40,
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 700,
   borderRadius: 999,
 };
 
 export const panelPaperSx = {
-  borderRadius: 2.2,
-  border: "1px solid rgba(15,23,42,.12)",
+  borderRadius: 2,
+  border: "1px solid rgba(15,23,42,.08)",
   bgcolor: "#ffffff",
 };
 
@@ -73,13 +78,13 @@ export const metricValueSx = {
   fontWeight: 800,
   fontVariantNumeric: "tabular-nums",
   letterSpacing: "-.01em",
-  lineHeight: 1.08,
+  lineHeight: 1.14,
 };
 
 // 흰 배경 (rebuild 전용)
 export const pageShellCleanSx = {
   minHeight: "100dvh",
-  bgcolor: "#ffffff",
+  bgcolor: "#f3f6f9",
   fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif",
 };
 
@@ -94,10 +99,10 @@ export const riskAccent = {
 
 // 상단 컬러 바 카드 (Metric-First)
 export const metricCardSx = {
-  borderRadius: "10px",
+  borderRadius: 2,
   border: "1px solid rgba(15,23,42,.09)",
   bgcolor: "#ffffff",
-  boxShadow: "0 1px 3px rgba(15,23,42,.05), 0 4px 12px rgba(15,23,42,.04)",
+  boxShadow: "0 1px 3px rgba(15,23,42,.06), 0 6px 16px rgba(15,23,42,.05)",
   overflow: "hidden",
-  minHeight: 160,
+  minHeight: 176,
 };

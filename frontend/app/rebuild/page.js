@@ -199,7 +199,7 @@ export default function HomePage() {
             </Stack>
           </Paper>
 
-          <Stack alignItems="center" spacing={1.2} sx={{ textAlign: "center", pt: { xs: 1.5, md: 2 } }}>
+          <Stack alignItems="center" spacing={1.2} sx={{ textAlign: "center", pt: { xs: 1.5, md: 2.5 } }}>
             <Chip
               label="실시간 모니터링"
               size="small"
@@ -211,11 +211,11 @@ export default function HomePage() {
                 letterSpacing: ".02em",
               }}
             />
-            <Typography sx={{ fontSize: { xs: 36, md: 52 }, fontWeight: 800, lineHeight: 1.08, color: "#111827", letterSpacing: "-.02em" }}>
-              PR 실시간 이슈 현황판
+            <Typography sx={{ fontSize: { xs: 34, md: 46 }, fontWeight: 800, lineHeight: 1.14, color: "#111827", letterSpacing: "-.02em" }}>
+              홍보팀 의사결정 대시보드
             </Typography>
-            <Typography sx={{ mt: 1, fontSize: { xs: 17, md: 22 }, color: "#6b7280", letterSpacing: "-.01em" }}>
-              리스크 분석 포트폴리오
+            <Typography sx={{ mt: 1, fontSize: { xs: 16, md: 19 }, color: "#6b7280", letterSpacing: "-.01em" }}>
+              실시간 위험 신호와 대응 우선순위를 한 화면에서 확인합니다.
             </Typography>
             <ApiGuardBanner />
             {healthDiagCode ? (
@@ -253,7 +253,7 @@ export default function HomePage() {
             sx={{
               display: "grid",
               gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
-              gap: { xs: 1.2, md: 1.6 },
+              gap: { xs: 1.5, md: 2 },
               maxWidth: 900,
               mx: "auto",
               width: "100%",
@@ -287,14 +287,14 @@ export default function HomePage() {
             ].map((kpi) => (
               <Box key={kpi.label} sx={{ ...metricCardSx, borderColor: kpi.border }}>
                 <Box sx={{ height: 3, bgcolor: kpi.barColor }} />
-                <Box sx={{ p: { xs: 1.6, md: 2 }, bgcolor: kpi.bg }}>
+                <Box sx={{ p: { xs: 2, md: 2.25 }, bgcolor: kpi.bg }}>
                   <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase" }}>
                     {kpi.label}
                   </Typography>
-                  <Typography sx={{ mt: 0.5, fontSize: { xs: 20, md: 24 }, fontWeight: 800, color: kpi.barColor, letterSpacing: "-.01em", lineHeight: 1.1 }}>
+                  <Typography sx={{ mt: 0.8, fontSize: { xs: 26, md: 32 }, fontWeight: 800, color: kpi.barColor, letterSpacing: "-.02em", lineHeight: 1.1 }}>
                     {kpi.value}
                   </Typography>
-                  <Typography sx={{ mt: 0.4, fontSize: 12, color: "#94a3b8" }}>
+                  <Typography sx={{ mt: 0.8, fontSize: 13, color: "#64748b" }}>
                     {kpi.sub}
                   </Typography>
                 </Box>
@@ -306,8 +306,8 @@ export default function HomePage() {
             sx={{
               display: "grid",
               gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: 3,
-              maxWidth: 900,
+              gap: 2,
+              maxWidth: 960,
               mx: "auto",
               width: "100%",
             }}
@@ -321,9 +321,9 @@ export default function HomePage() {
                   onMouseLeave={() => setHoveredCard(null)}
                   sx={{
                     ...sectionCardSx,
-                    p: 3,
+                    p: { xs: 2.25, md: 2.5 },
                     textAlign: "left",
-                    minHeight: 285,
+                    minHeight: 252,
                     position: "relative",
                     overflow: "hidden",
                     border: `1px solid ${active ? card.hoverBorder : "#e5e7eb"}`,
@@ -354,7 +354,7 @@ export default function HomePage() {
                       bgcolor: active ? "rgba(255,255,255,.9)" : `${card.accent}1A`,
                       color: active ? "#0f172a" : card.accent,
                       fontWeight: 900,
-                      fontSize: 22,
+                      fontSize: 20,
                       display: "grid",
                       placeItems: "center",
                       position: "relative",
@@ -367,15 +367,15 @@ export default function HomePage() {
                     →
                   </Box>
 
-                  <Typography sx={{ mt: 2, fontSize: { xs: 32, md: 38 }, fontWeight: 800, lineHeight: 1.12, letterSpacing: "-.015em", wordBreak: "keep-all", position: "relative", zIndex: 1 }}>
+                  <Typography sx={{ mt: 1.8, fontSize: { xs: 28, md: 34 }, fontWeight: 800, lineHeight: 1.18, letterSpacing: "-.015em", wordBreak: "keep-all", position: "relative", zIndex: 1 }}>
                     {card.title}
                   </Typography>
-                  <Stack spacing={0.8} sx={{ mt: 1.5, position: "relative", zIndex: 1 }}>
+                  <Stack spacing={0.7} sx={{ mt: 1.4, position: "relative", zIndex: 1 }}>
                     {card.points.map((point) => (
                       <Typography
                         key={point}
                         sx={{
-                          fontSize: { xs: 17, md: 17 },
+                          fontSize: { xs: 15, md: 16 },
                           color: active ? card.hoverBody : "#6b7280",
                           letterSpacing: "-.01em",
                         }}
@@ -390,12 +390,12 @@ export default function HomePage() {
                     href={card.href}
                     sx={{
                       ...navButtonSx,
-                      mt: 2.2,
-                      px: active ? 2.2 : 1.2,
-                      py: 0.75,
-                      minWidth: active ? 126 : 44,
+                      mt: 2,
+                      px: 2.25,
+                      py: 1,
+                      minWidth: 120,
                       textTransform: "none",
-                      fontWeight: 600,
+                      fontWeight: 700,
                       bgcolor: active ? "#ffffff" : `${card.accent}14`,
                       color: active ? "#0f3b66" : card.accent,
                       border: "1px solid",
@@ -410,7 +410,7 @@ export default function HomePage() {
                       },
                     }}
                   >
-                    {active ? "자세히 보기 →" : "→"}
+                    {active ? "바로 이동" : "열기"}
                   </Button>
                 </Paper>
               );
