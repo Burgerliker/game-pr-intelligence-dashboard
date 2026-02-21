@@ -341,6 +341,170 @@ export default function ProjectPage() {
             </Box>
           </Paper>
 
+          {/* 운영 안정화 */}
+          <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
+            <SectionTitle>운영 안정화 / 신뢰성</SectionTitle>
+            <SectionSub>데이터가 쌓일수록 DB가 무거워지는 문제, 이슈 급등 시 수집 공백, 배포 후 즉시 검증 등 운영 현실에서 마주한 문제를 직접 해결했습니다.</SectionSub>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 2, mb: 3 }}>
+              {/* TTL 정책 */}
+              <Box sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.07)" }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#0f172a", mb: 1.25 }}>TTL 데이터 보존 정책</Typography>
+                <Stack spacing={1}>
+                  {[
+                    { label: "운영 기사",      value: "30일",  note: "LIVE_ARTICLE_RETENTION_DAYS" },
+                    { label: "리스크 타임시리즈", value: "90일",  note: "RISK_TIMESERIES_RETENTION_DAYS" },
+                    { label: "스케줄러 로그",   value: "7일",   note: "SCHEDULER_LOG_TTL_DAYS" },
+                    { label: "테스트 기사",     value: "24시간", note: "TEST_ARTICLE_TTL_HOURS" },
+                  ].map((r) => (
+                    <Stack key={r.label} direction="row" alignItems="center" justifyContent="space-between">
+                      <Typography sx={{ fontSize: 13, color: "#475569" }}>{r.label}</Typography>
+                      <Chip label={r.value} size="small" sx={{ ...statusChipSx, height: 22, fontSize: 12, fontWeight: 700, bgcolor: "#e2e8f0", color: "#334155" }} />
+                    </Stack>
+                  ))}
+                </Stack>
+                <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 1.5, lineHeight: 1.6 }}>매일 새벽 4시 maintenance-cleanup 잡이 자동 실행해 기간 초과 데이터를 삭제합니다.</Typography>
+              </Box>
+
+              {/* 스케줄러 / 버스트 */}
+              <Box sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.07)" }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#0f172a", mb: 1.25 }}>적응형 수집 스케줄러</Typography>
+                <Stack spacing={1}>
+                  {[
+                    { label: "기본 수집 주기",    value: "10분" },
+                    { label: "경쟁사 수집 주기",  value: "1시간" },
+                    { label: "버스트 모드 주기",   value: "2분" },
+                    { label: "버스트 최대 유지",   value: "2시간" },
+                  ].map((r) => (
+                    <Stack key={r.label} direction="row" alignItems="center" justifyContent="space-between">
+                      <Typography sx={{ fontSize: 13, color: "#475569" }}>{r.label}</Typography>
+                      <Chip label={r.value} size="small" sx={{ ...statusChipSx, height: 22, fontSize: 12, fontWeight: 700, bgcolor: "#e2e8f0", color: "#334155" }} />
+                    </Stack>
+                  ))}
+                </Stack>
+                <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 1.5, lineHeight: 1.6 }}>위험도 70점 이상 또는 볼륨 급증 감지 시 수집 주기를 10분→2분으로 자동 전환. 30분간 55점 미만 유지 시 조기 복귀.</Typography>
+              </Box>
+
+              {/* 헬스체크 / 스모크 */}
+              <Box sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.07)" }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#0f172a", mb: 1.25 }}>헬스체크 / 스모크 테스트</Typography>
+                <Stack spacing={0.75}>
+                  {[
+                    "/api/health — 내부 상태 확인",
+                    "smoke_test.sh — 로컬 엔드포인트 검증",
+                    "ops_external_smoke.sh — 운영 도메인 외부 검증",
+                    "preflight_deploy_live.sh — 배포 전 필수 점검",
+                  ].map((item) => (
+                    <Typography key={item} sx={{ fontSize: 13, color: "#475569", lineHeight: 1.6 }}>· {item}</Typography>
+                  ))}
+                </Stack>
+                <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 1.5, lineHeight: 1.6 }}>배포 전 preflight 실패 시 즉시 중단. 외부 스모크는 두 시점 결과를 비교해 회귀 여부를 판단합니다.</Typography>
+              </Box>
+            </Box>
+
+            {/* 최근 안정화 포인트 */}
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase", mb: 1.5 }}>
+                최근 반영된 안정화 포인트
+              </Typography>
+              <Stack spacing={1.25}>
+                {[
+                  {
+                    title: "IP 편향 버그 제거",
+                    body: "뉴스 수집·리스크 필터에서 여러 IP를 동시에 처리할 때 첫 번째 IP에만 결과가 몰리던 first-match 편향을 제거해 IP별 점수 독립성을 확보했습니다.",
+                  },
+                  {
+                    title: "EMA 동적 α로 노이즈 제거",
+                    body: "위험도 점수 급등락을 막기 위해 지수 이동평균(EMA) 평활화를 도입했습니다. 급등 구간에서는 α를 낮춰(0.1) 노이즈를 흡수하고, 초기값에는 α=1.0을 적용해 첫 점수를 정확히 반영합니다.",
+                  },
+                  {
+                    title: "버스트 모드 자동 복귀 조건 추가",
+                    body: "이전에는 버스트 모드 진입 후 최대 시간(2시간)이 지나야만 복귀했습니다. 이제 30분간 위험도 55점 미만이 유지되면 조기 복귀해 불필요한 수집 빈도를 줄입니다.",
+                  },
+                ].map((item) => (
+                  <Box key={item.title} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "160px 1fr" }, borderRadius: 1.5, border: "1px solid rgba(15,23,42,.07)", overflow: "hidden" }}>
+                    <Box sx={{ p: 2, bgcolor: "#f8fafc", borderRight: { sm: "1px solid rgba(15,23,42,.07)" } }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{item.title}</Typography>
+                    </Box>
+                    <Box sx={{ p: 2 }}>
+                      <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>{item.body}</Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          </Paper>
+
+          {/* 한계와 개선 계획 */}
+          <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
+            <SectionTitle>한계와 개선 계획</SectionTitle>
+            <SectionSub>현재 구조의 한계를 명확히 인식하고, 다음 단계를 구체적으로 정의해뒀습니다.</SectionSub>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+              {/* 현재 한계 */}
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase", mb: 1.5 }}>
+                  현재 한계
+                </Typography>
+                <Stack spacing={1.25}>
+                  {[
+                    {
+                      title: "수집 채널이 네이버 뉴스 단일",
+                      body: "커뮤니티(DC인사이드, 에펨코리아), SNS, 유튜브 댓글 등 여론 형성 공간이 분석에 포함되지 않아 실제 유저 반응을 완전히 반영하지 못합니다.",
+                    },
+                    {
+                      title: "규칙 기반 감성 분석의 문맥 한계",
+                      body: "'복구 완료' 같은 완화어를 반영하지만, 반어적 표현이나 신조어·줄임말은 오분류됩니다. 정밀한 문맥 이해는 현재 방식의 구조적 한계입니다.",
+                    },
+                    {
+                      title: "키워드 매칭 기반 IP 분류",
+                      body: "IP명 키워드가 다른 문맥(동명이인, 중의어)에서 등장할 경우 오탐이 발생할 수 있습니다. 현재는 수동 키워드 튜닝으로 보정 중입니다.",
+                    },
+                  ].map((item) => (
+                    <Box key={item.title} sx={{ p: 2, borderRadius: 1.5, bgcolor: "#fef2f2", border: "1px solid #fecaca" }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#991b1b", mb: 0.5 }}>{item.title}</Typography>
+                      <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>{item.body}</Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+
+              {/* 다음 개선 */}
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase", mb: 1.5 }}>
+                  다음 개선 로드맵
+                </Typography>
+                <Stack spacing={1.25}>
+                  {[
+                    {
+                      tag: "감성 분석",
+                      title: "ML 모델로 전환",
+                      body: "KLUE-RoBERTa 또는 게임 도메인 특화 감성 모델을 도입해 문맥 이해·신조어·반어 표현 오분류를 줄입니다.",
+                    },
+                    {
+                      tag: "수집 확대",
+                      title: "커뮤니티·SNS 채널 추가",
+                      body: "에펨코리아·디시인사이드 등 게임 커뮤니티와 X(트위터) 언급량을 수집해 뉴스 이전 단계의 여론 신호를 감지합니다.",
+                    },
+                    {
+                      tag: "알림 자동화",
+                      title: "임계치 초과 시 즉시 알림",
+                      body: "위험도가 특정 임계치를 넘으면 슬랙 또는 이메일로 자동 알림을 발송해 PR 담당자가 대시보드를 직접 확인하지 않아도 대응할 수 있게 합니다.",
+                    },
+                  ].map((item) => (
+                    <Box key={item.title} sx={{ p: 2, borderRadius: 1.5, bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                        <Chip label={item.tag} size="small" sx={{ ...statusChipSx, height: 20, fontSize: 11, fontWeight: 700, bgcolor: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0" }} />
+                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#14532d" }}>{item.title}</Typography>
+                      </Stack>
+                      <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>{item.body}</Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            </Box>
+          </Paper>
+
           {/* 기술 스택 — 하단, 간략하게 */}
           <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
             <SectionTitle>구현 스택</SectionTitle>
