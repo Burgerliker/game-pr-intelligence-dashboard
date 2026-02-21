@@ -17,6 +17,7 @@ import {
   pageContainerSx,
   pageShellCleanSx,
   sectionCardSx,
+  specTypeSx,
 } from "../../../lib/uiTokens";
 
 const sections = [
@@ -43,10 +44,9 @@ export default function ProjectPage() {
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
               <Typography
                 sx={{
+                  ...specTypeSx.h4,
                   fontSize: { xs: 26, md: 34 },
-                  fontWeight: 800,
                   color: "#0f172a",
-                  letterSpacing: "-.02em",
                 }}
               >
                 프로젝트 소개

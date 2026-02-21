@@ -36,6 +36,7 @@ import {
 } from "../../../lib/normalizeNexon";
 import {
   filterChipSx,
+  MUI_SPEC,
   metricCardSx,
   metricValueSx,
   navButtonSx,
@@ -44,6 +45,7 @@ import {
   panelPaperSx,
   riskAccent,
   sectionCardSx,
+  specTypeSx,
   statusChipSx,
 } from "../../../lib/uiTokens";
 
@@ -925,11 +927,9 @@ export default function NexonPage() {
               <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
+                    ...specTypeSx.h6,
                     fontSize: { xs: 20, md: 22 },
-                    fontWeight: 800,
                     color: "#0f172a",
-                    letterSpacing: "-.01em",
-                    lineHeight: 1.1,
                     wordBreak: "keep-all",
                   }}
                 >
@@ -1016,7 +1016,7 @@ export default function NexonPage() {
                   <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
                     {currentBanner.visual.kicker}
                   </Typography>
-                  <Typography sx={{ mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, fontWeight: 800, lineHeight: 1.06, letterSpacing: "-.02em" }}>
+                  <Typography sx={{ ...specTypeSx.h4, mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06 }}>
                     {currentBanner.name}
                   </Typography>
                   <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.86)" }}>
@@ -1199,7 +1199,7 @@ export default function NexonPage() {
                     variant="h5"
                     sx={{
                       ...metricValueSx,
-                      fontSize: item.valueType === "number" ? { xs: 44, sm: 50, md: 56 } : { xs: 28, sm: 34, md: 40 },
+                      fontSize: item.valueType === "number" ? { xs: 44, sm: 50, md: MUI_SPEC.type.h3 } : { xs: 28, sm: 34, md: MUI_SPEC.type.h4 },
                       lineHeight: item.valueType === "number" ? 1.02 : 1.1,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -1214,7 +1214,7 @@ export default function NexonPage() {
                     color="text.secondary"
                     sx={{
                       display: "block",
-                      fontSize: 14,
+                      fontSize: MUI_SPEC.type.body2,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",

@@ -31,6 +31,7 @@ import {
   panelPaperSx,
   riskAccent,
   sectionCardSx,
+  specTypeSx,
   statusChipSx,
 } from "../../../../lib/uiTokens";
 
@@ -372,7 +373,7 @@ export default function NexonBacktestPage() {
                           <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase" }}>
                             {kpi.label}
                           </Typography>
-                          <Typography sx={{ mt: 0.4, fontSize: { xs: 22, md: 28 }, fontWeight: 800, color: kpi.barColor, letterSpacing: "-.01em", lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+                          <Typography sx={{ ...specTypeSx.h5, mt: 0.4, fontSize: { xs: 22, md: 28 }, color: kpi.barColor, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
                             {kpi.value}
                           </Typography>
                           <Typography sx={{ mt: 0.35, fontSize: 11, color: "#94a3b8" }}>

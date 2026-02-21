@@ -33,12 +33,14 @@ import {
 } from "../../../lib/pageStatus";
 import {
   filterChipSx,
+  MUI_SPEC,
   metricCardSx,
   navButtonSx,
   pageContainerSx,
   pageShellCleanSx,
   panelPaperSx,
   sectionCardSx,
+  specTypeSx,
   statusChipSx,
 } from "../../../lib/uiTokens";
 
@@ -511,10 +513,9 @@ export default function ComparePage() {
                 />
                 <Typography
                   sx={{
+                    ...specTypeSx.h6,
                     fontSize: { xs: 20, md: 22 },
-                    fontWeight: 800,
                     color: "#0f172a",
-                    letterSpacing: "-.01em",
                   }}
                 >
                   경쟁사 비교 현황판
@@ -622,7 +623,7 @@ export default function ComparePage() {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.6 }}>
                           {company}
                         </Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.08, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: 40 } }}>
+                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.08, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 } }}>
                           {Number(count).toLocaleString()}
                         </Typography>
                         <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.6 }}>
@@ -645,7 +646,7 @@ export default function ComparePage() {
                         <Typography variant="body2" color="text.secondary">
                           총합
                         </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
+                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 }, lineHeight: 1.08 }}>
                         {Number(total).toLocaleString()}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">

@@ -8,6 +8,7 @@ import ApiGuardBanner from "../../components/ApiGuardBanner";
 import PageStatusView from "../../components/PageStatusView";
 import {
   actionButtonSx,
+  MUI_SPEC,
   metricCardSx,
   navButtonSx,
   pageContainerSx,
@@ -15,6 +16,7 @@ import {
   panelPaperSx,
   riskAccent,
   sectionCardSx,
+  specTypeSx,
   statusChipSx,
 } from "../../lib/uiTokens";
 import {
@@ -211,10 +213,10 @@ export default function HomePage() {
                 letterSpacing: ".02em",
               }}
             />
-            <Typography sx={{ fontSize: { xs: 34, md: 46 }, fontWeight: 800, lineHeight: 1.14, color: "#111827", letterSpacing: "-.02em" }}>
+            <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: MUI_SPEC.type.h4 }, color: "#111827" }}>
               홍보팀 의사결정 대시보드
             </Typography>
-            <Typography sx={{ mt: 1, fontSize: { xs: 16, md: 19 }, color: "#6b7280", letterSpacing: "-.01em" }}>
+            <Typography sx={{ ...specTypeSx.body1, mt: 1, fontSize: { xs: 16, md: 19 }, color: "#6b7280", letterSpacing: "-.01em" }}>
               실시간 위험 신호와 대응 우선순위를 한 화면에서 확인합니다.
             </Typography>
             <ApiGuardBanner />
@@ -291,7 +293,7 @@ export default function HomePage() {
                   <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase" }}>
                     {kpi.label}
                   </Typography>
-                  <Typography sx={{ mt: 0.8, fontSize: { xs: 26, md: 32 }, fontWeight: 800, color: kpi.barColor, letterSpacing: "-.02em", lineHeight: 1.1 }}>
+                  <Typography sx={{ ...specTypeSx.h5, mt: 0.8, fontSize: { xs: 26, md: 32 }, color: kpi.barColor }}>
                     {kpi.value}
                   </Typography>
                   <Typography sx={{ mt: 0.8, fontSize: 13, color: "#64748b" }}>
