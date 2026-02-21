@@ -183,6 +183,10 @@ export default function ComparePage() {
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
   const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
+  const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || COMPARE_FETCH_LIMIT);
+  const timedOutCompanies = Array.isArray(data?.meta?.timed_out_companies) ? data.meta.timed_out_companies : [];
+  const failedCompanies = Array.isArray(data?.meta?.failed_companies) ? data.meta.failed_companies : [];
+  const partialFetch = Boolean(data?.meta?.partial_fetch) || timedOutCompanies.length > 0 || failedCompanies.length > 0;
   const companiesForView = selectedCompanies;
   const windowHours = Number(selectedWindowHours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
 
@@ -559,6 +563,16 @@ export default function ComparePage() {
                 <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
                   <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 기사 기준입니다.</span>
                 </Alert>
+                <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
+                  <span><Info {...iconProps()} style={inlineIconSx} />회사별 최대 {fetchLimitPerCompany}건을 표본으로 집계합니다.</span>
+                </Alert>
+                {partialFetch ? (
+                  <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
+                    <span><AlertTriangle {...iconProps()} style={inlineIconSx} />일부 회사 데이터 수집이 지연되었습니다.</span>
+                    {timedOutCompanies.length ? ` 타임아웃: ${timedOutCompanies.join(", ")}` : ""}
+                    {failedCompanies.length ? ` 실패: ${failedCompanies.join(", ")}` : ""}
+                  </Alert>
+                ) : null}
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   {DEFAULT_COMPANIES.map((name) => (
                     <Chip

@@ -8,7 +8,7 @@ import os
 import math
 import logging
 from threading import Lock
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError, as_completed
+from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -412,21 +412,14 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
     executor = ThreadPoolExecutor(max_workers=max_workers)
     try:
         futures = {executor.submit(_fetch_one, company): company for company in selected}
-        try:
-            for future in as_completed(futures, timeout=per_company_timeout):
-                company = futures[future]
-                _consume_future(company, future)
-        except FutureTimeoutError:
-            pass
-        finally:
-            for future, company in futures.items():
-                if company in processed_companies:
-                    continue
-                if future.done():
-                    _consume_future(company, future)
-                    continue
-                timeout_companies.append(company)
-                future.cancel()
+        done, not_done = wait(set(futures.keys()), timeout=float(per_company_timeout), return_when=ALL_COMPLETED)
+        for future in done:
+            company = futures[future]
+            _consume_future(company, future)
+        for future in not_done:
+            company = futures[future]
+            timeout_companies.append(company)
+            future.cancel()
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
@@ -451,6 +444,11 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
     payload = _build_payload(merged, selected)
     meta = dict(payload.get("meta") or {})
     meta["window_hours"] = int(window_hours)
+    meta["fetch_limit_per_company"] = int(limit)
+    meta["timed_out_companies"] = sorted(set(timeout_companies))
+    meta["failed_companies"] = sorted(set(failed_companies))
+    meta["empty_companies"] = sorted(set(empty_companies))
+    meta["partial_fetch"] = bool(timeout_companies or failed_companies)
     payload["meta"] = meta
     return payload
 
@@ -1847,7 +1845,7 @@ def compare_live(
     request: Request,
     companies: str = Query(default="넥슨,NC소프트,넷마블,크래프톤"),
     window_hours: int = Query(default=24, ge=1, le=168),
-    limit: int = Query(default=40, ge=10, le=100),
+    limit: int = Query(default=100, ge=10, le=100),
 ) -> dict:
     selected = _parse_companies(companies)
     if not selected:
