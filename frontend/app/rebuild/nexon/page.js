@@ -1162,14 +1162,60 @@ export default function NexonPage() {
             <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
               <Box sx={{ ...metricCardSx, width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
                 <Box sx={{ height: 3, bgcolor: item.barColor, flexShrink: 0 }} />
-                <Box sx={{ p: { xs: 1.3, sm: 1.6, md: 2 }, flex: 1, width: "100%", minWidth: 0 }}>
-                  {item.tip ? (
-                    <LabelWithTip label={item.k} tip={item.tip} variant="body2" fontWeight={500} />
-                  ) : (
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.k}</Typography>
-                  )}
-                  <Typography variant="h5" sx={{ mt: 0.8, ...metricValueSx }}>{item.v}</Typography>
-                  <Typography variant="caption" color="text.secondary">{item.s}</Typography>
+                <Box
+                  sx={{
+                    p: { xs: 1.3, sm: 1.6, md: 2 },
+                    flex: 1,
+                    width: "100%",
+                    minWidth: 0,
+                    display: "grid",
+                    gridTemplateRows: "28px 56px 24px",
+                    alignItems: "center",
+                    rowGap: 0.2,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 700,
+                        color: "#111827",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {item.k}
+                    </Typography>
+                    <Box sx={{ width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
+                      {item.tip ? <Info {...iconProps({ size: 16 })} title={item.tip} /> : null}
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      ...metricValueSx,
+                      fontSize: { xs: 42, sm: 48, md: 52 },
+                      lineHeight: 1.02,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.v}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.s}
+                  </Typography>
                 </Box>
               </Box>
             </Grid>
