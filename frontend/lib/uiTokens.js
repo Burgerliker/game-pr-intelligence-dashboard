@@ -114,6 +114,26 @@ export const panelPaperSx = {
   bgcolor: "#ffffff",
 };
 
+export const contentCardSx = {
+  p: { xs: 2, md: 2.25 },
+};
+
+export const subPanelSx = {
+  ...panelPaperSx,
+  p: 1.5,
+};
+
+export const sectionTitleSx = {
+  fontSize: MUI_SPEC.type.h6,
+  lineHeight: MUI_SPEC.lineHeight.heading,
+  fontWeight: 700,
+  letterSpacing: "-.01em",
+  mb: 1,
+  borderLeft: "3px solid #0f3b66",
+  pl: 1.5,
+  color: "#0f172a",
+};
+
 export const metricValueSx = {
   fontWeight: 800,
   fontVariantNumeric: "tabular-nums",

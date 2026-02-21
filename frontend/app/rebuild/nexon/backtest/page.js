@@ -24,6 +24,7 @@ import {
   toRequestErrorState,
 } from "../../../../lib/pageStatus";
 import {
+  contentCardSx,
   metricCardSx,
   navButtonSx,
   pageContainerSx,
@@ -31,6 +32,7 @@ import {
   panelPaperSx,
   riskAccent,
   sectionCardSx,
+  sectionTitleSx,
   specTypeSx,
   statusChipSx,
 } from "../../../../lib/uiTokens";
@@ -280,8 +282,8 @@ export default function NexonBacktestPage() {
 
           {/* Main card */}
           <Card variant="outlined" sx={sectionCardSx}>
-            <CardContent sx={{ p: { xs: 2.25, md: 2.75 } }}>
-              <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.5 }}>
+            <CardContent sx={contentCardSx}>
+              <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.5 }}>
                 과거 분석 타임라인
               </Typography>
               <Typography variant="body2" sx={{ mb: 1.5, color: "#64748b" }}>
@@ -399,7 +401,7 @@ export default function NexonBacktestPage() {
                       { label: "확산 영향", latest: driverStats.spread.latest.toFixed(3), peak: driverStats.spread.peak.toFixed(3) },
                       { label: "불확실 신호 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
                     ].map((d) => (
-                      <Box key={d.label} sx={{ ...metricCardSx, p: 1.4, flex: "1 1 180px", minWidth: 0 }}>
+                      <Box key={d.label} sx={{ ...metricCardSx, p: 1.5, flex: "1 1 180px", minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>{d.label}</Typography>
                         <Typography variant="caption" color="text.secondary">최근 {d.latest} · 최고 {d.peak}</Typography>
                       </Box>

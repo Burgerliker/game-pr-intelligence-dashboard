@@ -32,6 +32,7 @@ import {
   toRequestErrorState,
 } from "../../../lib/pageStatus";
 import {
+  contentCardSx,
   filterChipSx,
   MUI_SPEC,
   metricCardSx,
@@ -40,8 +41,10 @@ import {
   pageShellCleanSx,
   panelPaperSx,
   sectionCardSx,
+  sectionTitleSx,
   specTypeSx,
   statusChipSx,
+  subPanelSx,
 } from "../../../lib/uiTokens";
 
 const SENTIMENTS = ["긍정", "중립", "부정"];
@@ -668,8 +671,8 @@ export default function ComparePage() {
                     variant="outlined"
                     sx={{ ...sectionCardSx, width: "100%" }}
                   >
-                    <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, lineHeight: 1.3, borderLeft: "3px solid #0f3b66", pl: 1.5 }}>
+                    <CardContent sx={contentCardSx}>
+                      <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4, lineHeight: 1.3 }}>
                         보도 추이 (최근 14일)
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
@@ -797,8 +800,8 @@ export default function ComparePage() {
                     variant="outlined"
                     sx={{ ...sectionCardSx, width: "100%" }}
                   >
-                    <CardContent sx={{ p: { xs: 1.35, md: 1.6 } }}>
-                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.4, borderLeft: "3px solid #0f3b66", pl: 1.5 }}>
+                    <CardContent sx={contentCardSx}>
+                      <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4 }}>
                         여론 분포
                       </Typography>
                       <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
@@ -864,14 +867,14 @@ export default function ComparePage() {
                 variant="outlined"
                 sx={sectionCardSx}
               >
-                <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
+                <CardContent sx={contentCardSx}>
+                  <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
                     게임사별 주요 키워드
                   </Typography>
                   <Grid container spacing={1.1}>
                     {keywordCards.map((card) => (
                       <Grid item xs={12} md={6} key={card.company} sx={{ display: "flex", minWidth: 0 }}>
-                        <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, width: "100%", height: "100%" }}>
+                        <Paper variant="outlined" sx={{ ...subPanelSx, width: "100%", height: "100%" }}>
                           <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                             {card.company}
                           </Typography>
@@ -897,13 +900,13 @@ export default function ComparePage() {
                 variant="outlined"
                 sx={sectionCardSx}
               >
-                <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.2 }}>
+                <CardContent sx={contentCardSx}>
+                  <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
                     대응 인사이트
                   </Typography>
                   <Grid container spacing={1.1}>
                     <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, height: "100%", width: "100%" }}>
+                      <Paper variant="outlined" sx={{ ...subPanelSx, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           주목 이슈 TOP 5
                         </Typography>
@@ -921,7 +924,7 @@ export default function ComparePage() {
                       </Paper>
                     </Grid>
                     <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ ...panelPaperSx, p: 1.2, height: "100%", width: "100%" }}>
+                      <Paper variant="outlined" sx={{ ...subPanelSx, height: "100%", width: "100%" }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
                           실행 제안
                         </Typography>
@@ -946,14 +949,14 @@ export default function ComparePage() {
                 variant="outlined"
                 sx={sectionCardSx}
               >
-                <CardContent sx={{ p: { xs: 1.35, md: 1.55 } }}>
+                <CardContent sx={contentCardSx}>
                   <Stack
                     direction={{ xs: "column", md: "row" }}
                     justifyContent="space-between"
                     spacing={1.2}
                     sx={{ mb: 1.2 }}
                   >
-                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                    <Typography variant="h6" sx={sectionTitleSx}>
                       최신 기사
                     </Typography>
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">

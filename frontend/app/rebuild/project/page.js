@@ -17,6 +17,7 @@ import {
   pageContainerSx,
   pageShellCleanSx,
   sectionCardSx,
+  sectionTitleSx,
   specTypeSx,
 } from "../../../lib/uiTokens";
 
@@ -63,7 +64,7 @@ export default function ProjectPage() {
             <Stack spacing={3.5}>
               {sections.map((section) => (
                 <Box key={section.title}>
-                  <Typography sx={{ mb: 1, fontSize: { xs: 20, md: 24 }, fontWeight: 700, color: "#111827", borderLeft: "3px solid #9acb19", pl: 1.5 }}>
+                  <Typography sx={{ ...sectionTitleSx, mb: 1, fontSize: { xs: 20, md: 24 }, borderLeft: "3px solid #9acb19", color: "#111827" }}>
                     {section.title}
                   </Typography>
                   <Typography sx={{ color: "#475569", lineHeight: 1.85, fontSize: { xs: 15, md: 17 } }}>
@@ -76,7 +77,7 @@ export default function ProjectPage() {
             <Divider sx={{ my: 4 }} />
 
             <Stack spacing={1}>
-              <Typography sx={{ mb: 0.5, fontSize: { xs: 20, md: 24 }, fontWeight: 700, color: "#111827", borderLeft: "3px solid #9acb19", pl: 1.5 }}>
+              <Typography sx={{ ...sectionTitleSx, mb: 0.5, fontSize: { xs: 20, md: 24 }, borderLeft: "3px solid #9acb19", color: "#111827" }}>
                 핵심 구성
               </Typography>
               <Typography sx={{ color: "#475569", fontSize: { xs: 15, md: 17 }, lineHeight: 1.75 }}>
