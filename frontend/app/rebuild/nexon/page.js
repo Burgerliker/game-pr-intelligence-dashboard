@@ -1139,7 +1139,17 @@ export default function NexonPage() {
           </CardContent>
         </Card>
 
-        <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              lg: "repeat(5, minmax(0, 1fr))",
+            },
+            gap: { xs: 1, sm: 1.2, md: 1.5 },
+          }}
+        >
           {[
             {
               k: "위기 점수",
@@ -1166,7 +1176,7 @@ export default function NexonPage() {
               k: "핵심 위험 이슈",
               v: topRisk?.theme || "-",
               s: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}% · 이슈 점수 ${topRiskThemeScore}점` : "-",
-              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+              barColor: riskAccent.neutral.color,
               valueType: "label",
             },
             {
@@ -1178,7 +1188,7 @@ export default function NexonPage() {
               valueType: "number",
             },
           ].map((item) => (
-            <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
+            <Box key={item.k} sx={{ display: "flex", minWidth: 0 }}>
               <Box sx={{ ...metricCardSx, width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
                 <Box sx={{ height: 3, bgcolor: item.barColor, flexShrink: 0 }} />
                 <Box
@@ -1239,9 +1249,9 @@ export default function NexonPage() {
                   </Typography>
                 </Box>
               </Box>
-            </Grid>
+            </Box>
           ))}
-        </Grid>
+        </Box>
         <Typography variant="caption" color="text.secondary" sx={{ px: 0.2, display: "block" }}>
           총 기사 수는 일자별 기사 수(article_count) 합계입니다. 이슈 분류는 유사 기사 그룹 수입니다.
         </Typography>
