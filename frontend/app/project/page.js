@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Box,
   Button,
   Chip,
+  Collapse,
   Container,
   Paper,
   Stack,
@@ -128,6 +130,22 @@ function StackBadge({ name }) {
   );
 }
 
+function CollapsibleSection({ label, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Box>
+      <Button
+        size="small"
+        onClick={() => setOpen(!open)}
+        sx={{ fontSize: 12, color: "#64748b", px: 1.5, py: 0.5, border: "1px solid rgba(15,23,42,.1)", borderRadius: 1.5, fontWeight: 600, mb: open ? 1.5 : 0, "&:hover": { bgcolor: "#f1f5f9" } }}
+      >
+        {open ? "▲ 접기" : `▼ ${label}`}
+      </Button>
+      <Collapse in={open}>{children}</Collapse>
+    </Box>
+  );
+}
+
 /* ─────────── 메인 페이지 ─────────── */
 
 export default function ProjectPage() {
@@ -158,14 +176,26 @@ export default function ProjectPage() {
               </Stack>
 
               <Box>
-                <Typography sx={{ ...specTypeSx.h3, color: "#f8fafc", fontSize: { xs: 26, md: 38 }, lineHeight: 1.12, mb: 1.5 }}>
-                  PR 실시간 이슈 현황판
+                {/* P2-1: 업무 효익 중심 결론형 카피 / P2-4: 단정 표현 제거 */}
+                <Typography sx={{ ...specTypeSx.h3, color: "#f8fafc", fontSize: { xs: 22, md: 34 }, lineHeight: 1.2, mb: 1.5 }}>
+                  부정 기사 확산을 수치로 파악하고,<br />보고까지 빠르게 연결합니다
                 </Typography>
-                <Typography sx={{ ...specTypeSx.body1, color: "#94a3b8", maxWidth: 600, lineHeight: 1.85 }}>
-                  게임 PR 현장에서 위기 상황을 빠르게 판단하기 위해 제작한 모니터링 도구입니다.
-                  넥슨 주요 IP 5종의 뉴스를 자동 수집해 감성 논조·기사량 변화·위험 주제·보도 채널을 종합한
-                  위험도 점수를 실시간으로 산출합니다.
+                <Typography sx={{ ...specTypeSx.body1, color: "#94a3b8", maxWidth: 560, lineHeight: 1.85 }}>
+                  넥슨 주요 IP 5종의 뉴스를 자동 수집·분석해 위험도 점수 하나로 요약합니다.<br />
+                  매일 아침 브리핑부터 이슈 선제 감지까지, 판단 속도를 높이기 위해 제작했습니다.
                 </Typography>
+              </Box>
+
+              {/* P2-5: 히어로 내 즉시 액션 CTA */}
+              <Box>
+                <Button
+                  component={Link}
+                  href="/rebuild/nexon"
+                  variant="contained"
+                  sx={{ ...actionButtonSx.primary, fontSize: 15, px: 3, py: 1.25 }}
+                >
+                  지금 위험도 보기 →
+                </Button>
               </Box>
 
               <Stack direction="row" spacing={2} alignItems="center" sx={{ pt: 0.5 }}>
@@ -180,6 +210,42 @@ export default function ProjectPage() {
                 </Box>
               </Stack>
             </Stack>
+          </Paper>
+
+          {/* P2-2: 핵심 3블록 요약 — 지금상태 / 왜위험 / 지금액션 */}
+          <Paper sx={{ ...sectionCardSx, p: { xs: 2, md: 3 } }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3,1fr)" }, gap: 2 }}>
+              <Box sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.07)" }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 13, color: "#0f3b66", letterSpacing: ".04em", textTransform: "uppercase", mb: 1 }}>
+                  지금 상태
+                </Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: 22, color: "#0f172a", mb: 0.5 }}>IP 5종</Typography>
+                <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>
+                  넥슨 주요 타이틀 뉴스를 10분 주기로 자동 수집·분석 중입니다.
+                </Typography>
+              </Box>
+              <Box sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#fff7ed", border: "1px solid #fed7aa" }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 13, color: "#c2410c", letterSpacing: ".04em", textTransform: "uppercase", mb: 1 }}>
+                  왜 필요한가
+                </Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: 22, color: "#0f172a", mb: 0.5 }}>확산 속도</Typography>
+                <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7 }}>
+                  부정 기사가 종합 매체로 번지기 전, 징후 단계에서 감지해야 대응이 가능합니다.
+                </Typography>
+              </Box>
+              <Box sx={{ p: 2.5, borderRadius: 1.5, bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 13, color: "#15803d", letterSpacing: ".04em", textTransform: "uppercase", mb: 1 }}>
+                  지금 액션
+                </Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: 22, color: "#0f172a", mb: 0.5 }}>점수 확인</Typography>
+                <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7, mb: 1.25 }}>
+                  위험도 점수와 주요 기사를 확인해 보고 자료를 바로 구성하세요.
+                </Typography>
+                <Button component={Link} href="/rebuild/nexon" size="small" variant="outlined" sx={{ fontSize: 12, borderColor: "#16a34a", color: "#15803d", "&:hover": { bgcolor: "#dcfce7" } }}>
+                  위험도 보기 →
+                </Button>
+              </Box>
+            </Box>
           </Paper>
 
           {/* PR 인사이트 — 왜 만들었나 */}
@@ -219,60 +285,62 @@ export default function ProjectPage() {
               ))}
             </Stack>
 
-            {/* 감성 키워드 사전 */}
+            {/* P2-3: 감성 키워드 사전 — 기본 접힘 */}
             <Box sx={{ mb: 3 }}>
               <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#64748b", letterSpacing: ".04em", textTransform: "uppercase", mb: 1.5 }}>
                 감성 분석 키워드 사전
               </Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1.5 }}>
-                <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#fef2f2", border: "1px solid #fecaca" }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#dc2626", mb: 1 }}>부정 키워드</Typography>
-                  <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-                    {[
-                      ["먹튀", 1.0], ["소송", 1.0], ["사기", 1.0], ["집단소송", 1.0], ["개인정보유출", 1.0],
-                      ["보이콧", 0.9],
-                      ["논란", 0.8], ["환불", 0.8], ["분노", 0.8],
-                      ["악재", 0.7], ["장애", 0.7], ["버그", 0.7], ["오류", 0.7], ["항의", 0.7],
-                      ["불만", 0.5], ["우려", 0.5], ["하락", 0.5], ["감소", 0.5],
-                    ].map(([kw, w]) => (
-                      <Box key={kw} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, px: 1, py: 0.25, borderRadius: 1, bgcolor: "#fff", border: "1px solid #fecaca", fontSize: 12 }}>
-                        <Box component="span" sx={{ color: "#dc2626", fontWeight: 600 }}>{kw}</Box>
-                        <Box component="span" sx={{ color: "#94a3b8", fontSize: 11 }}>{w}</Box>
-                      </Box>
-                    ))}
-                  </Stack>
+              <CollapsibleSection label="키워드 사전 상세 보기">
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1.5 }}>
+                  <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#fef2f2", border: "1px solid #fecaca" }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#dc2626", mb: 1 }}>부정 키워드</Typography>
+                    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+                      {[
+                        ["먹튀", 1.0], ["소송", 1.0], ["사기", 1.0], ["집단소송", 1.0], ["개인정보유출", 1.0],
+                        ["보이콧", 0.9],
+                        ["논란", 0.8], ["환불", 0.8], ["분노", 0.8],
+                        ["악재", 0.7], ["장애", 0.7], ["버그", 0.7], ["오류", 0.7], ["항의", 0.7],
+                        ["불만", 0.5], ["우려", 0.5], ["하락", 0.5], ["감소", 0.5],
+                      ].map(([kw, w]) => (
+                        <Box key={kw} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, px: 1, py: 0.25, borderRadius: 1, bgcolor: "#fff", border: "1px solid #fecaca", fontSize: 12 }}>
+                          <Box component="span" sx={{ color: "#dc2626", fontWeight: 600 }}>{kw}</Box>
+                          <Box component="span" sx={{ color: "#94a3b8", fontSize: 11 }}>{w}</Box>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                  <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#16a34a", mb: 1 }}>긍정 키워드</Typography>
+                    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+                      {[
+                        ["역대급", 1.0], ["글로벌1위", 1.0],
+                        ["흥행", 0.8], ["수상", 0.8], ["신기록", 0.8], ["호평", 0.8], ["대박", 0.8],
+                        ["이용자 증가", 0.7], ["복구 완료", 0.7],
+                        ["성장", 0.5], ["기대", 0.5],
+                        ["증가", 0.4], ["관심", 0.4],
+                      ].map(([kw, w]) => (
+                        <Box key={kw} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, px: 1, py: 0.25, borderRadius: 1, bgcolor: "#fff", border: "1px solid #bbf7d0", fontSize: 12 }}>
+                          <Box component="span" sx={{ color: "#16a34a", fontWeight: 600 }}>{kw}</Box>
+                          <Box component="span" sx={{ color: "#94a3b8", fontSize: 11 }}>{w}</Box>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                  <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.08)" }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#475569", mb: 1 }}>완화 키워드 <Box component="span" sx={{ fontWeight: 400, color: "#94a3b8" }}>(부정 점수 ×0.75)</Box></Typography>
+                    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+                      {["개선", "해결", "대응", "조치", "보상안", "재발방지", "정상화", "복구"].map((kw) => (
+                        <Box key={kw} component="span" sx={{ px: 1, py: 0.25, borderRadius: 1, bgcolor: "#fff", border: "1px solid rgba(15,23,42,.12)", fontSize: 12, color: "#475569", fontWeight: 600 }}>
+                          {kw}
+                        </Box>
+                      ))}
+                    </Stack>
+                    <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 1.25, lineHeight: 1.6 }}>
+                      '논란 + 대응' 기사처럼 부정어와 완화어가 함께 나오면 부정 점수를 낮춰 과대평가를 방지합니다.
+                    </Typography>
+                  </Box>
                 </Box>
-                <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#16a34a", mb: 1 }}>긍정 키워드</Typography>
-                  <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-                    {[
-                      ["역대급", 1.0], ["글로벌1위", 1.0],
-                      ["흥행", 0.8], ["수상", 0.8], ["신기록", 0.8], ["호평", 0.8], ["대박", 0.8],
-                      ["이용자 증가", 0.7], ["복구 완료", 0.7],
-                      ["성장", 0.5], ["기대", 0.5],
-                      ["증가", 0.4], ["관심", 0.4],
-                    ].map(([kw, w]) => (
-                      <Box key={kw} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, px: 1, py: 0.25, borderRadius: 1, bgcolor: "#fff", border: "1px solid #bbf7d0", fontSize: 12 }}>
-                        <Box component="span" sx={{ color: "#16a34a", fontWeight: 600 }}>{kw}</Box>
-                        <Box component="span" sx={{ color: "#94a3b8", fontSize: 11 }}>{w}</Box>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Box>
-                <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#f8fafc", border: "1px solid rgba(15,23,42,.08)" }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#475569", mb: 1 }}>완화 키워드 <Box component="span" sx={{ fontWeight: 400, color: "#94a3b8" }}>(부정 점수 ×0.75)</Box></Typography>
-                  <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-                    {["개선", "해결", "대응", "조치", "보상안", "재발방지", "정상화", "복구"].map((kw) => (
-                      <Box key={kw} component="span" sx={{ px: 1, py: 0.25, borderRadius: 1, bgcolor: "#fff", border: "1px solid rgba(15,23,42,.12)", fontSize: 12, color: "#475569", fontWeight: 600 }}>
-                        {kw}
-                      </Box>
-                    ))}
-                  </Stack>
-                  <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 1.25, lineHeight: 1.6 }}>
-                    '논란 + 대응' 기사처럼 부정어와 완화어가 함께 나오면 부정 점수를 낮춰 과대평가를 방지합니다.
-                  </Typography>
-                </Box>
-              </Box>
+              </CollapsibleSection>
             </Box>
 
             {/* 위험 주제 가중치 */}
@@ -305,17 +373,19 @@ export default function ProjectPage() {
               ))}
             </Box>
 
-            {/* 산식 참고 */}
-            <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#0f172a" }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: ".06em", textTransform: "uppercase", mb: 1 }}>
-                기술 참고 — 실제 산식
-              </Typography>
-              <Box sx={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: { xs: 11, md: 13 }, lineHeight: 2, color: "#94a3b8" }}>
-                <Box><Box component="span" sx={{ color: "#9acb19" }}>위험도</Box>{" = 100 × ( 0.50×감성 + 0.25×급증 + 0.15×위험주제 + 0.10×(채널×부정비율) )"}</Box>
-                <Box><Box component="span" sx={{ color: "#8fb6ff" }}>이슈열기</Box>{" = 100 × ( 0.45×급증 + 0.35×위험주제 + 0.20×채널 )"}</Box>
-                <Box><Box component="span" sx={{ color: "#64748b" }}>최종점수</Box>{" = EMA 평활화  ( α 0.1–1.0 동적 조정, 단기 노이즈 제거 )"}</Box>
+            {/* P2-3: 산식 — 기본 접힘 */}
+            <CollapsibleSection label="기술 참고 — 실제 산식 보기">
+              <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "#0f172a" }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: ".06em", textTransform: "uppercase", mb: 1 }}>
+                  기술 참고 — 실제 산식
+                </Typography>
+                <Box sx={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: { xs: 11, md: 13 }, lineHeight: 2, color: "#94a3b8" }}>
+                  <Box><Box component="span" sx={{ color: "#9acb19" }}>위험도</Box>{" = 100 × ( 0.50×감성 + 0.25×급증 + 0.15×위험주제 + 0.10×(채널×부정비율) )"}</Box>
+                  <Box><Box component="span" sx={{ color: "#8fb6ff" }}>이슈열기</Box>{" = 100 × ( 0.45×급증 + 0.35×위험주제 + 0.20×채널 )"}</Box>
+                  <Box><Box component="span" sx={{ color: "#64748b" }}>최종점수</Box>{" = EMA 평활화  ( α 0.1–1.0 동적 조정, 단기 노이즈 제거 )"}</Box>
+                </Box>
               </Box>
-            </Box>
+            </CollapsibleSection>
           </Paper>
 
           {/* PR 실무 활용 */}
@@ -505,22 +575,24 @@ export default function ProjectPage() {
             </Box>
           </Paper>
 
-          {/* 기술 스택 — 하단, 간략하게 */}
+          {/* P2-3: 기술 스택 — 기본 접힘 */}
           <Paper sx={{ ...sectionCardSx, p: { xs: 2.5, md: 4 } }}>
             <SectionTitle>구현 스택</SectionTitle>
             <SectionSub>기획·설계·개발·배포 전 과정을 직접 수행</SectionSub>
-            <Stack spacing={2}>
-              {STACK.map((g) => (
-                <Box key={g.group}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: ".06em", textTransform: "uppercase", mb: 1 }}>
-                    {g.group}
-                  </Typography>
-                  <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap>
-                    {g.items.map((name) => <StackBadge key={name} name={name} />)}
-                  </Stack>
-                </Box>
-              ))}
-            </Stack>
+            <CollapsibleSection label="기술 스택 상세 보기">
+              <Stack spacing={2} sx={{ mt: 0.5 }}>
+                {STACK.map((g) => (
+                  <Box key={g.group}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: ".06em", textTransform: "uppercase", mb: 1 }}>
+                      {g.group}
+                    </Typography>
+                    <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap>
+                      {g.items.map((name) => <StackBadge key={name} name={name} />)}
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </CollapsibleSection>
           </Paper>
 
           {/* 개발자 + CTA */}
@@ -532,7 +604,8 @@ export default function ProjectPage() {
                 </Box>
                 <Box>
                   <Typography sx={{ fontWeight: 800, fontSize: 17, color: "#0f172a" }}>문종원</Typography>
-                  <Typography sx={{ fontSize: 14, color: "#64748b", mt: 0.25 }}>PR 실시간 이슈 현황판 기획 · 설계 · 개발</Typography>
+                  {/* P2-4: 단정 문구 제거 */}
+                  <Typography sx={{ fontSize: 14, color: "#64748b", mt: 0.25 }}>게임 IP 리스크 모니터링 — 기획 · 설계 · 개발</Typography>
                   <Typography component="a" href="mailto:rmrmfwhddnjs@gmail.com" sx={{ fontSize: 13, color: "#0f3b66", mt: 0.25, display: "block", textDecoration: "none", "&:hover": { textDecoration: "underline" } }}>
                     rmrmfwhddnjs@gmail.com
                   </Typography>
@@ -542,10 +615,11 @@ export default function ProjectPage() {
 
             <Box sx={{ pt: 3, borderTop: "1px solid rgba(15,23,42,.07)" }}>
               <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#0f172a", mb: 0.5 }}>직접 확인해보세요</Typography>
-              <Typography sx={{ fontSize: 14, color: "#64748b", mb: 2 }}>실시간 모니터링·과거 분석·경쟁사 비교 모든 기능이 작동 중입니다.</Typography>
+              {/* P2-4: "모든 기능이 작동 중" → 완화 표현 */}
+              <Typography sx={{ fontSize: 14, color: "#64748b", mb: 2 }}>모니터링·과거 분석·경쟁사 비교 기능을 직접 사용해 볼 수 있습니다.</Typography>
               <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
                 <Button component={Link} href="/rebuild/nexon" variant="contained" sx={actionButtonSx.primary}>
-                  넥슨 IP 리스크 →
+                  넥슨 IP 위험도 보기 →
                 </Button>
                 <Button component={Link} href="/rebuild/nexon/backtest" variant="outlined" sx={actionButtonSx.secondary}>
                   과거 분석 →
