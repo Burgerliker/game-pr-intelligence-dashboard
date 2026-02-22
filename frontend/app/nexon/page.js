@@ -556,8 +556,8 @@ export default function NexonPage() {
     return { label: "낮음", color: "success" };
   }, [riskValue]);
   const recent24hArticles = Number(riskScore?.article_count_window ?? riskScore?.exposure_count_window ?? 0);
-  const totalArticleSum = useMemo(
-    () => (dailyRows || []).reduce((acc, row) => acc + getDailyArticleCount(row), 0),
+  const totalArticleSum30d = useMemo(
+    () => (dailyRows || []).slice(-30).reduce((acc, row) => acc + getDailyArticleCount(row), 0),
     [dailyRows]
   );
   const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
@@ -972,7 +972,7 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    minHeight: { xs: 212, sm: 236, md: 256 },
+                    minHeight: { xs: 250, sm: 268, md: 286 },
                     p: { xs: 2, sm: 2.25, md: 2.5 },
                     borderRadius: 2.4,
                     color: "#eef2ff",
@@ -1040,8 +1040,10 @@ export default function NexonPage() {
                           alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
                       }}
                     />
-                    <Chip variant="outlined" label={`오늘 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
-                    <Chip variant="outlined" label={`이슈 분류 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`24h 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`이슈 분류 수 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`총 기사 수 (한달 기준) ${totalArticleSum30d.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`핵심 위험 이슈 ${topRisk?.theme || "-"}`} sx={bannerMetricChipSx} />
                   </Stack>
                 </Paper>
               ) : null}
@@ -1138,126 +1140,6 @@ export default function NexonPage() {
             </Box>
           </CardContent>
         </Card>
-
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, minmax(0, 1fr))",
-              lg: "repeat(4, minmax(0, 1fr))",
-            },
-            gap: { xs: 1, sm: 1.2, md: 1.5 },
-          }}
-        >
-          {[
-            {
-              k: "선택 게임",
-              v: riskData?.meta?.ip || "-",
-              s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}`,
-              barColor: riskAccent.neutral.color,
-              valueType: "label",
-            },
-            {
-              k: "총 기사 수 (한달 기준)",
-              v: totalArticleSum.toLocaleString(),
-              s: "필터 기간 합계",
-              barColor: riskAccent.neutral.color,
-              valueType: "number",
-            },
-            {
-              k: "핵심 위험 이슈",
-              v: topRisk?.theme || "-",
-              s: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}% · 이슈 점수 ${topRiskThemeScore}점` : "-",
-              barColor: riskAccent.neutral.color,
-              valueType: "label",
-            },
-            {
-              k: "이슈 분류 수",
-              v: Number(clusterData?.meta?.cluster_count || 0),
-              s: "유사 기사 그룹",
-              tip: tipMap.cluster,
-              barColor: riskAccent.neutral.color,
-              valueType: "number",
-            },
-          ].map((item) => (
-            <Box key={item.k} sx={{ display: "flex", minWidth: 0 }}>
-              <Box sx={{ ...metricCardSx, width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-                <Box sx={{ height: 3, bgcolor: item.barColor, flexShrink: 0 }} />
-                <Box
-                  sx={{
-                    p: { xs: 2, sm: 2.25, md: 2.5 },
-                    flex: 1,
-                    width: "100%",
-                    minWidth: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    gap: 1.1,
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minWidth: 0, minHeight: 36 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 700,
-                        color: "#334155",
-                        lineHeight: 1.35,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        pr: 0.8,
-                      }}
-                    >
-                      {item.k}
-                    </Typography>
-                    <Box sx={{ width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
-                      {item.tip ? <Info {...iconProps({ size: 16 })} title={item.tip} /> : null}
-                    </Box>
-                  </Box>
-                  <Typography
-                    variant="h5"
-                    sx={{
-                      ...metricValueSx,
-                      fontSize: item.valueType === "number" ? { xs: 44, sm: 50, md: MUI_SPEC.type.h3 } : { xs: 28, sm: 34, md: MUI_SPEC.type.h4 },
-                      lineHeight: item.valueType === "number" ? 1.02 : 1.1,
-                      whiteSpace: item.valueType === "number" ? "nowrap" : "normal",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      letterSpacing: item.valueType === "number" ? "-.02em" : "-.01em",
-                      display: "-webkit-box",
-                      WebkitLineClamp: item.valueType === "number" ? 1 : 2,
-                      WebkitBoxOrient: "vertical",
-                      minHeight: item.valueType === "number" ? { xs: 52, sm: 58, md: 62 } : { xs: 56, sm: 64, md: 68 },
-                    }}
-                  >
-                    {item.v}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: "#64748b",
-                      fontSize: 12,
-                      lineHeight: 1.35,
-                      fontVariantNumeric: "tabular-nums",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      mt: "auto",
-                    }}
-                  >
-                    {item.s || "-"}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          ))}
-        </Box>
-        <Typography variant="caption" color="text.secondary" sx={{ px: 0.2, display: "block" }}>
-          총 기사 수는 일자별 기사 수(article_count) 합계입니다. 이슈 분류는 유사 기사 그룹 수입니다.
-        </Typography>
 
         {false ? (
         <Card variant="outlined" sx={sectionCardSx}>
