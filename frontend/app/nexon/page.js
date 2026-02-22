@@ -65,15 +65,15 @@ const DIAG_SCOPE = {
 const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
-    accent: "#6aa7ff",
-    bg: "#4a90e2",
+    accent: "#8db5ee",
+    bg: "#5f89bd",
     glow: "none",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "#bf7421", glow: "none" },
-  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "#c85f84", glow: "none" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "#2ea3be", glow: "none" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "#5f77cc", glow: "none" },
-  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "#34a877", glow: "none" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#f2cb89", bg: "#a5692f", glow: "none" },
+  dnf: { kicker: "DNF", accent: "#f2aebd", bg: "#a45b73", glow: "none" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#a7dff0", bg: "#3b889b", glow: "none" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#b6c8f2", bg: "#5f72ad", glow: "none" },
+  fconline: { kicker: "FC ONLINE", accent: "#b7e3cd", bg: "#3e8d67", glow: "none" },
 };
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
