@@ -82,7 +82,6 @@ const toDayTimestamp = (raw) => {
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
-const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
 
 const bannerPagerBtnSx = {
   width: 36,
