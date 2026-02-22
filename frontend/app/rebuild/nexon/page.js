@@ -1021,27 +1021,48 @@ export default function NexonPage() {
                       backgroundColor: "#ffffff",
                     }}
                   />
-                  <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
-                    {currentBanner.visual.kicker}
-                  </Typography>
-                  <Typography sx={{ ...specTypeSx.h4, mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06, color: "#0f172a" }}>
-                    {currentBanner.name}
-                  </Typography>
-                  <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "#475569" }}>
-                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 위기 지수/이슈 흐름" : "위기 흐름 · 이슈 분류 · 집중 모니터링"}
-                  </Typography>
-                  <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.2, md: 1.6 } }}>
-                    <Chip
-                      variant="outlined"
-                      label={`위기 지수 ${riskValue.toFixed(1)}`}
+                  <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" gap={{ xs: 1.2, md: 2 }}>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                        {currentBanner.visual.kicker}
+                      </Typography>
+                      <Typography sx={{ ...specTypeSx.h4, mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06, color: "#0f172a" }}>
+                        {currentBanner.name}
+                      </Typography>
+                      <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "#475569" }}>
+                        {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 위기 지수/이슈 흐름" : "위기 흐름 · 이슈 분류 · 집중 모니터링"}
+                      </Typography>
+                      <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.2, md: 1.6 } }}>
+                        <Chip
+                          variant="outlined"
+                          label={`위기 지수 ${riskValue.toFixed(1)}`}
+                          sx={{
+                            ...bannerMetricChipSx,
+                            borderColor:
+                              alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
+                          }}
+                        />
+                        <Chip variant="outlined" label={`오늘 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                        <Chip variant="outlined" label={`이슈 분류 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                      </Stack>
+                    </Box>
+                    <Stack
+                      spacing={0.8}
                       sx={{
-                        ...bannerMetricChipSx,
-                        borderColor:
-                          alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
+                        width: { xs: "100%", md: 260 },
+                        alignSelf: "stretch",
+                        display: { xs: "none", md: "flex" },
                       }}
-                    />
-                    <Chip variant="outlined" label={`오늘 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
-                    <Chip variant="outlined" label={`이슈 분류 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                    >
+                      <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.6, borderColor: "#dbe2f0", background: "rgba(255,255,255,.7)" }}>
+                        <Typography variant="caption" sx={{ color: "#64748b" }}>위기 점수</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 24, lineHeight: 1.1 }}>{riskValue.toFixed(1)}</Typography>
+                      </Paper>
+                      <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.6, borderColor: "#dbe2f0", background: "rgba(255,255,255,.7)" }}>
+                        <Typography variant="caption" sx={{ color: "#64748b" }}>부정 비율</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 24, lineHeight: 1.1 }}>{negativeRatioPct.toFixed(1)}%</Typography>
+                      </Paper>
+                    </Stack>
                   </Stack>
                 </Paper>
               ) : null}
