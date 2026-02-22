@@ -599,24 +599,6 @@ export default function NexonPage() {
     if (uncertaintyValue >= 0.2) return "불확실 기사 비중이 일부 존재";
     return "여론 판정 안정";
   }, [uncertaintyValue]);
-  const dailyRiskScoreByDate = useMemo(() => {
-    const bucket = new Map();
-    (riskTimeseries || []).forEach((row) => {
-      const dateKey = String(row?.ts || "").slice(0, 10);
-      if (!dateKey) return;
-      const score = Number(row?.risk_score);
-      if (!Number.isFinite(score)) return;
-      const prev = bucket.get(dateKey) || { sum: 0, count: 0 };
-      prev.sum += score;
-      prev.count += 1;
-      bucket.set(dateKey, prev);
-    });
-    const result = new Map();
-    bucket.forEach((value, key) => {
-      result.set(key, value.count > 0 ? value.sum / value.count : 0);
-    });
-    return result;
-  }, [riskTimeseries]);
   const liveInterpretation = useMemo(() => {
     if (recent24hArticles < 5) return "보도량이 매우 적어 단기 변동성이 큽니다.";
     if (riskValue >= 70) return "보도량 급증과 고위험 이슈 집중으로 위기 지수가 심각 단계입니다.";
@@ -713,7 +695,7 @@ export default function NexonPage() {
             params.forEach((item) => {
               const name = String(item?.seriesName || "");
               const raw = Number(item?.value || 0);
-              const valueText = name === "위험도" ? `${raw.toFixed(1)}점` : `${raw.toLocaleString()}건`;
+              const valueText = name === "부정 비율" ? `${raw.toFixed(1)}%` : `${raw.toLocaleString()}건`;
               lines.push(`${item?.marker || ""}${name}: ${valueText}`);
             });
             return lines.join("<br/>");
@@ -738,10 +720,10 @@ export default function NexonPage() {
           },
           {
             type: "value",
-            name: "위험도(0~100)",
+            name: "부정 비율(%)",
             min: 0,
             max: 100,
-            axisLabel: { color: "#64748b", formatter: "{value}" },
+            axisLabel: { color: "#64748b", formatter: "{value}%" },
           },
         ],
         series: [
@@ -758,7 +740,7 @@ export default function NexonPage() {
             progressiveThreshold: 3000,
           },
           {
-            name: "위험도",
+            name: "부정 비율",
             type: "line",
             yAxisIndex: 1,
             smooth: true,
@@ -766,17 +748,14 @@ export default function NexonPage() {
             sampling: "lttb",
             progressive: 2000,
             progressiveThreshold: 3000,
-            data: sortedDailyRows.map((r) => {
-              const dateKey = String(r?.date || "").slice(0, 10);
-              return dailyRiskScoreByDate.has(dateKey) ? Number(dailyRiskScoreByDate.get(dateKey)) : null;
-            }),
+            data: sortedDailyRows.map((r) => Number(r.negative_ratio || 0)),
             lineStyle: { color: "#dc3c4a", width: 2 },
           },
         ],
       },
       { notMerge: true, lazyUpdate: true }
     );
-  }, [chartsReady, sortedDailyRows, dailyRiskScoreByDate]);
+  }, [chartsReady, sortedDailyRows]);
 
   useEffect(() => {
     if (!chartsReady || !outletChartInstRef.current) return;
@@ -1187,14 +1166,14 @@ export default function NexonPage() {
               valueType: "label",
             },
             {
-              k: "총 기사 수 (최근 1개월)",
+              k: "총 기사 수",
               v: totalArticleSum30d.toLocaleString(),
               s: "최근 30일 합계",
               barColor: riskAccent.neutral.color,
               valueType: "number",
             },
             {
-              k: "핵심 이슈",
+              k: "핵심 위험 이슈",
               v: topRisk?.theme || "-",
               s: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}% · 이슈 점수 ${topRiskThemeScore}점` : "-",
               barColor: riskAccent.neutral.color,
@@ -1527,7 +1506,7 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
-            <Typography variant="h6" sx={sectionTitleSx}>일별 보도량 및 위험도 추이</Typography>
+            <Typography variant="h6" sx={sectionTitleSx}>일별 보도량 및 부정 비율 추이</Typography>
             <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 200, sm: 220, md: 240 } }} />
           </CardContent>
         </Card>
@@ -1547,7 +1526,7 @@ export default function NexonPage() {
             </CardContent></Card>
           <Card variant="outlined" sx={sectionCardSx}><CardContent sx={contentCardSx}>
               <Typography variant="h6" sx={{ ...sectionTitleSx, lineHeight: 1.25 }}>
-                핵심 이슈<br />점수
+                위험 이슈<br />점수
               </Typography>
               <Box ref={themeChartRef} sx={{ width: "100%", height: { xs: 240, md: 300 } }} />
             </CardContent></Card>
@@ -1573,7 +1552,7 @@ export default function NexonPage() {
           <Grid container spacing={1.2}>
             <Grid item xs={12} md={4}>
               <Paper variant="outlined" sx={subPanelSx}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 이슈</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 위험 이슈</Typography>
                 <Typography variant="h6" sx={{ mt: 1 }}>{topRisk?.theme || "-"}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   이슈 점수 {topRiskThemeScore ?? "-"}점 · 부정 {topRisk?.negative_ratio ?? "-"}%
