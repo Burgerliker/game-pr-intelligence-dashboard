@@ -32,7 +32,7 @@ export const MUI_SPEC = {
     compact: 1.1,
   },
   card: {
-    metricMinHeight: 176,
+    metricMinHeight: 190,
     contentPadding: 16,
     contentPaddingLg: 24,
   },

@@ -1190,21 +1190,25 @@ export default function NexonPage() {
                     flex: 1,
                     width: "100%",
                     minWidth: 0,
-                    display: "grid",
-                    gridTemplateRows: "32px minmax(76px,1fr)",
-                    alignItems: "start",
-                    rowGap: 0.8,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: 1.1,
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
+                  <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minWidth: 0, minHeight: 36 }}>
                     <Typography
                       variant="body2"
                       sx={{
                         fontWeight: 700,
                         color: "#334155",
-                        whiteSpace: "nowrap",
+                        lineHeight: 1.35,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        pr: 0.8,
                       }}
                     >
                       {item.k}
@@ -1219,13 +1223,32 @@ export default function NexonPage() {
                       ...metricValueSx,
                       fontSize: item.valueType === "number" ? { xs: 44, sm: 50, md: MUI_SPEC.type.h3 } : { xs: 28, sm: 34, md: MUI_SPEC.type.h4 },
                       lineHeight: item.valueType === "number" ? 1.02 : 1.1,
-                      whiteSpace: "nowrap",
+                      whiteSpace: item.valueType === "number" ? "nowrap" : "normal",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       letterSpacing: item.valueType === "number" ? "-.02em" : "-.01em",
+                      display: "-webkit-box",
+                      WebkitLineClamp: item.valueType === "number" ? 1 : 2,
+                      WebkitBoxOrient: "vertical",
+                      minHeight: item.valueType === "number" ? { xs: 52, sm: 58, md: 62 } : { xs: 56, sm: 64, md: 68 },
                     }}
                   >
                     {item.v}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "#64748b",
+                      fontSize: 12,
+                      lineHeight: 1.35,
+                      fontVariantNumeric: "tabular-nums",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      mt: "auto",
+                    }}
+                  >
+                    {item.s || "-"}
                   </Typography>
                 </Box>
               </Box>
