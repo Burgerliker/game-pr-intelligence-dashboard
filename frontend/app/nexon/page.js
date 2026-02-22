@@ -65,15 +65,15 @@ const DIAG_SCOPE = {
 const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
-    accent: "#8fb6ff",
-    bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)",
-    glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)",
+    accent: "#6aa7ff",
+    bg: "linear-gradient(136deg,#2f6fd4 0%,#4a90e2 55%,#78b3ff 100%)",
+    glow: "radial-gradient(circle at 82% 18%, rgba(255,255,255,.2) 0%, rgba(255,255,255,0) 64%)",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
-  dnf: { kicker: "DNF", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
-  fconline: { kicker: "FC ONLINE", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "linear-gradient(136deg,#8d4f00 0%,#bf7421 56%,#e3a852 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(255,239,206,.24) 0%, rgba(255,239,206,0) 64%)" },
+  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "linear-gradient(136deg,#a23e63 0%,#c85f84 54%,#ef86a3 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(255,220,229,.26) 0%, rgba(255,220,229,0) 64%)" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "linear-gradient(136deg,#0f7c95 0%,#2ea3be 54%,#66c8df 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(222,248,255,.24) 0%, rgba(222,248,255,0) 64%)" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "linear-gradient(136deg,#4557a8 0%,#5f77cc 54%,#8ea4ef 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(225,233,255,.24) 0%, rgba(225,233,255,0) 64%)" },
+  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "linear-gradient(136deg,#1e7d5a 0%,#34a877 54%,#68c997 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(224,249,235,.24) 0%, rgba(224,249,235,0) 64%)" },
 };
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
@@ -624,7 +624,7 @@ export default function NexonPage() {
   const bannerKpiCardSx = {
     p: { xs: 1.05, md: 1.15 },
     borderRadius: 1.8,
-    bgcolor: "rgba(12,22,38,.52)",
+    bgcolor: "rgba(255,255,255,.14)",
     borderColor: "rgba(148,163,184,.38)",
     color: "rgba(241,245,249,.97)",
     minHeight: { xs: 74, md: 78 },
