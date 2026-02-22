@@ -66,14 +66,14 @@ const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
     accent: "#6aa7ff",
-    bg: "linear-gradient(136deg,#2f6fd4 0%,#4a90e2 55%,#78b3ff 100%)",
-    glow: "radial-gradient(circle at 82% 18%, rgba(255,255,255,.2) 0%, rgba(255,255,255,0) 64%)",
+    bg: "#4a90e2",
+    glow: "none",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "linear-gradient(136deg,#8d4f00 0%,#bf7421 56%,#e3a852 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(255,239,206,.24) 0%, rgba(255,239,206,0) 64%)" },
-  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "linear-gradient(136deg,#a23e63 0%,#c85f84 54%,#ef86a3 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(255,220,229,.26) 0%, rgba(255,220,229,0) 64%)" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "linear-gradient(136deg,#0f7c95 0%,#2ea3be 54%,#66c8df 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(222,248,255,.24) 0%, rgba(222,248,255,0) 64%)" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "linear-gradient(136deg,#4557a8 0%,#5f77cc 54%,#8ea4ef 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(225,233,255,.24) 0%, rgba(225,233,255,0) 64%)" },
-  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "linear-gradient(136deg,#1e7d5a 0%,#34a877 54%,#68c997 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(224,249,235,.24) 0%, rgba(224,249,235,0) 64%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "#bf7421", glow: "none" },
+  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "#c85f84", glow: "none" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "#2ea3be", glow: "none" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "#5f77cc", glow: "none" },
+  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "#34a877", glow: "none" },
 };
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
@@ -1033,8 +1033,7 @@ export default function NexonPage() {
                     sx={{
                       position: "absolute",
                       inset: 0,
-                      background:
-                        `${currentBanner.visual.glow || "radial-gradient(circle at 84% 14%, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 60%)"}, linear-gradient(110deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,0) 48%)`,
+                      background: currentBanner.visual.glow || "none",
                       pointerEvents: "none",
                     }}
                   />
