@@ -84,22 +84,25 @@ const getDailyExposure = (row) =>
 const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
 
 const bannerPagerBtnSx = {
-  width: 42,
-  height: 42,
-  borderRadius: 99,
-  border: "1px solid rgba(15,23,42,.14)",
+  height: 38,
+  px: 1.35,
+  borderRadius: 999,
+  border: "1px solid rgba(15,23,42,.12)",
   color: "#0f172a",
-  bgcolor: "rgba(255,255,255,.92)",
-  boxShadow: "0 8px 18px rgba(15,23,42,.12)",
-  transition: "all .2s ease",
+  bgcolor: "rgba(255,255,255,.86)",
+  fontSize: 13,
+  fontWeight: 700,
+  letterSpacing: ".01em",
+  transition: "all .18s ease",
   "&:hover": {
-    bgcolor: "#fff",
+    bgcolor: "rgba(255,255,255,.98)",
     transform: "translateY(-1px)",
-    boxShadow: "0 12px 24px rgba(15,23,42,.16)",
+    boxShadow: "0 10px 18px rgba(15,23,42,.14)",
   },
   "&.Mui-disabled": {
     color: "#94a3b8",
     borderColor: "rgba(148,163,184,.35)",
+    bgcolor: "rgba(248,250,252,.86)",
     boxShadow: "none",
   },
 };
@@ -623,10 +626,10 @@ export default function NexonPage() {
   const controlButtonSx = navButtonSx;
   const bannerMetricChipSx = {
     ...statusChipSx,
-    minHeight: 28,
+    minHeight: 30,
     fontSize: 12,
-    bgcolor: "rgba(255,255,255,.08)",
-    borderColor: "rgba(255,255,255,.22)",
+    bgcolor: "rgba(255,255,255,.12)",
+    borderColor: "rgba(255,255,255,.26)",
     color: "rgba(241,245,249,.95)",
   };
 
@@ -956,10 +959,10 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent>
-            <Stack spacing={1.2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack spacing={1.35}>
+              <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }} spacing={0.7}>
                 <Typography variant="body2" color="text.secondary">
-                  분석 중인 게임
+                  실시간 모니터링 배너
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {Math.max(currentBannerIndex + 1, 1)} / {bannerItems.length}
@@ -972,16 +975,16 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    minHeight: { xs: 212, sm: 236, md: 256 },
-                    p: { xs: 2, sm: 2.25, md: 2.5 },
-                    borderRadius: 2.4,
-                    color: "#eef2ff",
+                    minHeight: { xs: 252, sm: 265, md: 278 },
+                    p: { xs: 2, sm: 2.35, md: 2.6 },
+                    borderRadius: 2.8,
+                    color: "#f8fbff",
                     position: "relative",
                     overflow: "hidden",
-                    border: "1px solid rgba(148,163,184,.22)",
+                    border: "1px solid rgba(148,163,184,.2)",
                     background: currentBanner.visual.bg,
-                    boxShadow: "0 10px 22px rgba(15,23,42,.18)",
-                    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+                    boxShadow: "0 14px 30px rgba(15,23,42,.2)",
+                    isolation: "isolate",
                   }}
                 >
                   <Box
@@ -996,41 +999,66 @@ export default function NexonPage() {
                   <Box
                     sx={{
                       position: "absolute",
-                      left: 0,
-                      top: 0,
-                      width: 4,
-                      height: "100%",
-                      bgcolor: currentBanner.visual.accent,
-                      opacity: 0.9,
+                      width: { xs: 170, md: 220 },
+                      height: { xs: 170, md: 220 },
+                      right: { xs: -55, md: -35 },
+                      bottom: { xs: -65, md: -80 },
+                      borderRadius: "50%",
+                      border: "1px solid rgba(241,245,249,.2)",
+                      background: "radial-gradient(circle, rgba(255,255,255,.22) 0%, rgba(255,255,255,.03) 55%, rgba(255,255,255,0) 100%)",
+                      pointerEvents: "none",
                     }}
                   />
-                  <Chip
-                    label="NEXON"
-                    size="small"
+                  <Box
                     sx={{
                       position: "absolute",
-                      right: { xs: 12, sm: 14, md: 16 },
-                      top: { xs: 12, sm: 14, md: 16 },
-                      height: 26,
-                      fontSize: 12,
-                      letterSpacing: ".22em",
-                      fontWeight: 800,
-                      color: "rgba(241,245,249,.95)",
-                      border: "1px solid rgba(241,245,249,.4)",
-                      backgroundColor: "rgba(15,23,42,.25)",
-                      backdropFilter: "blur(4px)",
+                      left: 0,
+                      top: 0,
+                      width: 5,
+                      height: "100%",
+                      bgcolor: currentBanner.visual.accent,
                     }}
                   />
-                  <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
-                    {currentBanner.visual.kicker}
-                  </Typography>
-                  <Typography sx={{ ...specTypeSx.h4, mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06 }}>
-                    {currentBanner.name}
-                  </Typography>
-                  <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.86)" }}>
-                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 위기 지수/이슈 흐름" : "위기 흐름 · 이슈 분류 · 집중 모니터링"}
-                  </Typography>
-                  <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.2, md: 1.6 } }}>
+
+                  <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2} sx={{ position: "relative", zIndex: 2 }}>
+                    <Box sx={{ maxWidth: { md: "72%" } }}>
+                      <Stack direction="row" spacing={0.9} alignItems="center" sx={{ mb: 0.8 }}>
+                        <Chip
+                          label="NEXON LIVE"
+                          size="small"
+                          sx={{
+                            height: 24,
+                            fontSize: 11,
+                            letterSpacing: ".12em",
+                            fontWeight: 800,
+                            color: "rgba(241,245,249,.98)",
+                            border: "1px solid rgba(241,245,249,.38)",
+                            backgroundColor: "rgba(15,23,42,.28)",
+                          }}
+                        />
+                        <Typography sx={{ fontSize: 11, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                          {currentBanner.visual.kicker}
+                        </Typography>
+                      </Stack>
+                      <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 32, sm: 40, md: 46 }, lineHeight: 1.04, mb: 0.7 }}>
+                        {currentBanner.name}
+                      </Typography>
+                      <Typography sx={{ fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.9)", maxWidth: 680 }}>
+                        {currentBanner.id === "all" ? "넥슨 전체 이슈를 하나의 보드에서 추적합니다. 급등 신호, 분류 변화, 매체 확산을 실시간으로 확인하세요." : "선택된 IP의 위기 지수와 기사 확산 패턴을 집중 추적합니다. 급변 구간을 우선적으로 대응하세요."}
+                      </Typography>
+                    </Box>
+                    <Stack spacing={0.8} sx={{ minWidth: { md: 198 }, alignItems: { xs: "flex-start", md: "flex-end" }, pt: { md: 0.35 } }}>
+                      <Typography sx={{ fontSize: 11, letterSpacing: ".09em", color: "rgba(226,232,240,.9)" }}>ALERT</Typography>
+                      <Typography sx={{ fontSize: { xs: 30, md: 34 }, lineHeight: 1, fontWeight: 800, color: currentBanner.visual.accent }}>
+                        {alertLevel}
+                      </Typography>
+                      <Typography sx={{ fontSize: 12, color: "rgba(226,232,240,.9)" }}>
+                        위험도 {riskMeaning.label}
+                      </Typography>
+                    </Stack>
+                  </Stack>
+
+                  <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.5, md: 1.8 }, position: "relative", zIndex: 2 }}>
                     <Chip
                       variant="outlined"
                       label={`위기 지수 ${riskValue.toFixed(1)}`}
@@ -1040,8 +1068,9 @@ export default function NexonPage() {
                           alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
                       }}
                     />
-                    <Chip variant="outlined" label={`오늘 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
-                    <Chip variant="outlined" label={`이슈 분류 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`24h 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`이슈 분류 ${Number(clusterData?.meta?.cluster_count || 0)}개`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`마지막 갱신 ${lastUpdatedAt || "-"}`} sx={bannerMetricChipSx} />
                   </Stack>
                 </Paper>
               ) : null}
@@ -1052,59 +1081,60 @@ export default function NexonPage() {
                 alignItems={{ xs: "stretch", lg: "center" }}
                 spacing={1}
               >
-                <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minHeight: 42 }}>
-                  <IconButton
-                    size="small"
-                    aria-label="이전 게임"
+                <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minHeight: 40 }}>
+                  <Button
+                    startIcon={<ChevronLeft {...iconProps({ size: 18 })} />}
                     sx={bannerPagerBtnSx}
                     onClick={goPrevBanner}
                     disabled={currentBannerIndex <= 0}
                   >
-                    <ChevronLeft {...iconProps({ size: 20 })} />
-                  </IconButton>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      px: 1.2,
-                      py: 0.9,
-                      borderRadius: 99,
-                      borderColor: "rgba(15,23,42,.14)",
-                      backgroundColor: "#f8fafc",
-                    }}
-                  >
-                    <Stack direction="row" spacing={0.8} alignItems="center">
-                      {Array.from({ length: Math.max(bannerItems.length, 1) }).map((_, idx) => {
-                        const active = idx === Math.max(currentBannerIndex, 0);
-                        return (
-                          <Box
-                            key={`banner-dot-${idx}`}
-                            sx={{
-                              width: active ? 26 : 10,
-                              height: 10,
-                              borderRadius: 999,
-                              bgcolor: active ? "#2563eb" : "rgba(100,116,139,.35)",
-                              transition: "all .2s ease",
-                            }}
-                          />
-                        );
-                      })}
-                    </Stack>
-                  </Paper>
-                  <IconButton
-                    size="small"
-                    aria-label="다음 게임"
+                    이전
+                  </Button>
+                  <Button
+                    endIcon={<ChevronRight {...iconProps({ size: 18 })} />}
                     sx={bannerPagerBtnSx}
                     onClick={goNextBanner}
                     disabled={currentBannerIndex >= bannerItems.length - 1}
                   >
-                    <ChevronRight {...iconProps({ size: 20 })} />
-                  </IconButton>
+                    다음
+                  </Button>
                 </Stack>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
                   <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "업데이트 중" : "자동 업데이트"}</span>} sx={statusChipSx} />
                   <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
-                  <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
                 </Stack>
+              </Stack>
+
+              <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap">
+                {(bannerItems || []).map((item, idx) => {
+                  const active = idx === Math.max(currentBannerIndex, 0);
+                  return (
+                    <Button
+                      key={`banner-item-${item.id}-${idx}`}
+                      size="small"
+                      onClick={() => setIp(item.id)}
+                      sx={{
+                        minHeight: 34,
+                        px: 1.25,
+                        borderRadius: 999,
+                        border: "1px solid",
+                        borderColor: active ? "rgba(37,99,235,.65)" : "rgba(148,163,184,.35)",
+                        bgcolor: active ? "rgba(37,99,235,.09)" : "#f8fafc",
+                        color: active ? "#1d4ed8" : "#334155",
+                        fontSize: 12,
+                        fontWeight: active ? 700 : 600,
+                        lineHeight: 1.15,
+                        textTransform: "none",
+                        "&:hover": {
+                          borderColor: active ? "rgba(37,99,235,.82)" : "rgba(100,116,139,.5)",
+                          bgcolor: active ? "rgba(37,99,235,.14)" : "#f1f5f9",
+                        },
+                      }}
+                    >
+                      {item.name}
+                    </Button>
+                  );
+                })}
               </Stack>
               {usingMock ? <Chip color="warning" variant="outlined" label="예시 데이터" /> : null}
             </Stack>
