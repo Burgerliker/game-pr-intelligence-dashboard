@@ -74,6 +74,11 @@ const IP_BANNER_STYLE = {
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
 const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
+const toDayTimestamp = (raw) => {
+  if (!raw) return Number.NaN;
+  const parsed = new Date(`${String(raw).slice(0, 10)}T00:00:00`).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+};
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
@@ -464,6 +469,10 @@ export default function NexonPage() {
   }, [ip]);
 
   const dailyRows = riskData?.daily || [];
+  const sortedDailyRows = useMemo(
+    () => [...dailyRows].sort((a, b) => toDayTimestamp(a?.date) - toDayTimestamp(b?.date)),
+    [dailyRows]
+  );
   const outletRows = riskData?.outlets || [];
   const themes = riskData?.risk_themes || [];
   const clusters = clusterData?.clusters || [];
@@ -546,32 +555,44 @@ export default function NexonPage() {
     if (riskValue >= 20) return { label: "주의", color: "info" };
     return { label: "낮음", color: "success" };
   }, [riskValue]);
-  const recent24hArticles = Number(riskScore?.article_count_window ?? riskScore?.exposure_count_window ?? 0);
-  const totalArticleSum = useMemo(
-    () => (dailyRows || []).reduce((acc, row) => acc + getDailyArticleCount(row), 0),
-    [dailyRows]
+  const recent24hExposure = Number(
+    riskScore?.total_mentions_window ?? riskScore?.mention_count_window ?? riskScore?.exposure_count_window ?? riskScore?.article_count_window ?? 0
   );
-  const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
+  const recent30dRows = useMemo(() => {
+    if (!sortedDailyRows.length) return [];
+    const latestTs = toDayTimestamp(sortedDailyRows[sortedDailyRows.length - 1]?.date);
+    if (!Number.isFinite(latestTs)) return sortedDailyRows.slice(-30);
+    const startTs = latestTs - (29 * 24 * 60 * 60 * 1000);
+    return sortedDailyRows.filter((row) => {
+      const ts = toDayTimestamp(row?.date);
+      return Number.isFinite(ts) && ts >= startTs && ts <= latestTs;
+    });
+  }, [sortedDailyRows]);
+  const totalExposureSum30d = useMemo(
+    () => recent30dRows.reduce((acc, row) => acc + getDailyExposure(row), 0),
+    [recent30dRows]
+  );
+  const recentWeekRows = useMemo(() => sortedDailyRows.slice(-7), [sortedDailyRows]);
   const weeklyBaselineAvg = useMemo(() => {
     if (!recentWeekRows.length) return 0;
-    return recentWeekRows.reduce((acc, row) => acc + getDailyArticleCount(row), 0) / recentWeekRows.length;
+    return recentWeekRows.reduce((acc, row) => acc + getDailyExposure(row), 0) / recentWeekRows.length;
   }, [recentWeekRows]);
   const weeklyBaselineMin = useMemo(() => {
     if (!recentWeekRows.length) return 0;
-    return Math.min(...recentWeekRows.map((row) => getDailyArticleCount(row)));
+    return Math.min(...recentWeekRows.map((row) => getDailyExposure(row)));
   }, [recentWeekRows]);
   const weeklyBaselineMax = useMemo(() => {
     if (!recentWeekRows.length) return 0;
-    return Math.max(...recentWeekRows.map((row) => getDailyArticleCount(row)));
+    return Math.max(...recentWeekRows.map((row) => getDailyExposure(row)));
   }, [recentWeekRows]);
-  const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
+  const baselineRatio = weeklyBaselineAvg > 0 ? recent24hExposure / weeklyBaselineAvg : 0;
   const spreadValue = Number(riskScore?.spread_ratio || 0);
   const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
   const volumeHint = useMemo(() => {
-    if (recent24hArticles >= 20) return "충분";
-    if (recent24hArticles >= 5) return "보통";
+    if (recent24hExposure >= 20) return "충분";
+    if (recent24hExposure >= 5) return "보통";
     return "부족";
-  }, [recent24hArticles]);
+  }, [recent24hExposure]);
   const spreadHint = useMemo(() => {
     if (spreadValue >= 1.8) return "같은 이슈가 여러 기사로 재확산되는 구간";
     if (spreadValue >= 1.2) return "유사 이슈가 반복 보도되는 구간";
@@ -583,17 +604,17 @@ export default function NexonPage() {
     return "여론 판정 안정";
   }, [uncertaintyValue]);
   const liveInterpretation = useMemo(() => {
-    if (recent24hArticles < 5) return "보도량이 매우 적어 단기 변동성이 큽니다.";
-    if (riskValue >= 70) return "보도량 급증과 고위험 이슈 집중으로 위기 지수가 심각 단계입니다.";
+    if (recent24hExposure < 5) return "노출량이 매우 적어 단기 변동성이 큽니다.";
+    if (riskValue >= 70) return "노출량 급증과 고위험 이슈 집중으로 위기 지수가 심각 단계입니다.";
     if (riskValue >= 45) return "위기 지수가 높은 상태입니다. 확산도와 여론 변화를 밀착 모니터링하세요.";
-    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위기 지수는 낮지만 보도량 또는 확산도가 평균보다 상승 중입니다.";
-    return "보도량과 확산도가 안정적이라 현재 위기 지수는 낮은 상태입니다.";
-  }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
+    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위기 지수는 낮지만 노출량 또는 확산도가 평균보다 상승 중입니다.";
+    return "노출량과 확산도가 안정적이라 현재 위기 지수는 낮은 상태입니다.";
+  }, [baselineRatio, recent24hExposure, riskValue, spreadValue]);
   const quickSummary = useMemo(() => {
-    if (recent24hArticles < 5) return "보도량이 적어 현재 점수는 참고용입니다.";
+    if (recent24hExposure < 5) return "노출량이 적어 현재 점수는 참고용입니다.";
     if (riskValue >= 45) return "즉시 모니터링이 필요한 구간입니다.";
     return "현재는 위기 신호가 크지 않습니다.";
-  }, [recent24hArticles, riskValue]);
+  }, [recent24hExposure, riskValue]);
   const outletRisk = useMemo(() => {
     if (!outletRows.length) return null;
     return [...outletRows]
@@ -664,7 +685,7 @@ export default function NexonPage() {
 
   useEffect(() => {
     if (!chartsReady || !trendChartInstRef.current) return;
-    const x = dailyRows.map((r) => r.date);
+    const x = sortedDailyRows.map((r) => r.date);
     trendChartInstRef.current.setOption(
       {
         animation: false,
@@ -678,7 +699,7 @@ export default function NexonPage() {
             params.forEach((item) => {
               const name = String(item?.seriesName || "");
               const raw = Number(item?.value || 0);
-              const valueText = name === "부정 여론 비율" ? `${raw.toFixed(1)}%` : `${raw.toLocaleString()}건`;
+              const valueText = name === "부정 비율" ? `${raw.toFixed(1)}%` : `${raw.toLocaleString()}건`;
               lines.push(`${item?.marker || ""}${name}: ${valueText}`);
             });
             return lines.join("<br/>");
@@ -695,7 +716,7 @@ export default function NexonPage() {
         yAxis: [
           {
             type: "value",
-            name: "보도량(건)",
+            name: "노출량(건)",
             axisLabel: {
               color: "#64748b",
               formatter: (v) => Number(v || 0).toLocaleString(),
@@ -711,19 +732,19 @@ export default function NexonPage() {
         ],
         series: [
           {
-            name: "보도량",
+            name: "노출량",
             type: "bar",
             yAxisIndex: 0,
-            data: dailyRows.map((r) => getDailyArticleCount(r)),
+            data: sortedDailyRows.map((r) => getDailyExposure(r)),
             itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
             barMaxWidth: 18,
-            large: dailyRows.length > 220,
+            large: sortedDailyRows.length > 220,
             largeThreshold: 220,
             progressive: 2000,
             progressiveThreshold: 3000,
           },
           {
-            name: "부정 여론 비율",
+            name: "부정 비율",
             type: "line",
             yAxisIndex: 1,
             smooth: true,
@@ -731,14 +752,14 @@ export default function NexonPage() {
             sampling: "lttb",
             progressive: 2000,
             progressiveThreshold: 3000,
-            data: dailyRows.map((r) => Number(r.negative_ratio || 0)),
+            data: sortedDailyRows.map((r) => Number(r.negative_ratio || 0)),
             lineStyle: { color: "#dc3c4a", width: 2 },
           },
         ],
       },
       { notMerge: true, lazyUpdate: true }
     );
-  }, [chartsReady, dailyRows]);
+  }, [chartsReady, sortedDailyRows]);
 
   useEffect(() => {
     if (!chartsReady || !outletChartInstRef.current) return;
@@ -1031,7 +1052,7 @@ export default function NexonPage() {
                           alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
                       }}
                     />
-                    <Chip variant="outlined" label={`오늘 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
+                    <Chip variant="outlined" label={`24h 노출량 ${recent24hExposure.toLocaleString()}건`} sx={bannerMetricChipSx} />
                     <Chip variant="outlined" label={`이슈 분류 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
                   </Stack>
                 </Paper>
@@ -1150,8 +1171,8 @@ export default function NexonPage() {
             },
             {
               k: "총 노출량(재배포 포함)",
-              v: totalArticleSum.toLocaleString(),
-              s: "필터 기간 합계",
+              v: totalExposureSum30d.toLocaleString(),
+              s: "최근 30일 합계",
               barColor: riskAccent.neutral.color,
               valueType: "number",
             },
@@ -1273,7 +1294,7 @@ export default function NexonPage() {
                         }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 보도량 기준 · 이슈량 {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
+                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 노출량 기준 · 이슈량 {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
                       </Typography>
                       <Typography variant="body2" sx={{ mt: 0.55, fontWeight: 600 }}>
                         {quickSummary}
@@ -1281,7 +1302,7 @@ export default function NexonPage() {
                     </Paper>
                     <Paper variant="outlined" sx={subPanelSx}>
                       <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                        오늘 보도량: {recent24hArticles.toLocaleString()}
+                        최근 24시간 노출량: {recent24hExposure.toLocaleString()}건
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.2, fontVariantNumeric: "tabular-nums" }}>
                         지난 7일 평균: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
@@ -1298,7 +1319,7 @@ export default function NexonPage() {
                         </IconButton>
                       </Stack>
                       <Typography variant="body2" color="text.secondary">
-                        보도량: {recent24hArticles.toLocaleString()}건 ({volumeHint}) · 확산도: {spreadValue.toFixed(2)} · 여론 불명확: {Math.round(uncertaintyValue * 100)}%
+                        노출량: {recent24hExposure.toLocaleString()}건 ({volumeHint}) · 확산도: {spreadValue.toFixed(2)} · 여론 불명확: {Math.round(uncertaintyValue * 100)}%
                       </Typography>
                       <Typography variant="body2" sx={{ mt: 0.6, lineHeight: 1.45 }}>
                         {liveInterpretation}
@@ -1309,7 +1330,7 @@ export default function NexonPage() {
                             상세 설명
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
-                            보도량은 최근 24시간 기준 기사 수입니다. 표본이 적은 구간은 추세 중심으로 해석하세요.
+                            노출량은 재배포 포함 기준의 최근 24시간 집계입니다. 표본이 적은 구간은 추세 중심으로 해석하세요.
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
                             확산도는 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
@@ -1363,7 +1384,7 @@ export default function NexonPage() {
                     <Grid container spacing={{ xs: 1, md: 1.2 }} sx={{ mt: 0.4 }}>
                       {["S", "V", "T", "M"].map((k) => {
                         const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
-                        const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "보도량 신호" : k === "T" ? "테마 신호" : "매체 신호";
+                        const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "노출량 신호" : k === "T" ? "테마 신호" : "매체 신호";
                         return (
                           <Grid item xs={6} md={3} key={k}>
                             <Paper variant="outlined" sx={{ ...panelPaperSx, p: { xs: 1, sm: 1.1 } }}>
@@ -1489,7 +1510,7 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
-            <Typography variant="h6" sx={sectionTitleSx}>일별 보도량 및 부정 비율 추이</Typography>
+            <Typography variant="h6" sx={sectionTitleSx}>일별 노출량 및 부정 비율 추이</Typography>
             <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 200, sm: 220, md: 240 } }} />
           </CardContent>
         </Card>
