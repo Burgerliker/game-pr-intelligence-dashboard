@@ -22,7 +22,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, ChevronLeft, ChevronRight, Info, Layers, Newspaper, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Info, RefreshCw } from "lucide-react";
 import { List as WindowList } from "react-window";
 import PageStatusView from "../../../components/PageStatusView";
 import ApiGuardBanner from "../../../components/ApiGuardBanner";
@@ -576,7 +576,6 @@ export default function NexonPage() {
   const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
   const spreadValue = Number(riskScore?.spread_ratio || 0);
   const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
-  const negativeRatioPct = Math.round(Number(riskScore?.negative_ratio_window || 0) * 1000) / 10;
   const volumeHint = useMemo(() => {
     if (recent24hArticles >= 20) return "충분";
     if (recent24hArticles >= 5) return "보통";
@@ -1141,69 +1140,110 @@ export default function NexonPage() {
         </Card>
 
         <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ ...metricCardSx, height: "100%" }}>
-              <CardContent sx={{ p: { xs: 2, md: 2.4 } }}>
-                <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, letterSpacing: ".04em" }}>위기 점수</Typography>
-                  <Box sx={{ width: 42, height: 42, borderRadius: "50%", bgcolor: "rgba(220,60,74,.12)", color: "#dc3c4a", display: "grid", placeItems: "center" }}>
-                    <ShieldAlert {...iconProps({ size: 18 })} />
+          {[
+            {
+              k: "위기 점수",
+              v: riskValue.toFixed(1),
+              s: `${alertInfo.label} · 0~100`,
+              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+              valueType: "number",
+            },
+            {
+              k: "선택 게임",
+              v: riskData?.meta?.ip || "-",
+              s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}`,
+              barColor: riskAccent.neutral.color,
+              valueType: "label",
+            },
+            {
+              k: "총 기사 수(일자 합계)",
+              v: totalArticleSum.toLocaleString(),
+              s: "필터 기간 합계",
+              barColor: riskAccent.neutral.color,
+              valueType: "number",
+            },
+            {
+              k: "핵심 위험 이슈",
+              v: topRisk?.theme || "-",
+              s: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}% · 이슈 점수 ${topRiskThemeScore}점` : "-",
+              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+              valueType: "label",
+            },
+            {
+              k: "이슈 분류 수",
+              v: Number(clusterData?.meta?.cluster_count || 0),
+              s: "유사 기사 그룹",
+              tip: tipMap.cluster,
+              barColor: riskAccent.neutral.color,
+              valueType: "number",
+            },
+          ].map((item) => (
+            <Grid item xs={12} sm={6} md={3} key={item.k} sx={{ display: "flex", minWidth: 0 }}>
+              <Box sx={{ ...metricCardSx, width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+                <Box sx={{ height: 3, bgcolor: item.barColor, flexShrink: 0 }} />
+                <Box
+                  sx={{
+                    p: { xs: 2, sm: 2.25, md: 2.5 },
+                    flex: 1,
+                    width: "100%",
+                    minWidth: 0,
+                    display: "grid",
+                    gridTemplateRows: "32px minmax(76px,1fr) 28px",
+                    alignItems: "start",
+                    rowGap: 0.8,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 700,
+                        color: "#334155",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {item.k}
+                    </Typography>
+                    <Box sx={{ width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
+                      {item.tip ? <Info {...iconProps({ size: 16 })} title={item.tip} /> : null}
+                    </Box>
                   </Box>
-                </Stack>
-                <Typography sx={{ ...metricValueSx, fontSize: { xs: 40, md: 46 }, mt: 0.6 }}>{riskValue.toFixed(1)}</Typography>
-                <Typography variant="body2" color="text.secondary">{alertInfo.label} · 0~100</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ ...metricCardSx, height: "100%" }}>
-              <CardContent sx={{ p: { xs: 2, md: 2.4 } }}>
-                <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, letterSpacing: ".04em" }}>최근 24시간 보도량</Typography>
-                  <Box sx={{ width: 42, height: 42, borderRadius: "50%", bgcolor: "rgba(47,103,216,.12)", color: "#2f67d8", display: "grid", placeItems: "center" }}>
-                    <Newspaper {...iconProps({ size: 18 })} />
-                  </Box>
-                </Stack>
-                <Typography sx={{ ...metricValueSx, fontSize: { xs: 40, md: 46 }, mt: 0.6 }}>{recent24hArticles.toLocaleString()}</Typography>
-                <Typography variant="body2" color="text.secondary">7일 평균 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ ...metricCardSx, height: "100%" }}>
-              <CardContent sx={{ p: { xs: 2, md: 2.4 } }}>
-                <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, letterSpacing: ".04em" }}>부정 비율</Typography>
-                  <Box sx={{ width: 42, height: 42, borderRadius: "50%", bgcolor: "rgba(245,158,11,.14)", color: "#d97706", display: "grid", placeItems: "center" }}>
-                    <RefreshCw {...iconProps({ size: 18 })} />
-                  </Box>
-                </Stack>
-                <Typography sx={{ ...metricValueSx, fontSize: { xs: 40, md: 46 }, mt: 0.6 }}>{negativeRatioPct.toFixed(1)}%</Typography>
-                <LinearProgress
-                  variant="determinate"
-                  value={Math.max(0, Math.min(100, negativeRatioPct))}
-                  sx={{ mt: 0.8, height: 7, borderRadius: 999, bgcolor: "#eef2ff", "& .MuiLinearProgress-bar": { bgcolor: "#4f46e5" } }}
-                />
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ ...metricCardSx, height: "100%" }}>
-              <CardContent sx={{ p: { xs: 2, md: 2.4 } }}>
-                <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, letterSpacing: ".04em" }}>핵심 위험 이슈</Typography>
-                  <Box sx={{ width: 42, height: 42, borderRadius: "50%", bgcolor: "rgba(16,185,129,.14)", color: "#059669", display: "grid", placeItems: "center" }}>
-                    <Layers {...iconProps({ size: 18 })} />
-                  </Box>
-                </Stack>
-                <Typography sx={{ ...metricValueSx, fontSize: { xs: 30, md: 34 }, mt: 0.6, lineHeight: 1.1 }}>{topRisk?.theme || "-"}</Typography>
-                <Typography variant="body2" color="text.secondary">{topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}% · 점수 ${topRiskThemeScore}점` : "-"}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      ...metricValueSx,
+                      fontSize: item.valueType === "number" ? { xs: 44, sm: 50, md: MUI_SPEC.type.h3 } : { xs: 28, sm: 34, md: MUI_SPEC.type.h4 },
+                      lineHeight: item.valueType === "number" ? 1.02 : 1.1,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      letterSpacing: item.valueType === "number" ? "-.02em" : "-.01em",
+                    }}
+                  >
+                    {item.v}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{
+                      display: "block",
+                      fontSize: MUI_SPEC.type.body2,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.s}
+                  </Typography>
+                </Box>
+              </Box>
+            </Grid>
+          ))}
         </Grid>
         <Typography variant="caption" color="text.secondary" sx={{ px: 0.2, display: "block" }}>
-          선택 게임: {riskData?.meta?.ip || "-"} · 기간: {riskData?.meta?.date_from} ~ {riskData?.meta?.date_to}
+          총 기사 수는 일자별 기사 수(article_count) 합계입니다. 이슈 분류는 유사 기사 그룹 수입니다.
         </Typography>
 
         {false ? (
