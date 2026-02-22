@@ -1159,7 +1159,7 @@ export default function NexonPage() {
               valueType: "label",
             },
             {
-              k: "총 기사 수(일자 합계)",
+              k: "총 기사 수 (한달 기준)",
               v: totalArticleSum.toLocaleString(),
               s: "필터 기간 합계",
               barColor: riskAccent.neutral.color,
