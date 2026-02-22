@@ -1142,6 +1142,13 @@ export default function NexonPage() {
         <Grid container spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
           {[
             {
+              k: "위기 점수",
+              v: riskValue.toFixed(1),
+              s: `${alertInfo.label} · 0~100`,
+              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+              valueType: "number",
+            },
+            {
               k: "선택 게임",
               v: riskData?.meta?.ip || "-",
               s: `${riskData?.meta?.date_from} ~ ${riskData?.meta?.date_to}`,
@@ -1239,6 +1246,7 @@ export default function NexonPage() {
           총 기사 수는 일자별 기사 수(article_count) 합계입니다. 이슈 분류는 유사 기사 그룹 수입니다.
         </Typography>
 
+        {false ? (
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
             <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.8, borderLeft: `4px solid ${riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color}` }}>
@@ -1497,6 +1505,7 @@ export default function NexonPage() {
             )}
           </CardContent>
         </Card>
+        ) : null}
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
