@@ -627,10 +627,10 @@ export default function NexonPage() {
     bgcolor: "rgba(255,255,255,.14)",
     borderColor: "rgba(148,163,184,.38)",
     color: "rgba(241,245,249,.97)",
-    minHeight: { xs: 74, md: 78 },
+    minHeight: { xs: 54, md: 58 },
     display: "flex",
     flexDirection: "column",
-    justifyContent: "space-between",
+    justifyContent: "center",
     backdropFilter: "blur(3px)",
   };
   const bannerKpiItems = useMemo(
@@ -639,7 +639,6 @@ export default function NexonPage() {
         key: "risk",
         label: "위기 지수",
         value: riskValue.toFixed(1),
-        sub: `${alertInfo.label} · 0~100`,
         tone:
           alertLevel === "P1" ? "rgba(248,113,113,.6)" : alertLevel === "P2" ? "rgba(251,191,36,.58)" : "rgba(74,222,128,.5)",
       },
@@ -647,32 +646,28 @@ export default function NexonPage() {
         key: "volume",
         label: "24h 보도량",
         value: `${recent24hArticles.toLocaleString()}건`,
-        sub: "최근 24시간",
         tone: "rgba(148,163,184,.38)",
       },
       {
         key: "cluster",
         label: "이슈 분류 수",
         value: Number(clusterData?.meta?.cluster_count || 0).toLocaleString(),
-        sub: "유사 기사 그룹",
         tone: "rgba(148,163,184,.38)",
       },
       {
         key: "monthly",
         label: "총 기사 수 (한달 기준)",
         value: `${totalArticleSum30d.toLocaleString()}건`,
-        sub: "최근 30일 합계",
         tone: "rgba(148,163,184,.38)",
       },
       {
         key: "theme",
         label: "핵심 위험 이슈",
         value: topRisk?.theme || "-",
-        sub: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}%` : "데이터 없음",
         tone: "rgba(148,163,184,.38)",
       },
     ],
-    [alertInfo.label, alertLevel, clusterData?.meta?.cluster_count, recent24hArticles, riskValue, topRisk, totalArticleSum30d]
+    [alertLevel, clusterData?.meta?.cluster_count, recent24hArticles, riskValue, topRisk, totalArticleSum30d]
   );
 
   useEffect(() => {
@@ -1078,7 +1073,7 @@ export default function NexonPage() {
                             sx={{
                               mt: 0.45,
                               fontWeight: 800,
-                              fontSize: { xs: item.key === "theme" ? 20 : 22, md: item.key === "theme" ? 22 : 24 },
+                              fontSize: { xs: item.key === "theme" ? 18 : 20, md: item.key === "theme" ? 19 : 21 },
                               lineHeight: 1.08,
                               letterSpacing: "-.01em",
                               whiteSpace: "nowrap",
@@ -1087,9 +1082,6 @@ export default function NexonPage() {
                             }}
                           >
                             {item.value}
-                          </Typography>
-                          <Typography sx={{ mt: 0.45, fontSize: 11, color: "rgba(186,201,220,.92)", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {item.sub}
                           </Typography>
                         </Paper>
                       ))}
