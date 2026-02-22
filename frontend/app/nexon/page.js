@@ -1145,19 +1145,12 @@ export default function NexonPage() {
             gridTemplateColumns: {
               xs: "1fr",
               sm: "repeat(2, minmax(0, 1fr))",
-              lg: "repeat(5, minmax(0, 1fr))",
+              lg: "repeat(4, minmax(0, 1fr))",
             },
             gap: { xs: 1, sm: 1.2, md: 1.5 },
           }}
         >
           {[
-            {
-              k: "위기 점수",
-              v: riskValue.toFixed(1),
-              s: `${alertInfo.label} · 0~100`,
-              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
-              valueType: "number",
-            },
             {
               k: "선택 게임",
               v: riskData?.meta?.ip || "-",
