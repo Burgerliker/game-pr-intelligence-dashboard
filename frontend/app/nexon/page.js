@@ -1198,7 +1198,7 @@ export default function NexonPage() {
                     width: "100%",
                     minWidth: 0,
                     display: "grid",
-                    gridTemplateRows: "32px minmax(76px,1fr) 28px",
+                    gridTemplateRows: "32px minmax(76px,1fr)",
                     alignItems: "start",
                     rowGap: 0.8,
                   }}
@@ -1233,19 +1233,6 @@ export default function NexonPage() {
                     }}
                   >
                     {item.v}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      display: "block",
-                      fontSize: MUI_SPEC.type.body2,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.s}
                   </Typography>
                 </Box>
               </Box>
