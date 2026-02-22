@@ -66,14 +66,14 @@ const IP_BANNER_STYLE = {
   all: {
     kicker: "NEXON OVERVIEW",
     accent: "#8fb6ff",
-    bg: "linear-gradient(135deg,#0f172a 0%,#111827 55%,#1f2937 100%)",
-    glow: "radial-gradient(circle at 84% 14%, rgba(143,182,255,.20) 0%, rgba(143,182,255,0) 60%)",
+    bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)",
+    glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)",
   },
-  maplestory: { kicker: "MAPLESTORY", accent: "#f5c16c", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 52%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(245,193,108,.18) 0%, rgba(245,193,108,0) 60%)" },
-  dnf: { kicker: "DNF", accent: "#ff9db0", bg: "linear-gradient(135deg,#111827 0%,#1f2937 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(255,157,176,.18) 0%, rgba(255,157,176,0) 60%)" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#8de5ff", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 55%,#374151 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(141,229,255,.18) 0%, rgba(141,229,255,0) 60%)" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#a6bcff", bg: "linear-gradient(135deg,#0f172a 0%,#1e293b 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(166,188,255,.18) 0%, rgba(166,188,255,0) 60%)" },
-  fconline: { kicker: "FC ONLINE", accent: "#9fe8c2", bg: "linear-gradient(135deg,#0f172a 0%,#1f2937 55%,#334155 100%)", glow: "radial-gradient(circle at 84% 14%, rgba(159,232,194,.18) 0%, rgba(159,232,194,0) 60%)" },
+  maplestory: { kicker: "MAPLESTORY", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
+  dnf: { kicker: "DNF", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
+  arcraiders: { kicker: "ARC RAIDERS", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
+  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
+  fconline: { kicker: "FC ONLINE", accent: "#8fb6ff", bg: "linear-gradient(140deg,#0b1222 0%,#15233b 52%,#22324c 100%)", glow: "radial-gradient(circle at 82% 18%, rgba(143,182,255,.14) 0%, rgba(143,182,255,0) 66%)" },
 };
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
@@ -621,14 +621,59 @@ export default function NexonPage() {
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
-  const bannerMetricChipSx = {
-    ...statusChipSx,
-    minHeight: 28,
-    fontSize: 12,
-    bgcolor: "rgba(255,255,255,.08)",
-    borderColor: "rgba(255,255,255,.22)",
-    color: "rgba(241,245,249,.95)",
+  const bannerKpiCardSx = {
+    p: { xs: 1.05, md: 1.15 },
+    borderRadius: 1.8,
+    bgcolor: "rgba(12,22,38,.52)",
+    borderColor: "rgba(148,163,184,.38)",
+    color: "rgba(241,245,249,.97)",
+    minHeight: { xs: 74, md: 78 },
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    backdropFilter: "blur(3px)",
   };
+  const bannerKpiItems = useMemo(
+    () => [
+      {
+        key: "risk",
+        label: "위기 지수",
+        value: riskValue.toFixed(1),
+        sub: `${alertInfo.label} · 0~100`,
+        tone:
+          alertLevel === "P1" ? "rgba(248,113,113,.6)" : alertLevel === "P2" ? "rgba(251,191,36,.58)" : "rgba(74,222,128,.5)",
+      },
+      {
+        key: "volume",
+        label: "24h 보도량",
+        value: `${recent24hArticles.toLocaleString()}건`,
+        sub: "최근 24시간",
+        tone: "rgba(148,163,184,.38)",
+      },
+      {
+        key: "cluster",
+        label: "이슈 분류 수",
+        value: Number(clusterData?.meta?.cluster_count || 0).toLocaleString(),
+        sub: "유사 기사 그룹",
+        tone: "rgba(148,163,184,.38)",
+      },
+      {
+        key: "monthly",
+        label: "총 기사 수 (한달 기준)",
+        value: `${totalArticleSum30d.toLocaleString()}건`,
+        sub: "최근 30일 합계",
+        tone: "rgba(148,163,184,.38)",
+      },
+      {
+        key: "theme",
+        label: "핵심 위험 이슈",
+        value: topRisk?.theme || "-",
+        sub: topRisk ? `부정 ${topRisk?.negative_ratio ?? 0}%` : "데이터 없음",
+        tone: "rgba(148,163,184,.38)",
+      },
+    ],
+    [alertInfo.label, alertLevel, clusterData?.meta?.cluster_count, recent24hArticles, riskValue, topRisk, totalArticleSum30d]
+  );
 
   useEffect(() => {
     let active = true;
@@ -972,7 +1017,7 @@ export default function NexonPage() {
                   onTouchEnd={handleBannerTouchEnd}
                   sx={{
                     width: "100%",
-                    minHeight: { xs: 250, sm: 268, md: 286 },
+                    minHeight: { xs: 236, sm: 252, md: 266 },
                     p: { xs: 2, sm: 2.25, md: 2.5 },
                     borderRadius: 2.4,
                     color: "#eef2ff",
@@ -1004,47 +1049,53 @@ export default function NexonPage() {
                       opacity: 0.9,
                     }}
                   />
-                  <Chip
-                    label="NEXON"
-                    size="small"
-                    sx={{
-                      position: "absolute",
-                      right: { xs: 12, sm: 14, md: 16 },
-                      top: { xs: 12, sm: 14, md: 16 },
-                      height: 26,
-                      fontSize: 12,
-                      letterSpacing: ".22em",
-                      fontWeight: 800,
-                      color: "rgba(241,245,249,.95)",
-                      border: "1px solid rgba(241,245,249,.4)",
-                      backgroundColor: "rgba(15,23,42,.25)",
-                      backdropFilter: "blur(4px)",
-                    }}
-                  />
-                  <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
-                    {currentBanner.visual.kicker}
-                  </Typography>
-                  <Typography sx={{ ...specTypeSx.h4, mt: 0.65, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06 }}>
-                    {currentBanner.name}
-                  </Typography>
-                  <Typography sx={{ mt: 0.8, pr: { xs: 5, sm: 7, md: 8 }, fontSize: { xs: 14, md: 15 }, color: "rgba(237,245,255,.86)" }}>
-                    {currentBanner.id === "all" ? "넥슨 전체보기 · 통합 위기 지수/이슈 흐름" : "위기 흐름 · 이슈 분류 · 집중 모니터링"}
-                  </Typography>
-                  <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 1.2, md: 1.6 } }}>
-                    <Chip
-                      variant="outlined"
-                      label={`위기 지수 ${riskValue.toFixed(1)}`}
+                  <Box sx={{ position: "relative", zIndex: 1 }}>
+                    <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
+                      {currentBanner.visual.kicker}
+                    </Typography>
+                    <Typography sx={{ ...specTypeSx.h4, mt: 0.55, pr: { xs: 2, sm: 4 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06 }}>
+                      {currentBanner.name}
+                    </Typography>
+                    <Box
                       sx={{
-                        ...bannerMetricChipSx,
-                        borderColor:
-                          alertLevel === "P1" ? "rgba(248,113,113,.65)" : alertLevel === "P2" ? "rgba(251,191,36,.65)" : "rgba(74,222,128,.55)",
+                        mt: { xs: 1.3, md: 1.55 },
+                        display: "grid",
+                        gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))" },
+                        gap: { xs: 0.8, md: 0.9 },
+                        maxWidth: { xs: "100%", md: 980 },
                       }}
-                    />
-                    <Chip variant="outlined" label={`24h 보도량 ${recent24hArticles.toLocaleString()}건`} sx={bannerMetricChipSx} />
-                    <Chip variant="outlined" label={`이슈 분류 수 ${Number(clusterData?.meta?.cluster_count || 0)}`} sx={bannerMetricChipSx} />
-                    <Chip variant="outlined" label={`총 기사 수 (한달 기준) ${totalArticleSum30d.toLocaleString()}건`} sx={bannerMetricChipSx} />
-                    <Chip variant="outlined" label={`핵심 위험 이슈 ${topRisk?.theme || "-"}`} sx={bannerMetricChipSx} />
-                  </Stack>
+                    >
+                      {bannerKpiItems.map((item) => (
+                        <Paper
+                          key={item.key}
+                          variant="outlined"
+                          sx={{
+                            ...bannerKpiCardSx,
+                            borderColor: item.tone,
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 11, color: "rgba(203,213,225,.95)", lineHeight: 1.2 }}>{item.label}</Typography>
+                          <Typography
+                            sx={{
+                              mt: 0.45,
+                              fontWeight: 800,
+                              fontSize: { xs: item.key === "theme" ? 20 : 22, md: item.key === "theme" ? 22 : 24 },
+                              lineHeight: 1.08,
+                              letterSpacing: "-.01em",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {item.value}
+                          </Typography>
+                          <Typography sx={{ mt: 0.45, fontSize: 11, color: "rgba(186,201,220,.92)", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {item.sub}
+                          </Typography>
+                        </Paper>
+                      ))}
+                    </Box>
+                  </Box>
                 </Paper>
               ) : null}
 
