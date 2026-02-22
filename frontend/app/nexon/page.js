@@ -23,6 +23,7 @@ import {
   Typography,
 } from "@mui/material";
 import { AlertTriangle, ChevronLeft, ChevronRight, Info, RefreshCw } from "lucide-react";
+import { List as WindowList } from "react-window";
 import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
 import LabelWithTip from "../../components/LabelWithTip";
@@ -53,6 +54,9 @@ import {
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
 const ARTICLE_PAGE_SIZE = 20;
+const ARTICLE_ROW_HEIGHT = 122;
+const ARTICLE_LIST_MAX_HEIGHT = 640;
+const ARTICLE_LIST_MIN_HEIGHT = 244;
 const DIAG_SCOPE = {
   health: buildDiagnosticScope("NEX", "HEALTH"),
   dashboard: buildDiagnosticScope("NEX", "DASH"),
@@ -80,8 +84,8 @@ const getDailyExposure = (row) =>
 const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
 
 const bannerPagerBtnSx = {
-  width: 36,
-  height: 36,
+  width: 42,
+  height: 42,
   borderRadius: 99,
   border: "1px solid rgba(15,23,42,.14)",
   color: "#0f172a",
@@ -98,12 +102,6 @@ const bannerPagerBtnSx = {
     borderColor: "rgba(148,163,184,.35)",
     boxShadow: "none",
   },
-};
-const compactStatusChipSx = {
-  ...statusChipSx,
-  minHeight: 32,
-  fontSize: 12,
-  px: 1.1,
 };
 
 const MOCK_RISK = {
@@ -528,6 +526,17 @@ export default function NexonPage() {
   useEffect(() => {
     setBurstVisibleCount(10);
   }, [burstRange, ip]);
+  const articleListHeight = useMemo(() => {
+    const estimated = articleItems.length * ARTICLE_ROW_HEIGHT;
+    if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
+    return Math.max(ARTICLE_LIST_MIN_HEIGHT, Math.min(ARTICLE_LIST_MAX_HEIGHT, estimated));
+  }, [articleItems.length]);
+  const handleArticleRowsRendered = (visibleRows) => {
+    if (!articleHasMore || articleLoading) return;
+    if (visibleRows.stopIndex >= articleItems.length - 5) {
+      loadMoreArticles(ip, false);
+    }
+  };
   const riskValue = Number(riskScore?.risk_score || 0);
   const riskFormulaVersion = riskScore?.risk_formula_version ? String(riskScore.risk_formula_version) : "";
   const hasHeatValue = riskScore && riskScore.issue_heat != null;
@@ -1043,7 +1052,7 @@ export default function NexonPage() {
                 alignItems={{ xs: "stretch", lg: "center" }}
                 spacing={1}
               >
-                <Stack direction="row" alignItems="center" spacing={0.8} sx={{ minHeight: 36 }}>
+                <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minHeight: 42 }}>
                   <IconButton
                     size="small"
                     aria-label="이전 게임"
@@ -1056,8 +1065,8 @@ export default function NexonPage() {
                   <Paper
                     variant="outlined"
                     sx={{
-                      px: 1,
-                      py: 0.65,
+                      px: 1.2,
+                      py: 0.9,
                       borderRadius: 99,
                       borderColor: "rgba(15,23,42,.14)",
                       backgroundColor: "#f8fafc",
@@ -1071,7 +1080,7 @@ export default function NexonPage() {
                             key={`banner-dot-${idx}`}
                             sx={{
                               width: active ? 26 : 10,
-                              height: 8,
+                              height: 10,
                               borderRadius: 999,
                               bgcolor: active ? "#2563eb" : "rgba(100,116,139,.35)",
                               transition: "all .2s ease",
@@ -1091,12 +1100,13 @@ export default function NexonPage() {
                     <ChevronRight {...iconProps({ size: 20 })} />
                   </IconButton>
                 </Stack>
-                <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
-                  <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "업데이트 중" : "자동 업데이트"}</span>} sx={compactStatusChipSx} />
-                  <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={compactStatusChipSx} />
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}>
+                  <Chip variant="outlined" label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{loading ? "업데이트 중" : "자동 업데이트"}</span>} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`현재: ${(riskData?.meta?.ip || "-")}`} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`마지막 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
                 </Stack>
               </Stack>
-              {usingMock ? <Chip color="warning" variant="outlined" label="예시 데이터" sx={compactStatusChipSx} /> : null}
+              {usingMock ? <Chip color="warning" variant="outlined" label="예시 데이터" /> : null}
             </Stack>
             <Box sx={{ mt: 1.5 }}>
               <PageStatusView
@@ -1135,12 +1145,19 @@ export default function NexonPage() {
             gridTemplateColumns: {
               xs: "1fr",
               sm: "repeat(2, minmax(0, 1fr))",
-              lg: "repeat(4, minmax(0, 1fr))",
+              lg: "repeat(5, minmax(0, 1fr))",
             },
             gap: { xs: 1, sm: 1.2, md: 1.5 },
           }}
         >
           {[
+            {
+              k: "위기 점수",
+              v: riskValue.toFixed(1),
+              s: `${alertInfo.label} · 0~100`,
+              barColor: riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color,
+              valueType: "number",
+            },
             {
               k: "선택 게임",
               v: riskData?.meta?.ip || "-",
@@ -1149,7 +1166,7 @@ export default function NexonPage() {
               valueType: "label",
             },
             {
-              k: "총 노출량(재배포 포함)",
+              k: "총 기사 수(일자 합계)",
               v: totalArticleSum.toLocaleString(),
               s: "필터 기간 합계",
               barColor: riskAccent.neutral.color,
@@ -1223,7 +1240,7 @@ export default function NexonPage() {
           ))}
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ px: 0.2, display: "block" }}>
-          노출량은 재배포 포함 지표이며, 이슈 분류 수는 유사 주제 그룹 규모입니다.
+          총 기사 수는 일자별 기사 수(article_count) 합계입니다. 이슈 분류는 유사 기사 그룹 수입니다.
         </Typography>
 
         {false ? (
@@ -1490,7 +1507,7 @@ export default function NexonPage() {
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
             <Typography variant="h6" sx={sectionTitleSx}>일별 보도량 및 부정 비율 추이</Typography>
-            <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 200, sm: 220, md: 240 } }} />
+            <Box ref={trendChartRef} sx={{ width: "100%", height: { xs: 220, sm: 260, md: 290 } }} />
           </CardContent>
         </Card>
 
@@ -1505,13 +1522,13 @@ export default function NexonPage() {
               <Typography variant="h6" sx={{ ...sectionTitleSx, lineHeight: 1.25 }}>
                 언론사별<br />여론 분포
               </Typography>
-              <Box ref={outletChartRef} sx={{ width: "100%", height: { xs: 240, md: 300 } }} />
+              <Box ref={outletChartRef} sx={{ width: "100%", height: { xs: 300, md: 420 } }} />
             </CardContent></Card>
           <Card variant="outlined" sx={sectionCardSx}><CardContent sx={contentCardSx}>
               <Typography variant="h6" sx={{ ...sectionTitleSx, lineHeight: 1.25 }}>
                 위험 이슈<br />점수
               </Typography>
-              <Box ref={themeChartRef} sx={{ width: "100%", height: { xs: 240, md: 300 } }} />
+              <Box ref={themeChartRef} sx={{ width: "100%", height: { xs: 300, md: 420 } }} />
             </CardContent></Card>
         </Box>
 
@@ -1521,7 +1538,7 @@ export default function NexonPage() {
             ref={keywordChartRef}
             sx={{
               width: "100%",
-              minHeight: { xs: 240, md: 280 },
+              minHeight: 320,
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 2,
@@ -1603,68 +1620,70 @@ export default function NexonPage() {
             </Stack>
             <Stack spacing={1}>
               {articleItems.length ? (
-                <Box sx={{ maxHeight: { xs: 440, md: 520 }, overflowY: "auto", pr: 0.2 }}>
-                  <Stack spacing={0.8}>
-                    {articleItems.map((a, index) => (
-                      <Paper key={`${a.url || a.title || "article"}-${index}`} variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
-                        <Stack direction="row" justifyContent="space-between" spacing={1}>
-                          <Typography
-                            component={a.url ? "a" : "span"}
-                            href={a.url || undefined}
-                            target={a.url ? "_blank" : undefined}
-                            rel={a.url ? "noreferrer" : undefined}
-                            sx={{
-                              minWidth: 0,
-                              fontWeight: 700,
-                              color: "#10284a",
-                              textDecoration: "none",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              "&:hover": { textDecoration: a.url ? "underline" : "none" },
-                            }}
-                          >
-                            {a.title || "(제목 없음)"}
+                <WindowList
+                  rowCount={articleItems.length}
+                  rowHeight={ARTICLE_ROW_HEIGHT}
+                  overscanCount={6}
+                  defaultHeight={ARTICLE_LIST_MIN_HEIGHT}
+                  style={{ height: articleListHeight, width: "100%" }}
+                  rowProps={{ items: articleItems }}
+                  onRowsRendered={handleArticleRowsRendered}
+                  rowComponent={({ index, style, items, ariaAttributes }) => {
+                    const a = items[index];
+                    return (
+                      <Box style={style} sx={{ px: 0.2, py: 0.45 }} {...ariaAttributes}>
+                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                          <Stack direction="row" justifyContent="space-between" spacing={1}>
+                            <Typography
+                              component={a.url ? "a" : "span"}
+                              href={a.url || undefined}
+                              target={a.url ? "_blank" : undefined}
+                              rel={a.url ? "noreferrer" : undefined}
+                              sx={{
+                                minWidth: 0,
+                                fontWeight: 700,
+                                color: "#10284a",
+                                textDecoration: "none",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                "&:hover": { textDecoration: a.url ? "underline" : "none" },
+                              }}
+                            >
+                              {a.title || "(제목 없음)"}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={a.sentiment || "중립"}
+                              color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
+                              variant="outlined"
+                              sx={controlChipSx}
+                            />
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
+                            {a.date || "-"} · {a.outlet || "unknown"}
                           </Typography>
-                          <Chip
-                            size="small"
-                            label={a.sentiment || "중립"}
-                            color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
-                            variant="outlined"
-                            sx={controlChipSx}
-                          />
-                        </Stack>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                          {a.date || "-"} · {a.outlet || "unknown"}
-                        </Typography>
-                        {a.description ? (
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{
-                              mt: 0.6,
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              overflow: "hidden",
-                            }}
-                          >
-                            {a.description}
-                          </Typography>
-                        ) : null}
-                      </Paper>
-                    ))}
-                  </Stack>
-                </Box>
+                          {a.description ? (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                mt: 0.6,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {a.description}
+                            </Typography>
+                          ) : null}
+                        </Paper>
+                      </Box>
+                    );
+                  }}
+                />
               ) : null}
             </Stack>
-            {!articleLoading && articleHasMore ? (
-              <Box sx={{ mt: 1.1 }}>
-                <Button size="small" variant="outlined" onClick={() => loadMoreArticles(ip, false)}>
-                  기사 더 불러오기
-                </Button>
-              </Box>
-            ) : null}
             {articleLoading ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.2 }}>
                 기사를 불러오는 중…
