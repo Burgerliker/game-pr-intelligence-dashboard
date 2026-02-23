@@ -1033,7 +1033,7 @@ export default function NexonPage() {
                       size="small"
                       sx={getBrandChipSx("nexon")}
                     />
-                    <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
+                    <Typography variant="body2" color="text.secondary">Game PR Risk Analysis</Typography>
                   </Stack>
                   <Stack direction="row" alignItems="center" spacing={1.2} useFlexGap flexWrap="wrap">
                     <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
