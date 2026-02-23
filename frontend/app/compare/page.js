@@ -216,6 +216,8 @@ export default function ComparePage() {
   const keywordsMap = data?.keywords ?? {};
   const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
   const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || COMPARE_FETCH_LIMIT);
+  const dataSource = String(data?.meta?.source || "").toLowerCase();
+  const isDbSource = dataSource === "db";
   const timedOutCompanies = Array.isArray(data?.meta?.timed_out_companies) ? data.meta.timed_out_companies : [];
   const failedCompanies = Array.isArray(data?.meta?.failed_companies) ? data.meta.failed_companies : [];
   const partialFetch = Boolean(data?.meta?.partial_fetch) || timedOutCompanies.length > 0 || failedCompanies.length > 0;
@@ -601,6 +603,12 @@ export default function ComparePage() {
                   fontWeight: 700,
                 }}
               />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={isDbSource ? "DB 기반 집계" : "실시간 집계"}
+                sx={statusChipSx}
+              />
             </Stack>
           </Paper>
 
@@ -642,7 +650,11 @@ export default function ComparePage() {
                   <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 기사 기준입니다.</span>
                 </Alert>
                 <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
-                  <span><Info {...iconProps()} style={inlineIconSx} />회사별 최대 {fetchLimitPerCompany}건을 표본으로 집계합니다.</span>
+                  <span><Info {...iconProps()} style={inlineIconSx} />
+                    {isDbSource
+                      ? `DB 적재 기사 기준으로 회사별 최대 ${fetchLimitPerCompany}건을 표본으로 집계합니다.`
+                      : `회사별 최대 ${fetchLimitPerCompany}건을 표본으로 집계합니다.`}
+                  </span>
                 </Alert>
                 {partialFetch ? (
                   <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
@@ -693,7 +705,9 @@ export default function ComparePage() {
                   loading={{
                     show: loading,
                     title: "경쟁사 비교 데이터 확인 중",
-                    subtitle: "최신 기사와 지표를 업데이트하고 있습니다.",
+                    subtitle: isDbSource
+                      ? "DB에 적재된 최신 기사와 지표를 불러오고 있습니다."
+                      : "최신 기사와 지표를 업데이트하고 있습니다.",
                   }}
                 />
               </Stack>
@@ -704,7 +718,9 @@ export default function ComparePage() {
             empty={{
               show: shouldShowCompareEmpty,
               title: "표시할 비교 데이터가 없습니다.",
-              subtitle: "잠시 후 자동으로 다시 확인합니다.",
+              subtitle: isDbSource
+                ? "아직 DB 적재 데이터가 부족합니다. 수집 주기 후 다시 확인합니다."
+                : "잠시 후 자동으로 다시 확인합니다.",
             }}
           />
 
@@ -1193,7 +1209,9 @@ export default function ComparePage() {
 
           <Divider sx={{ my: 1 }} />
           <Typography variant="caption" color="text.secondary" align="center">
-            실시간으로 자동 업데이트됩니다.
+            {isDbSource
+              ? "DB 적재 기사 기준으로 자동 업데이트됩니다."
+              : "실시간으로 자동 업데이트됩니다."}
           </Typography>
         </Stack>
       </Container>
