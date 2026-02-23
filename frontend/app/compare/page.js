@@ -17,7 +17,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, BarChart3, ExternalLink, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, ExternalLink, Info, RefreshCw } from "lucide-react";
 import { List } from "react-window";
 import {
   apiGet,
@@ -582,18 +582,13 @@ export default function ComparePage() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <Box
                   sx={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 1.8,
-                    background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
+                    width: 22,
+                    height: 22,
+                    borderRadius: 1.2,
+                    background:
+                      `linear-gradient(140deg,${colors.brand.nexon.primary} 0 58%,${colors.status.success.main} 58% 100%)`,
                   }}
-                >
-                  <BarChart3 size={17} />
-                </Box>
+                />
                 <Typography
                   sx={{
                     ...specTypeSx.h6,
