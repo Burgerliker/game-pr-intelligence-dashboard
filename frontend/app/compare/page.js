@@ -76,6 +76,12 @@ const INTERACTIVE_CHIP_SX = filterChipSx;
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
 const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
+const COMPANY_TONE = {
+  "넥슨": { bg: "#DBEAFE", color: "#1D4ED8" },
+  "NC소프트": { bg: "#FFEDD5", color: "#C2410C" },
+  "넷마블": { bg: "#DCFCE7", color: "#166534" },
+  "크래프톤": { bg: "#F3E8FF", color: "#6B21A8" },
+};
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -505,7 +511,7 @@ export default function ComparePage() {
     <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={2.5}>
-          <Paper sx={{ ...panelPaperSx, bgcolor: colors.background.muted, px: { xs: 2, md: 3 }, py: 1.5, boxShadow: shadows.xl }}>
+          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.4, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -552,16 +558,77 @@ export default function ComparePage() {
             </Stack>
           </Paper>
 
+          <Paper
+            sx={{
+              ...sectionCardSx,
+              p: { xs: 2.5, md: 3.2 },
+              border: "1px solid #142746",
+              background:
+                "linear-gradient(120deg, rgba(36,114,255,.18) 0%, transparent 42%), linear-gradient(108deg, #040a17 0%, #08152f 44%, #0d2a58 100%)",
+              color: "#eef4ff",
+            }}
+          >
+            <Stack spacing={1.2}>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Chip
+                  size="small"
+                  label="COMPARE LIVE"
+                  sx={{
+                    ...statusChipSx,
+                    bgcolor: "rgba(138,201,255,.16)",
+                    color: "#8ac9ff",
+                    border: "1px solid rgba(138,201,255,.35)",
+                  }}
+                />
+                <Chip
+                  size="small"
+                  label={`최근 ${windowHours}시간 · 총 ${Number(total || 0).toLocaleString()}건`}
+                  sx={{
+                    ...statusChipSx,
+                    bgcolor: "rgba(255,255,255,.08)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(255,255,255,.2)",
+                  }}
+                />
+              </Stack>
+              <Typography sx={{ fontSize: { xs: 28, md: 38 }, fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1 }}>
+                경쟁사 보도 비교 대시보드
+              </Typography>
+              <Typography sx={{ color: "rgba(226,232,240,.88)", fontSize: { xs: 14, md: 16 } }}>
+                보도량, 위기 지수, 이슈량을 같은 축에서 확인해 PR 대응 우선순위를 빠르게 판단합니다.
+              </Typography>
+              <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ pt: 0.5 }}>
+                {DEFAULT_COMPANIES.map((name) => {
+                  const tone = COMPANY_TONE[name] || { bg: "#E2E8F0", color: "#334155" };
+                  return (
+                    <Chip
+                      key={`hero-${name}`}
+                      size="small"
+                      label={name}
+                      sx={{
+                        ...statusChipSx,
+                        bgcolor: tone.bg,
+                        color: tone.color,
+                        border: "none",
+                        fontWeight: 700,
+                      }}
+                    />
+                  );
+                })}
+              </Stack>
+            </Stack>
+          </Paper>
+
           <ApiGuardBanner />
 
           <Card
             variant="outlined"
-            sx={sectionCardSx}
+            sx={{ ...sectionCardSx, boxShadow: "0 10px 24px rgba(15,23,42,.06)" }}
           >
-            <CardContent>
+            <CardContent sx={contentCardSx}>
               <Stack spacing={1.3}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  비교할 게임사
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.slate[700] }}>
+                  비교 설정
                 </Typography>
                 <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
                   <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 기사 기준입니다.</span>
