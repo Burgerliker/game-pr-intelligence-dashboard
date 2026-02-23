@@ -10,15 +10,41 @@ import {
   CardContent,
   Chip,
   Container,
-  Divider,
   Grid,
-  LinearProgress,
+  IconButton,
   Paper,
   Stack,
+  Tab,
+  Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, Info, RefreshCw } from "lucide-react";
-import { List } from "react-window";
+import {
+  AlertTriangle,
+  BarChart3,
+  ChevronRight,
+  ExternalLink,
+  Globe,
+  Info,
+  Layers,
+  MessageSquare,
+  RefreshCw,
+  Settings2,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  Legend,
+} from "recharts";
 import {
   apiGet,
   getRetryAfterSeconds,
@@ -50,6 +76,9 @@ import {
   subPanelSx,
 } from "../../lib/uiTokens";
 
+/* ═══════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════ */
 const SENTIMENTS = ["긍정", "중립", "부정"];
 const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"];
 const DEFAULT_REFRESH_MS = 60000;
@@ -58,13 +87,11 @@ const REQUEST_DEBOUNCE_MS = 350;
 const DEFAULT_WINDOW_HOURS = 72;
 const COMPARE_FETCH_LIMIT = 100;
 const LOW_SAMPLE_THRESHOLD = 5;
-const ARTICLE_ROW_HEIGHT = 62;
-const ARTICLE_LIST_MAX_HEIGHT = 500;
-const ARTICLE_LIST_MIN_HEIGHT = 112;
+
 const WINDOW_HOURS_OPTIONS = [
-  { hours: 24, label: "하루" },
+  { hours: 24, label: "24시간" },
   { hours: 72, label: "3일" },
-  { hours: 168, label: "일주일" },
+  { hours: 168, label: "7일" },
 ];
 const TREND_METRIC_OPTIONS = [
   { key: "count", label: "보도 건수" },
@@ -72,69 +99,54 @@ const TREND_METRIC_OPTIONS = [
   { key: "heat", label: "이슈량" },
 ];
 const SENTIMENT_FILTER_OPTIONS = ["전체", ...SENTIMENTS];
-const INTERACTIVE_CHIP_SX = filterChipSx;
-const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
-const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
-const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
+const ANALYSIS_TABS = [
+  { key: "trend", label: "보도 추이", icon: <TrendingUp size={15} /> },
+  { key: "sentiment", label: "여론 분포", icon: <MessageSquare size={15} /> },
+  { key: "keywords", label: "키워드", icon: <Layers size={15} /> },
+];
 
-function getVolumeState(count) {
-  const safeCount = Number(count || 0);
-  if (safeCount <= 0) {
-    return {
-      label: "0건",
-      chipColor: "warning",
-      helper: "기사 없음",
-      barColor: colors.slate[200],
-    };
-  }
-  if (safeCount < LOW_SAMPLE_THRESHOLD) {
-    return {
-      label: "소량",
-      chipColor: "warning",
-      helper: `${LOW_SAMPLE_THRESHOLD}건 미만`,
-      barColor: colors.status.warning.main,
-    };
-  }
-  return {
-    label: "충분",
-    chipColor: "success",
-    helper: "분석 가능",
-    barColor: colors.chart.blue,
-  };
-}
+/* ═══════════════════════════════════════════════
+   PALETTE — company & sentiment color maps
+   ═══════════════════════════════════════════════ */
+const COMPANY_COLORS = {
+  넥슨: "#2563eb",
+  "NC소프트": "#7c3aed",
+  넷마블: "#059669",
+  크래프톤: "#d97706",
+};
+const SENTIMENT_COLORS = { 긍정: "#10b981", 중립: "#94a3b8", 부정: "#ef4444" };
+const CHART_BG = "#fafbfc";
+
 const DIAG_SCOPE = {
   rateLimit: buildDiagnosticScope("CMP", "RATE"),
   live: buildDiagnosticScope("CMP", "LIVE"),
 };
 
+/* ═══════════════════════════════════════════════
+   HELPER FUNCTIONS
+   ═══════════════════════════════════════════════ */
 function getRefreshIntervalMs() {
-  const configured = Number(process.env.NEXT_PUBLIC_COMPARE_REFRESH_MS || "");
-  if (Number.isFinite(configured) && configured >= MIN_REFRESH_MS) {
-    return Math.floor(configured);
-  }
-  return DEFAULT_REFRESH_MS;
+  const c = Number(process.env.NEXT_PUBLIC_COMPARE_REFRESH_MS || "");
+  return Number.isFinite(c) && c >= MIN_REFRESH_MS ? Math.floor(c) : DEFAULT_REFRESH_MS;
 }
 
-function formatKstTimestamp(value) {
+function formatKstShort(value) {
   if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return String(value);
-  return parsed.toLocaleString("ko-KR", {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("ko-KR", {
     hour12: false,
     timeZone: "Asia/Seoul",
-    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
   });
 }
 
 function clampRetrySeconds(value) {
   const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.max(1, Math.ceil(n));
+  return Number.isFinite(n) && n > 0 ? Math.max(1, Math.ceil(n)) : null;
 }
 
 function formatRetryAt(seconds) {
@@ -149,39 +161,145 @@ function formatRetryAt(seconds) {
   });
 }
 
-function cycleListValue(items, current) {
-  if (!items.length) return "전체";
-  const index = items.indexOf(current);
-  if (index < 0) return items[0];
-  return items[(index + 1) % items.length];
-}
-
 function formatRelativeUpdate(value) {
-  if (!value) return "갱신 정보 없음";
+  if (!value) return "—";
   const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return "방금 갱신";
-  const diffSec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000));
-  if (diffSec < 60) return "방금 갱신";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}분 전`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}시간 전`;
-  return `${Math.floor(diffHour / 24)}일 전`;
+  if (Number.isNaN(dt.getTime())) return "방금";
+  const sec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000));
+  if (sec < 60) return "방금";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  return `${Math.floor(hr / 24)}일 전`;
 }
 
-function resolvePriorityTone(priorityRaw) {
-  const p = String(priorityRaw || "").trim().toUpperCase();
-  if (p === "P1" || p === "높음" || p === "HIGH") {
-    return { label: p || "P1", bg: "rgba(239,68,68,.12)", color: "#b91c1c" };
-  }
-  if (p === "P2" || p === "중간" || p === "MEDIUM") {
-    return { label: p || "P2", bg: "rgba(245,158,11,.14)", color: "#b45309" };
-  }
-  return { label: p || "P3", bg: "rgba(148,163,184,.14)", color: "#475569" };
+function getVolumeState(count) {
+  const n = Number(count || 0);
+  if (n <= 0) return { label: "0건", tone: "warning" };
+  if (n < LOW_SAMPLE_THRESHOLD) return { label: "소량", tone: "warning" };
+  return { label: "충분", tone: "success" };
 }
 
+function companyColor(name) {
+  return COMPANY_COLORS[name] || "#2563eb";
+}
+
+/* ═══════════════════════════════════════════════
+   MICRO COMPONENTS
+   ═══════════════════════════════════════════════ */
+
+/** Glass-effect card wrapper */
+const GlassCard = ({ children, sx, ...props }) => (
+  <Card
+    variant="outlined"
+    sx={{
+      borderRadius: 3,
+      border: "1px solid rgba(148,163,184,.18)",
+      bgcolor: "#fff",
+      boxShadow: "0 1px 3px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.03)",
+      overflow: "visible",
+      ...sx,
+    }}
+    {...props}
+  >
+    {children}
+  </Card>
+);
+
+/** Single metric card with accent top-line */
+const MetricBox = ({ label, value, sub, accentColor, volumeState }) => (
+  <Box
+    sx={{
+      position: "relative",
+      p: { xs: 2, md: 2.5 },
+      borderRadius: 2.5,
+      bgcolor: "#fff",
+      border: "1px solid rgba(148,163,184,.15)",
+      boxShadow: "0 1px 3px rgba(15,23,42,.03)",
+      overflow: "hidden",
+      transition: "box-shadow .2s, transform .2s",
+      "&:hover": { boxShadow: "0 4px 16px rgba(15,23,42,.08)", transform: "translateY(-1px)" },
+    }}
+  >
+    <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, bgcolor: accentColor, borderRadius: "12px 12px 0 0" }} />
+    <Typography
+      variant="caption"
+      sx={{ color: "text.secondary", fontWeight: 600, letterSpacing: ".02em", textTransform: "uppercase", fontSize: 11 }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      variant="h4"
+      sx={{ fontWeight: 800, mt: 0.5, fontVariantNumeric: "tabular-nums", fontSize: { xs: 30, md: 34 }, lineHeight: 1.1, color: "#0f172a" }}
+    >
+      {value}
+    </Typography>
+    <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.8 }}>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>{sub}</Typography>
+      {volumeState && (
+        <Box
+          component="span"
+          sx={{
+            fontSize: 10,
+            fontWeight: 700,
+            px: 0.8,
+            py: 0.15,
+            borderRadius: 1,
+            bgcolor: volumeState.tone === "success" ? "rgba(16,185,129,.1)" : "rgba(245,158,11,.1)",
+            color: volumeState.tone === "success" ? "#059669" : "#d97706",
+          }}
+        >
+          {volumeState.label}
+        </Box>
+      )}
+    </Stack>
+  </Box>
+);
+
+/** Section header with optional right-side action */
+const SectionHeader = ({ title, subtitle, action }) => (
+  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
+    <Box>
+      <Typography variant="h6" sx={{ fontWeight: 800, fontSize: 17, color: "#1e293b" }}>{title}</Typography>
+      {subtitle && <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.2, display: "block" }}>{subtitle}</Typography>}
+    </Box>
+    {action}
+  </Stack>
+);
+
+/** Custom Recharts tooltip */
+const ChartTooltipContent = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <Paper
+      sx={{
+        p: 1.2,
+        borderRadius: 2,
+        boxShadow: "0 4px 16px rgba(0,0,0,.12)",
+        border: "1px solid rgba(148,163,184,.15)",
+      }}
+    >
+      <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.4, display: "block" }}>{label}</Typography>
+      {payload.map((entry) => (
+        <Stack key={entry.dataKey} direction="row" spacing={0.8} alignItems="center" sx={{ py: 0.15 }}>
+          <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: entry.color, flexShrink: 0 }} />
+          <Typography variant="caption">
+            {entry.name}: <b>{typeof entry.value === "number" ? entry.value.toLocaleString() : entry.value}</b>
+          </Typography>
+        </Stack>
+      ))}
+    </Paper>
+  );
+};
+
+/* ═══════════════════════════════════════════════
+   MAIN PAGE COMPONENT
+   ═══════════════════════════════════════════════ */
 export default function ComparePage() {
   const refreshMs = getRefreshIntervalMs();
+
+  /* ── state ── */
   const [selectedCompanies, setSelectedCompanies] = useState(DEFAULT_COMPANIES);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -193,7 +311,10 @@ export default function ComparePage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState("");
   const [retryAfterSec, setRetryAfterSec] = useState(null);
   const [selectedWindowHours, setSelectedWindowHours] = useState(DEFAULT_WINDOW_HOURS);
+  const [activeTab, setActiveTab] = useState("trend");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
+  /* ── refs ── */
   const inFlightRef = useRef(false);
   const compareReqSeqRef = useRef(0);
   const compareAbortRef = useRef(null);
@@ -201,6 +322,7 @@ export default function ComparePage() {
   const debounceTimerRef = useRef(null);
   const retryAfterRef = useRef(0);
 
+  /* ── derived from data ── */
   const total = data?.meta?.total_articles ?? 0;
   const companyCounts = data?.company_counts ?? {};
   const insights = data?.insights ?? {};
@@ -209,7 +331,6 @@ export default function ComparePage() {
   const hasTrendMetricRows = Array.isArray(trendMetricRows) && trendMetricRows.length > 0;
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
-  const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
   const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || COMPARE_FETCH_LIMIT);
   const timedOutCompanies = Array.isArray(data?.meta?.timed_out_companies) ? data.meta.timed_out_companies : [];
   const failedCompanies = Array.isArray(data?.meta?.failed_companies) ? data.meta.failed_companies : [];
@@ -217,6 +338,7 @@ export default function ComparePage() {
   const companiesForView = selectedCompanies;
   const windowHours = Number(selectedWindowHours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
 
+  /* ═══════════════ POLLING / FETCH LOGIC ═══════════════ */
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
@@ -240,7 +362,6 @@ export default function ComparePage() {
     compareAbortRef.current?.abort();
     const controller = new AbortController();
     compareAbortRef.current = controller;
-
     setLoading(true);
 
     try {
@@ -264,6 +385,7 @@ export default function ComparePage() {
 
       const isRateLimit = Number(e?.status) === 429;
       const retrySeconds = clampRetrySeconds(getRetryAfterSeconds(e));
+
       if (isRateLimit) {
         const waitLabel = retrySeconds ? ` (약 ${retrySeconds}초 후 재시도)` : "";
         setError(`요청이 많아 잠시 후 다시 시도${waitLabel}`);
@@ -290,42 +412,21 @@ export default function ComparePage() {
     }
   }, [clearScheduledFetch, selectedCompanies, stopPolling, windowHours]);
 
-  const companyCards = useMemo(
-    () =>
-      selectedCompanies.map((name) => ({
-        company: name,
-        count: Number(companyCounts?.[name] || 0),
-        state: getVolumeState(companyCounts?.[name] || 0),
-      })),
-    [companyCounts, selectedCompanies]
-  );
-  const lowSampleCompanyCount = useMemo(
-    () => companyCards.filter((item) => item.state.label === "소량" || item.state.label === "0건").length,
-    [companyCards]
-  );
-  const liveStatusTone = lowSampleCompanyCount > 0
-    ? { bg: colors.status.warning.light, color: colors.status.warning.text, label: "표본 주의" }
-    : { bg: colors.status.success.light, color: colors.status.success.text, label: "표본 안정" };
-
   const scheduleFetch = useCallback(
     (delayMs = REQUEST_DEBOUNCE_MS, { force = false, allowDuringRateLimit = false } = {}) => {
       if (!force && typeof document !== "undefined" && document.hidden) return;
       if (!allowDuringRateLimit && retryAfterRef.current > 0) return;
       clearScheduledFetch();
-      debounceTimerRef.current = setTimeout(() => {
-        fetchCompare();
-      }, delayMs);
+      debounceTimerRef.current = setTimeout(() => fetchCompare(), delayMs);
     },
-    [clearScheduledFetch, fetchCompare]
+    [clearScheduledFetch, fetchCompare],
   );
 
   const startPolling = useCallback(() => {
     stopPolling();
     if (typeof document !== "undefined" && document.hidden) return;
     if (retryAfterRef.current > 0) return;
-    pollTimerRef.current = setInterval(() => {
-      scheduleFetch(0);
-    }, refreshMs);
+    pollTimerRef.current = setInterval(() => scheduleFetch(0), refreshMs);
   }, [refreshMs, scheduleFetch, stopPolling]);
 
   const toggleSelectedCompany = (name) => {
@@ -338,6 +439,17 @@ export default function ComparePage() {
     });
   };
 
+  /* ═══════════════ DERIVED DATA ═══════════════ */
+  const companyCards = useMemo(
+    () =>
+      selectedCompanies.map((name) => ({
+        company: name,
+        count: Number(companyCounts?.[name] || 0),
+        state: getVolumeState(companyCounts?.[name] || 0),
+      })),
+    [companyCounts, selectedCompanies],
+  );
+
   const sentimentByCompany = useMemo(() => {
     const map = {};
     for (const row of sentimentRows) {
@@ -348,80 +460,68 @@ export default function ComparePage() {
     return map;
   }, [sentimentRows]);
 
-  const trendSeries = useMemo(() => {
-    if (!companiesForView.length) return [];
-    const dateOrder = trendRows.slice(-14).map((row) => String(row.date));
-    const fallbackDateOrder = Array.from(new Set((trendMetricRows || []).map((row) => String(row.date)))).slice(-14);
-    const dates = dateOrder.length ? dateOrder : fallbackDateOrder;
+  /** Recharts-ready trend data: [{ date, 넥슨: n, NC소프트: n, ... }] */
+  const rechartsData = useMemo(() => {
+    const dateOrder = trendRows.slice(-14).map((r) => String(r.date));
+    const fallback = Array.from(
+      new Set((trendMetricRows || []).map((r) => String(r.date))),
+    ).slice(-14);
+    const dates = dateOrder.length ? dateOrder : fallback;
     if (!dates.length) return [];
 
     const trendCountMap = new Map();
     for (const row of trendRows) {
       const day = String(row?.date || "");
       if (!day) continue;
-      for (const company of companiesForView) {
-        trendCountMap.set(`${company}::${day}`, Number(row?.[company] || 0));
+      for (const c of companiesForView) {
+        trendCountMap.set(`${c}::${day}`, Number(row?.[c] || 0));
       }
     }
-    const trendMetricMap = new Map();
-    for (const row of trendMetricRows || []) {
-      const company = String(row?.company || "");
-      const date = String(row?.date || "");
-      if (!company || !date) continue;
-      trendMetricMap.set(`${company}::${date}`, row);
-    }
 
-    return companiesForView.map((company) => {
-      const points = dates.map((date) => {
-        const row = trendMetricMap.get(`${company}::${date}`);
-        const countValue = Number(
-          row?.count ??
-            trendCountMap.get(`${company}::${date}`) ??
-            0
+    return dates.map((date) => {
+      const entry = { date };
+      for (const company of companiesForView) {
+        const metricRow = (trendMetricRows || []).find(
+          (r) => r.company === company && String(r.date) === date,
         );
-        const value = trendMetric === "risk"
-          ? (hasTrendMetricRows ? Number(row?.risk_score || 0) : countValue)
-          : trendMetric === "heat"
-            ? (hasTrendMetricRows ? Number(row?.heat_score || 0) : countValue)
-            : countValue;
-        return {
-          date,
-          value,
-          sampleSize: Number(row?.sample_size || countValue || 0),
-          qualityFlag: String(row?.quality_flag || (countValue < lowSampleThreshold ? "LOW_SAMPLE" : "OK")),
-        };
-      });
-      const max = Math.max(...points.map((p) => p.value), 0);
-      const hasData = points.some((p) => p.value > 0);
-      const hasLowSample = points.some((p) => p.qualityFlag === "LOW_SAMPLE");
-      return { company, points, max, hasData, hasLowSample };
+        const countVal = Number(
+          metricRow?.count ?? trendCountMap.get(`${company}::${date}`) ?? 0,
+        );
+        entry[company] =
+          trendMetric === "risk"
+            ? hasTrendMetricRows
+              ? Number(metricRow?.risk_score || 0)
+              : countVal
+            : trendMetric === "heat"
+              ? hasTrendMetricRows
+                ? Number(metricRow?.heat_score || 0)
+                : countVal
+              : countVal;
+      }
+      return entry;
     });
-  }, [companiesForView, hasTrendMetricRows, lowSampleThreshold, trendMetric, trendMetricRows, trendRows]);
+  }, [companiesForView, hasTrendMetricRows, trendMetric, trendMetricRows, trendRows]);
 
-  const hasAnyTrendData = useMemo(
-    () => trendSeries.some((series) => series.hasData),
-    [trendSeries]
+  /** Sentiment stacked bar data */
+  const sentimentChartData = useMemo(
+    () =>
+      companiesForView.map((company) => {
+        const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0, total: 0 };
+        const count = Number(companyCounts?.[company] || row.total || 0);
+        return { company, 긍정: row.긍정, 중립: row.중립, 부정: row.부정, count };
+      }),
+    [companiesForView, companyCounts, sentimentByCompany],
   );
-  const hasTrendLowSample = useMemo(
-    () => trendMetric !== "count" && trendSeries.some((series) => series.hasLowSample),
-    [trendMetric, trendSeries]
-  );
-  const trendDateRangeLabel = useMemo(() => {
-    const base = trendSeries[0]?.points || [];
-    if (!base.length) return "";
-    const first = String(base[0]?.date || "");
-    const last = String(base[base.length - 1]?.date || "");
-    if (!first || !last) return "";
-    return first === last ? first : `${first} ~ ${last}`;
-  }, [trendSeries]);
 
   const keywordCards = useMemo(
     () =>
       companiesForView.map((company) => ({
         company,
-        items: (keywordsMap[company] || []).slice(0, 10).map((it) => ({ keyword: it[0], count: it[1] })),
+        items: (keywordsMap[company] || [])
+          .slice(0, 10)
+          .map((it) => ({ keyword: it[0], count: it[1] })),
       })),
-    [companiesForView, keywordsMap]
+    [companiesForView, keywordsMap],
   );
 
   const articleCompanyFilters = useMemo(() => ["전체", ...companiesForView], [companiesForView]);
@@ -438,12 +538,8 @@ export default function ComparePage() {
     if (filterSentiment !== "전체") rows = rows.filter((r) => r.sentiment === filterSentiment);
     return rows;
   }, [data, filterCompany, filterSentiment]);
-  const articleListHeight = useMemo(() => {
-    const estimated = displayedArticles.length * ARTICLE_ROW_HEIGHT;
-    if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
-    return Math.max(ARTICLE_LIST_MIN_HEIGHT, Math.min(ARTICLE_LIST_MAX_HEIGHT, estimated));
-  }, [displayedArticles.length]);
 
+  /* ═══════════════ EFFECTS ═══════════════ */
   useEffect(() => {
     scheduleFetch(0, { force: true });
     startPolling();
@@ -469,16 +565,14 @@ export default function ComparePage() {
     if (typeof window === "undefined") return undefined;
     const syncFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
-      const queryCompany = params.get("company");
-      const querySentiment = params.get("sentiment");
-      if (queryCompany && (queryCompany === "전체" || companiesForView.includes(queryCompany))) {
-        setFilterCompany((prev) => (prev === queryCompany ? prev : queryCompany));
-      }
-      if (querySentiment && (querySentiment === "전체" || SENTIMENTS.includes(querySentiment))) {
-        setFilterSentiment((prev) => (prev === querySentiment ? prev : querySentiment));
-      }
-      if (!queryCompany) setFilterCompany("전체");
-      if (!querySentiment) setFilterSentiment("전체");
+      const qc = params.get("company");
+      const qs = params.get("sentiment");
+      if (qc && (qc === "전체" || companiesForView.includes(qc)))
+        setFilterCompany((p) => (p === qc ? p : qc));
+      if (qs && (qs === "전체" || SENTIMENTS.includes(qs)))
+        setFilterSentiment((p) => (p === qs ? p : qs));
+      if (!qc) setFilterCompany("전체");
+      if (!qs) setFilterSentiment("전체");
     };
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
@@ -492,16 +586,17 @@ export default function ComparePage() {
     else params.set("company", filterCompany);
     if (filterSentiment === "전체") params.delete("sentiment");
     else params.set("sentiment", filterSentiment);
-    const nextQuery = params.toString();
-    const nextPath = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
-    const currentPath = `${window.location.pathname}${window.location.search}`;
-    if (nextPath !== currentPath) {
+    const next = params.toString();
+    const nextPath = next
+      ? `${window.location.pathname}?${next}`
+      : window.location.pathname;
+    if (nextPath !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState({}, "", nextPath);
     }
   }, [filterCompany, filterSentiment]);
 
   useEffect(() => {
-    const onVisibilityChange = () => {
+    const handler = () => {
       if (document.hidden) {
         stopPolling();
         clearScheduledFetch();
@@ -512,8 +607,8 @@ export default function ComparePage() {
       scheduleFetch(0, { force: true });
       startPolling();
     };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
   }, [clearScheduledFetch, scheduleFetch, startPolling, stopPolling]);
 
   useEffect(() => {
@@ -537,165 +632,231 @@ export default function ComparePage() {
     return () => clearInterval(timer);
   }, [retryAfterSec, scheduleFetch, startPolling]);
 
+  /* ═══════════════════════════════════════════════
+     RENDER
+     ═══════════════════════════════════════════════ */
   return (
-    <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
+    <Box sx={{ ...pageShellCleanSx, bgcolor: "#f8fafc", minHeight: "100vh", py: { xs: 2, md: 5 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={2.5}>
-          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.4, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              alignItems={{ xs: "flex-start", sm: "center" }}
-              justifyContent="space-between"
-              spacing={1.2}
-            >
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Box
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 1.2,
-                    background:
-                      `linear-gradient(140deg,${colors.brand.nexon.primary} 0 58%,${colors.status.success.main} 58% 100%)`,
-                  }}
-                />
+          {/* ───────── HEADER ───────── */}
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
+              justifyContent: "space-between",
+              alignItems: { sm: "center" },
+              gap: 1.5,
+            }}
+          >
+            <Stack direction="row" spacing={1.2} alignItems="center">
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 2,
+                  background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  flexShrink: 0,
+                }}
+              >
+                <BarChart3 size={18} />
+              </Box>
+              <Box>
                 <Typography
+                  variant="h5"
                   sx={{
-                    ...specTypeSx.h6,
+                    fontWeight: 800,
                     fontSize: { xs: 20, md: 22 },
-                    color: colors.slate[900],
+                    color: "#0f172a",
+                    lineHeight: 1.2,
                   }}
                 >
                   경쟁사 비교 현황판
                 </Typography>
-              </Stack>
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-end", sm: "flex-start" } }}
-              >
-                <Button component={Link} href="/" variant="outlined" size="small" sx={navButtonSx}>메인</Button>
-                <Button component={Link} href="/nexon" variant="outlined" size="small" sx={navButtonSx}>넥슨 IP 리스크</Button>
-              </Stack>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.2 }}>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {formatRelativeUpdate(lastUpdatedAt)} 갱신
+                  </Typography>
+                  {loading && (
+                    <Box
+                      sx={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        bgcolor: "#2563eb",
+                        animation: "cmp-pulse 1.5s infinite",
+                        "@keyframes cmp-pulse": {
+                          "0%, 100%": { opacity: 1 },
+                          "50%": { opacity: 0.3 },
+                        },
+                      }}
+                    />
+                  )}
+                </Stack>
+              </Box>
             </Stack>
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
-              <Chip size="small" variant="outlined" label={`최근 갱신: ${formatKstTimestamp(lastUpdatedAt)}`} sx={statusChipSx} />
-              <Chip
-                size="small"
+
+            <Stack direction="row" spacing={0.8}>
+              <Button
+                component={Link}
+                href="/"
                 variant="outlined"
-                label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{Math.round(refreshMs / 1000)}초마다 자동 업데이트</span>}
-                sx={statusChipSx}
-              />
-              <Chip
                 size="small"
-                label={liveStatusTone.label}
-                sx={{
-                  ...statusChipSx,
-                  bgcolor: liveStatusTone.bg,
-                  color: liveStatusTone.color,
-                  border: "none",
-                  fontWeight: 700,
-                }}
-              />
+                sx={{ ...navButtonSx, borderRadius: 2 }}
+              >
+                메인
+              </Button>
+              <Button
+                component={Link}
+                href="/nexon"
+                variant="outlined"
+                size="small"
+                sx={{ ...navButtonSx, borderRadius: 2 }}
+              >
+                넥슨 IP 리스크
+              </Button>
+              <Tooltip title="설정">
+                <IconButton
+                  size="small"
+                  onClick={() => setSettingsOpen((p) => !p)}
+                  sx={{
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Settings2 size={16} />
+                </IconButton>
+              </Tooltip>
             </Stack>
-          </Paper>
+          </Box>
 
           <ApiGuardBanner />
 
-          <Paper
-            variant="outlined"
-            sx={{
-              ...subPanelSx,
-              bgcolor: "#ffffff",
-              borderColor: colors.slate[200],
-              py: 1.2,
-              px: { xs: 1.5, md: 2 },
-            }}
-          >
-            <Stack direction={{ xs: "column", md: "row" }} spacing={0.9} justifyContent="space-between">
-              <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
-                <Chip size="small" variant="outlined" label={`선택 게임사 ${selectedCompanies.length}개`} sx={INTERACTIVE_CHIP_SX} />
-                <Chip size="small" variant="outlined" label={`최근 ${windowHours}시간`} sx={INTERACTIVE_CHIP_SX} />
-                <Chip size="small" variant="outlined" label={`총 기사 ${Number(total || 0).toLocaleString()}건`} sx={INTERACTIVE_CHIP_SX} />
-                <Chip size="small" variant="outlined" label={`저표본 ${lowSampleCompanyCount}개`} sx={INTERACTIVE_CHIP_SX} />
-              </Stack>
-              <Typography variant="caption" sx={{ color: colors.slate[500], alignSelf: { xs: "flex-start", md: "center" } }}>
-                상태: {formatRelativeUpdate(lastUpdatedAt)} · 비교 지표는 서버 산출값 기준
+          {/* ───────── COLLAPSIBLE SETTINGS PANEL ───────── */}
+          {settingsOpen && (
+            <GlassCard sx={{ px: { xs: 2, md: 2.5 }, py: 2 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: 700, mb: 1.5, fontSize: 13, color: "#475569" }}
+              >
+                비교 설정
               </Typography>
-            </Stack>
-          </Paper>
-
-          <Card
-            variant="outlined"
-            sx={{ ...sectionCardSx, boxShadow: "0 10px 24px rgba(15,23,42,.06)" }}
-          >
-            <CardContent sx={contentCardSx}>
-              <Stack spacing={1.3}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.slate[700] }}>
-                  비교 설정
-                </Typography>
-                <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
-                  <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 기사 기준입니다.</span>
-                </Alert>
-                <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
-                  <span><Info {...iconProps()} style={inlineIconSx} />회사별 최대 {fetchLimitPerCompany}건을 표본으로 집계합니다.</span>
-                </Alert>
-                {partialFetch ? (
-                  <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
-                    <span><AlertTriangle {...iconProps()} style={inlineIconSx} />일부 회사 데이터 수집이 지연되었습니다.</span>
-                    {timedOutCompanies.length ? ` 타임아웃: ${timedOutCompanies.join(", ")}` : ""}
-                    {failedCompanies.length ? ` 실패: ${failedCompanies.join(", ")}` : ""}
-                  </Alert>
-                ) : null}
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {DEFAULT_COMPANIES.map((name) => (
-                    <Chip
-                      key={name}
-                      label={name}
-                      onClick={() => toggleSelectedCompany(name)}
-                      color={selectedCompanies.includes(name) ? "primary" : "default"}
-                      variant={selectedCompanies.includes(name) ? "filled" : "outlined"}
-                      sx={INTERACTIVE_CHIP_SX}
-                    />
-                  ))}
+              <Stack spacing={1.8}>
+                {/* company select */}
+                <Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", fontWeight: 600, mb: 0.6, display: "block" }}
+                  >
+                    게임사 선택
+                  </Typography>
+                  <Stack direction="row" spacing={0.6} useFlexGap flexWrap="wrap">
+                    {DEFAULT_COMPANIES.map((name) => (
+                      <Chip
+                        key={name}
+                        label={name}
+                        size="small"
+                        onClick={() => toggleSelectedCompany(name)}
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: 12,
+                          borderRadius: 1.5,
+                          bgcolor: selectedCompanies.includes(name) ? companyColor(name) : "transparent",
+                          color: selectedCompanies.includes(name) ? "#fff" : "#475569",
+                          border: "1px solid",
+                          borderColor: selectedCompanies.includes(name) ? companyColor(name) : "#cbd5e1",
+                          "&:hover": { opacity: 0.85 },
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+                {/* window select */}
+                <Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", fontWeight: 600, mb: 0.6, display: "block" }}
+                  >
+                    기간
+                  </Typography>
+                  <ToggleButtonGroup
+                    size="small"
+                    exclusive
+                    value={windowHours}
+                    onChange={(_, v) => {
+                      if (v !== null) setSelectedWindowHours(v);
+                    }}
+                    sx={{
+                      "& .MuiToggleButton-root": {
+                        borderRadius: 1.5,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        px: 1.5,
+                        textTransform: "none",
+                      },
+                    }}
+                  >
+                    {WINDOW_HOURS_OPTIONS.map(({ hours, label }) => (
+                      <ToggleButton key={hours} value={hours}>
+                        {label}
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </Box>
+                {/* meta info */}
+                <Stack direction="row" spacing={1.5} sx={{ color: "text.secondary", fontSize: 12 }}>
+                  <Typography variant="caption">회사별 최대 {fetchLimitPerCompany}건 집계</Typography>
+                  <Typography variant="caption">
+                    자동 갱신 {Math.round(refreshMs / 1000)}초
+                  </Typography>
                 </Stack>
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {WINDOW_HOURS_OPTIONS.map(({ hours, label }) => (
-                    <Chip
-                      key={hours}
-                      label={label}
-                      onClick={() => setSelectedWindowHours(hours)}
-                      color={windowHours === hours ? "primary" : "default"}
-                      variant={windowHours === hours ? "filled" : "outlined"}
-                      sx={INTERACTIVE_CHIP_SX}
-                    />
-                  ))}
-                </Stack>
-                {retryAfterSec ? (
-                  <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
-                    <span><AlertTriangle {...iconProps()} style={inlineIconSx} />호출 제한(HTTP 429): 요청량이 많습니다.</span>
-                    {` ${retryAfterSec}초 후 자동 재시도 예정 (${formatRetryAt(retryAfterSec)} KST)`}
-                    {errorCode ? ` · 호출 제한 중 (${errorCode})` : ""}
-                  </Alert>
-                ) : null}
-                <PageStatusView
-                  spacing={1}
-                  error={{
-                    show: hasBlockingError,
-                    title: "분석 실패",
-                    details: error,
-                    diagnosticCode: errorCode,
-                  }}
-                  loading={{
-                    show: loading,
-                    title: "경쟁사 비교 데이터 확인 중",
-                    subtitle: "최신 기사와 지표를 업데이트하고 있습니다.",
-                  }}
-                />
               </Stack>
-            </CardContent>
-          </Card>
+            </GlassCard>
+          )}
 
+          {/* ───────── CONSOLIDATED ALERTS ───────── */}
+          {retryAfterSec ? (
+            <Alert
+              severity="warning"
+              icon={<AlertTriangle size={16} />}
+              sx={{ borderRadius: 2.5, "& .MuiAlert-message": { fontSize: 13 } }}
+            >
+              호출 제한(HTTP 429) — {retryAfterSec}초 후 자동 재시도 (
+              {formatRetryAt(retryAfterSec)} KST)
+              {errorCode ? ` · ${errorCode}` : ""}
+            </Alert>
+          ) : null}
+          {partialFetch && !retryAfterSec ? (
+            <Alert
+              severity="warning"
+              icon={<AlertTriangle size={16} />}
+              sx={{ borderRadius: 2.5, "& .MuiAlert-message": { fontSize: 13 } }}
+            >
+              일부 회사 데이터 수집 지연
+              {timedOutCompanies.length ? ` · 타임아웃: ${timedOutCompanies.join(", ")}` : ""}
+              {failedCompanies.length ? ` · 실패: ${failedCompanies.join(", ")}` : ""}
+            </Alert>
+          ) : null}
+
+          {/* ───────── STATUS VIEW ───────── */}
           <PageStatusView
+            spacing={1}
+            error={{
+              show: hasBlockingError,
+              title: "분석 실패",
+              details: error,
+              diagnosticCode: errorCode,
+            }}
+            loading={{
+              show: loading && !data,
+              title: "경쟁사 비교 데이터 확인 중",
+              subtitle: "최신 기사와 지표를 업데이트하고 있습니다.",
+            }}
             empty={{
               show: shouldShowCompareEmpty,
               title: "표시할 비교 데이터가 없습니다.",
@@ -703,492 +864,720 @@ export default function ComparePage() {
             }}
           />
 
+          {/* ═══════════════ DATA SECTIONS ═══════════════ */}
           {data ? (
             <>
-              <Grid container spacing={{ xs: 1.1, md: 1.6 }}>
+              {/* ───────── METRIC CARDS ───────── */}
+              <Grid container spacing={{ xs: 1.2, md: 1.5 }}>
                 {companyCards.map(({ company, count, state }) => (
-                  <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
-                    <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
-                      <Box sx={{ height: 3, bgcolor: state.barColor, flexShrink: 0 }} />
-                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.6 }}>
-                          {company}
-                        </Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.08, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 } }}>
-                          {Number(count).toLocaleString()}
-                        </Typography>
-                        <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.6 }}>
-                          <Typography variant="caption" sx={{ color: colors.slate[500] }}>
-                            보도 건수
-                          </Typography>
-                          <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} sx={INTERACTIVE_CHIP_SX} />
-                        </Stack>
-                        <Typography variant="caption" sx={{ color: colors.slate[500], display: "block", mt: 0.4 }}>
-                          {state.helper}
-                        </Typography>
-                      </Box>
-                    </Box>
+                  <Grid item xs={6} md={3} key={company}>
+                    <MetricBox
+                      label={company}
+                      value={Number(count).toLocaleString()}
+                      sub="보도 건수"
+                      accentColor={companyColor(company)}
+                      volumeState={state}
+                    />
                   </Grid>
                 ))}
-                <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
-                  <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
-                    <Box sx={{ height: 3, bgcolor: colors.brand.nexon.primary, flexShrink: 0 }} />
-                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          총합
-                        </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 }, lineHeight: 1.08 }}>
-                        {Number(total).toLocaleString()}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        전체 기사
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
               </Grid>
-              <Stack direction="row" spacing={0.9} useFlexGap flexWrap="wrap" sx={{ mt: 0.8, mb: 0.4 }}>
-                <Chip label="0건: 기사 없음" color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-                <Chip label={`소량: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-                <Chip label="충분: 분석 가능" color="success" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-              </Stack>
 
-              <Grid container spacing={{ xs: 1.2, md: 1.6 }}>
-                <Grid item xs={12} lg={8} sx={{ display: "flex", minWidth: 0 }}>
-                  <Card
-                    variant="outlined"
-                    sx={{ ...sectionCardSx, width: "100%", boxShadow: shadows.lg }}
-                  >
-                    <CardContent sx={contentCardSx}>
-                      <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4, lineHeight: 1.3 }}>
-                        보도 추이 (최근 14일)
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: colors.slate[500], display: "block", mb: 1.2 }}>
-                        지표는 시스템 산출값입니다.
-                      </Typography>
-                      <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mb: 1 }}>
-                        {TREND_METRIC_OPTIONS.map((option) => (
-                          <Chip
-                            key={option.key}
-                            clickable
-                            label={option.label}
-                            onClick={() => setTrendMetric(option.key)}
-                            color={trendMetric === option.key ? "primary" : "default"}
-                            variant={trendMetric === option.key ? "filled" : "outlined"}
-                            sx={INTERACTIVE_CHIP_SX}
-                          />
-                        ))}
-                      </Stack>
-                      {!hasTrendMetricRows && trendMetric !== "count" ? (
-                        <Alert severity="info" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          <span><Info {...iconProps()} style={inlineIconSx} />위기 지수 추이 데이터가 없어 보도량 추이로 표시합니다.</span>
-                        </Alert>
-                      ) : null}
-                      {hasTrendLowSample ? (
-                        <Alert severity="warning" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />기사 수가 적은 구간이 포함되어 있어 해석 시 변동성이 클 수 있습니다.</span>
-                        </Alert>
-                      ) : null}
-                      {!trendSeries.length ? (
-                        <EmptyState title="추이 데이터가 없습니다." subtitle="일자별 집계 데이터가 아직 생성되지 않았습니다." compact />
-                      ) : !hasAnyTrendData ? (
-                        <EmptyState title="모든 게임사가 0건입니다." subtitle="현재 기간에는 기사가 없어 추이를 표시할 수 없습니다." tone="warning" compact />
-                      ) : (
-                        <Stack spacing={1.45}>
-                          {trendSeries.map((series) => (
-                            <Box key={series.company}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                                  {series.company}
-                                </Typography>
-                                <Chip
-                                  variant="outlined"
-                                  color={series.hasLowSample && trendMetric !== "count" ? "warning" : getVolumeState(series.max).chipColor}
-                                  label={
-                                    trendMetric === "count"
-                                      ? `${getVolumeState(series.max).label} (최대 ${series.max}건)`
-                                      : trendMetric === "risk"
-                                        ? `위기 지수 최대 ${series.max.toFixed(1)}`
-                                        : `이슈량 최대 ${series.max.toFixed(1)}`
-                                  }
-                                  sx={INTERACTIVE_CHIP_SX}
-                                />
-                              </Stack>
-                              {series.hasData ? (
-                                <Stack
-                                  direction="row"
-                                  spacing={0.3}
-                                  sx={{ mt: 0.8, height: 72, alignItems: "end" }}
-                                >
-                                  {series.points.map((p) => {
-                                    const pointState = getVolumeState(p.sampleSize);
-                                    const barColor = p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count"
-                                      ? colors.status.warning.main
-                                      : trendMetric === "risk"
-                                        ? colors.status.error.dark
-                                        : trendMetric === "heat"
-                                          ? colors.chart.blue
-                                          : pointState.barColor;
-                                    return (
-                                      <Box
-                                        key={`${series.company}-${p.date}`}
-                                        title={`${p.date}: ${p.value}${trendMetric === "count" ? "건" : trendMetric === "risk" ? " 위기 지수" : " 이슈량"}${p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count" ? " (기사 부족)" : ""}`}
-                                        sx={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}
-                                      >
-                                        {p.value > 0 ? (
-                                          <Box
-                                            sx={{
-                                              width: "100%",
-                                              height: `${(p.value / series.max) * 100}%`,
-                                              borderRadius: 0.5,
-                                              bgcolor: barColor,
-                                              minHeight: 8,
-                                            }}
-                                          />
-                                        ) : (
-                                          <Box
-                                            sx={{
-                                              width: "100%",
-                                              height: 6,
-                                              borderRadius: 0.5,
-                                              bgcolor: barColor,
-                                            }}
-                                          />
-                                        )}
-                                      </Box>
-                                    );
-                                  })}
-                                </Stack>
-                              ) : (
-                                <EmptyState
-                                  title={`${series.company} · 0건`}
-                                  subtitle="해당 기간 기사가 없어 추이를 표시할 수 없습니다."
-                                  tone="warning"
-                                  compact
-                                />
-                              )}
-                            </Box>
-                          ))}
-                        </Stack>
-                      )}
-                      {trendDateRangeLabel ? (
-                        <Typography variant="body2" sx={{ color: colors.slate[500], mt: 1.2 }}>
-                          기준 일자: {trendDateRangeLabel} · 단위: {
-                            trendMetric === "count" || !hasTrendMetricRows
-                              ? "기사 건수"
-                              : "지수(0~100)"
-                          }
-                        </Typography>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                </Grid>
+              {/* ───────── TABBED ANALYSIS ───────── */}
+              <GlassCard>
+                <Tabs
+                  value={activeTab}
+                  onChange={(_, v) => setActiveTab(v)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  sx={{
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                    "& .MuiTab-root": {
+                      textTransform: "none",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      minHeight: 48,
+                      gap: 0.6,
+                    },
+                    "& .Mui-selected": { color: "#2563eb" },
+                    "& .MuiTabs-indicator": {
+                      bgcolor: "#2563eb",
+                      height: 2.5,
+                      borderRadius: 2,
+                    },
+                  }}
+                >
+                  {ANALYSIS_TABS.map((tab) => (
+                    <Tab
+                      key={tab.key}
+                      value={tab.key}
+                      icon={tab.icon}
+                      iconPosition="start"
+                      label={tab.label}
+                    />
+                  ))}
+                </Tabs>
 
-                <Grid item xs={12} lg={4} sx={{ display: "flex", minWidth: 0 }}>
-                  <Card
-                    variant="outlined"
-                    sx={{ ...sectionCardSx, width: "100%", boxShadow: shadows.lg }}
-                  >
-                    <CardContent sx={contentCardSx}>
-                      <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4 }}>
-                        여론 분포
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: colors.slate[500], display: "block", mb: 1.2 }}>
-                        기사가 없으면 여론 비율을 계산할 수 없습니다.
-                      </Typography>
-                      <Stack spacing={1.4}>
-                        {companiesForView.map((company) => {
-                          const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0 };
-                          const sampleCount = Number(companyCounts?.[company] || row.total || 0);
-                          const sampleState = getVolumeState(sampleCount);
-                          return (
-                            <Box key={company}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.8 }}>
-                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                                  {company}
-                                </Typography>
-                                <Chip
-                                  color={sampleState.chipColor}
-                                  variant="outlined"
-                                  label={`${sampleState.label} · ${sampleCount}건`}
-                                  sx={INTERACTIVE_CHIP_SX}
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                  {/* ──── TREND TAB ──── */}
+                  {activeTab === "trend" && (
+                    <>
+                      <SectionHeader
+                        title="보도 추이 (최근 14일)"
+                        subtitle={
+                          !hasTrendMetricRows && trendMetric !== "count"
+                            ? "위기 지수 데이터가 없어 보도량 기준으로 표시합니다."
+                            : "일자별 보도량 및 지표 변화"
+                        }
+                        action={
+                          <ToggleButtonGroup
+                            size="small"
+                            exclusive
+                            value={trendMetric}
+                            onChange={(_, v) => {
+                              if (v !== null) setTrendMetric(v);
+                            }}
+                            sx={{
+                              "& .MuiToggleButton-root": {
+                                borderRadius: 1.5,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                px: 1.2,
+                                textTransform: "none",
+                              },
+                            }}
+                          >
+                            {TREND_METRIC_OPTIONS.map((o) => (
+                              <ToggleButton key={o.key} value={o.key}>
+                                {o.label}
+                              </ToggleButton>
+                            ))}
+                          </ToggleButtonGroup>
+                        }
+                      />
+
+                      {rechartsData.length > 0 ? (
+                        <Box
+                          sx={{
+                            bgcolor: CHART_BG,
+                            borderRadius: 2.5,
+                            p: { xs: 1, md: 2 },
+                            border: "1px solid rgba(148,163,184,.1)",
+                          }}
+                        >
+                          <ResponsiveContainer width="100%" height={320}>
+                            <BarChart data={rechartsData} barCategoryGap="18%">
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                                vertical={false}
+                              />
+                              <XAxis
+                                dataKey="date"
+                                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis
+                                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                axisLine={false}
+                                tickLine={false}
+                                width={36}
+                              />
+                              <RechartsTooltip content={<ChartTooltipContent />} />
+                              <Legend
+                                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                                formatter={(value) => (
+                                  <span style={{ color: "#475569", fontWeight: 600 }}>
+                                    {value}
+                                  </span>
+                                )}
+                              />
+                              {companiesForView.map((company) => (
+                                <Bar
+                                  key={company}
+                                  dataKey={company}
+                                  fill={companyColor(company)}
+                                  radius={[3, 3, 0, 0]}
+                                  maxBarSize={28}
                                 />
-                              </Stack>
-                              {sampleCount <= 0 ? (
-                                <EmptyState
-                                  compact
-                                  tone="warning"
-                                  title="기사 없음"
-                                  subtitle="여론 비율을 계산할 수 없습니다."
-                                />
-                              ) : null}
-                              {SENTIMENTS.map((s) => (
-                                <Stack
-                                  key={`${company}-${s}`}
-                                  direction="row"
-                                  spacing={1}
-                                  alignItems="center"
-                                  sx={{ mb: 0.5, display: sampleCount <= 0 ? "none" : "flex" }}
-                                >
-                                  <Typography variant="body2" sx={{ width: 36 }}>
-                                    {s}
-                                  </Typography>
-                                  <LinearProgress
-                                    variant="determinate"
-                                    value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
-                                    sx={{
-                                      ...progressBarSx,
-                                      flex: 1,
-                                      borderRadius: 99,
-                                      bgcolor: colors.primary[50],
-                                      "& .MuiLinearProgress-bar": {
-                                        bgcolor: s === "긍정" ? colors.status.success.main : s === "부정" ? colors.status.error.main : colors.status.warning.main,
-                                      },
-                                    }}
-                                  />
-                                  <Typography variant="body2" sx={{ width: 52, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                                    {Number(row[s] || 0).toFixed(1)}%
-                                  </Typography>
-                                </Stack>
                               ))}
-                            </Box>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
+                      ) : (
+                        <EmptyState
+                          title="추이 데이터가 없습니다."
+                          subtitle="일자별 집계 데이터가 아직 생성되지 않았습니다."
+                          compact
+                        />
+                      )}
+                    </>
+                  )}
+
+                  {/* ──── SENTIMENT TAB ──── */}
+                  {activeTab === "sentiment" && (
+                    <>
+                      <SectionHeader title="여론 분포" subtitle="기사 감성 분석 비율" />
+
+                      {sentimentChartData.length > 0 ? (
+                        <Box
+                          sx={{
+                            bgcolor: CHART_BG,
+                            borderRadius: 2.5,
+                            p: { xs: 1, md: 2 },
+                            border: "1px solid rgba(148,163,184,.1)",
+                          }}
+                        >
+                          <ResponsiveContainer
+                            width="100%"
+                            height={Math.max(200, sentimentChartData.length * 56 + 60)}
+                          >
+                            <BarChart data={sentimentChartData} layout="vertical" barSize={24}>
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                                horizontal={false}
+                              />
+                              <XAxis
+                                type="number"
+                                domain={[0, 100]}
+                                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                                axisLine={false}
+                                tickLine={false}
+                                unit="%"
+                              />
+                              <YAxis
+                                type="category"
+                                dataKey="company"
+                                width={72}
+                                tick={{ fontSize: 12, fill: "#334155", fontWeight: 700 }}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <RechartsTooltip
+                                content={<ChartTooltipContent />}
+                                formatter={(value) => `${Number(value).toFixed(1)}%`}
+                              />
+                              <Legend
+                                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                                formatter={(value) => (
+                                  <span
+                                    style={{
+                                      color: SENTIMENT_COLORS[value] || "#475569",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {value}
+                                  </span>
+                                )}
+                              />
+                              {SENTIMENTS.map((s) => (
+                                <Bar
+                                  key={s}
+                                  dataKey={s}
+                                  stackId="sentiment"
+                                  fill={SENTIMENT_COLORS[s]}
+                                  radius={0}
+                                />
+                              ))}
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
+                      ) : (
+                        <EmptyState title="여론 데이터가 없습니다." compact />
+                      )}
+
+                      {/* sample counts */}
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        useFlexGap
+                        flexWrap="wrap"
+                        sx={{ mt: 1.5 }}
+                      >
+                        {sentimentChartData.map((d) => {
+                          const vs = getVolumeState(d.count);
+                          return (
+                            <Stack
+                              key={d.company}
+                              direction="row"
+                              spacing={0.4}
+                              alignItems="center"
+                            >
+                              <Box
+                                sx={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: "50%",
+                                  bgcolor: companyColor(d.company),
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <Typography
+                                variant="caption"
+                                sx={{ fontWeight: 600, color: "#334155" }}
+                              >
+                                {d.company}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                                {d.count}건
+                              </Typography>
+                              {vs.tone === "warning" && (
+                                <Box
+                                  component="span"
+                                  sx={{ fontSize: 10, color: "#d97706", fontWeight: 700 }}
+                                >
+                                  ({vs.label})
+                                </Box>
+                              )}
+                            </Stack>
                           );
                         })}
                       </Stack>
+                    </>
+                  )}
+
+                  {/* ──── KEYWORDS TAB ──── */}
+                  {activeTab === "keywords" && (
+                    <>
+                      <SectionHeader title="게임사별 주요 키워드" subtitle="빈도 기반 상위 키워드" />
+                      <Grid container spacing={1.5}>
+                        {keywordCards.map((card) => (
+                          <Grid item xs={12} md={6} key={card.company}>
+                            <Box
+                              sx={{
+                                p: 2,
+                                borderRadius: 2.5,
+                                border: "1px solid rgba(148,163,184,.15)",
+                                bgcolor: "#fafbfc",
+                              }}
+                            >
+                              <Stack
+                                direction="row"
+                                spacing={0.6}
+                                alignItems="center"
+                                sx={{ mb: 1.2 }}
+                              >
+                                <Box
+                                  sx={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: "50%",
+                                    bgcolor: companyColor(card.company),
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                  {card.company}
+                                </Typography>
+                              </Stack>
+                              <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                                {card.items.length > 0 ? (
+                                  card.items.map((it) => (
+                                    <Box
+                                      key={`${card.company}-${it.keyword}`}
+                                      sx={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 0.4,
+                                        px: 1,
+                                        py: 0.3,
+                                        borderRadius: 1.5,
+                                        bgcolor: "#fff",
+                                        border: "1px solid #e2e8f0",
+                                        fontSize: 12,
+                                        color: "#334155",
+                                        transition: "all .15s",
+                                        "&:hover": {
+                                          borderColor: companyColor(card.company),
+                                          color: companyColor(card.company),
+                                        },
+                                      }}
+                                    >
+                                      <span style={{ fontWeight: 600 }}>{it.keyword}</span>
+                                      <span style={{ color: "#94a3b8", fontSize: 11 }}>
+                                        {it.count}
+                                      </span>
+                                    </Box>
+                                  ))
+                                ) : (
+                                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                                    키워드 없음
+                                  </Typography>
+                                )}
+                              </Stack>
+                            </Box>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    </>
+                  )}
+                </CardContent>
+              </GlassCard>
+
+              {/* ───────── INSIGHTS ───────── */}
+              <Grid container spacing={1.5}>
+                <Grid item xs={12} md={6}>
+                  <GlassCard sx={{ height: "100%" }}>
+                    <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+                      <Stack
+                        direction="row"
+                        spacing={0.6}
+                        alignItems="center"
+                        sx={{ mb: 1.5 }}
+                      >
+                        <Zap size={15} color="#d97706" />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: 14 }}>
+                          주목 이슈 TOP 5
+                        </Typography>
+                      </Stack>
+                      <Stack spacing={0.8}>
+                        {(insights.top_issues || []).map((item, idx) => (
+                          <Stack
+                            key={`${item.company}-${item.keyword}-${idx}`}
+                            direction="row"
+                            spacing={1}
+                            alignItems="baseline"
+                          >
+                            <Box
+                              sx={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 1,
+                                bgcolor: "#f1f5f9",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: "#64748b",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {idx + 1}
+                            </Box>
+                            <Typography
+                              variant="body2"
+                              sx={{ lineHeight: 1.5, color: "#334155" }}
+                            >
+                              <b style={{ color: companyColor(item.company) }}>
+                                {item.company}
+                              </b>{" "}
+                              {item.keyword}
+                              <span
+                                style={{ color: "#94a3b8", marginLeft: 4, fontSize: 12 }}
+                              >
+                                {item.count}건 · {item.share_pct}%
+                              </span>
+                            </Typography>
+                          </Stack>
+                        ))}
+                        {!(insights.top_issues || []).length && (
+                          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                            이슈 데이터 없음
+                          </Typography>
+                        )}
+                      </Stack>
                     </CardContent>
-                  </Card>
+                  </GlassCard>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <GlassCard sx={{ height: "100%" }}>
+                    <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+                      <Stack
+                        direction="row"
+                        spacing={0.6}
+                        alignItems="center"
+                        sx={{ mb: 1.5 }}
+                      >
+                        <Globe size={15} color="#2563eb" />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: 14 }}>
+                          실행 제안
+                        </Typography>
+                      </Stack>
+                      <Stack spacing={0.8}>
+                        {(insights.actions || []).map((item) => (
+                          <Stack
+                            key={`${item.company}-${item.priority}`}
+                            direction="row"
+                            spacing={1}
+                            alignItems="baseline"
+                          >
+                            <Box
+                              sx={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                px: 0.6,
+                                py: 0.15,
+                                borderRadius: 0.8,
+                                bgcolor:
+                                  item.priority === "높음"
+                                    ? "rgba(239,68,68,.08)"
+                                    : item.priority === "중간"
+                                      ? "rgba(245,158,11,.08)"
+                                      : "rgba(148,163,184,.08)",
+                                color:
+                                  item.priority === "높음"
+                                    ? "#dc2626"
+                                    : item.priority === "중간"
+                                      ? "#d97706"
+                                      : "#64748b",
+                                flexShrink: 0,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {item.priority}
+                            </Box>
+                            <Typography
+                              variant="body2"
+                              sx={{ lineHeight: 1.5, color: "#334155" }}
+                            >
+                              <b>{item.company}</b> {item.action}
+                            </Typography>
+                          </Stack>
+                        ))}
+                        {!(insights.actions || []).length && (
+                          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                            제안 데이터 없음
+                          </Typography>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </GlassCard>
                 </Grid>
               </Grid>
 
-              <Card
-                variant="outlined"
-                sx={{ ...sectionCardSx, boxShadow: shadows.md }}
-              >
-                <CardContent sx={contentCardSx}>
-                  <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
-                    게임사별 주요 키워드
-                  </Typography>
-                  <Grid container spacing={1.1}>
-                    {keywordCards.map((card) => (
-                      <Grid item xs={12} md={6} key={card.company} sx={{ display: "flex", minWidth: 0 }}>
-                        <Paper variant="outlined" sx={{ ...subPanelSx, width: "100%", height: "100%" }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
-                            {card.company}
-                          </Typography>
-                          <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
-                            {card.items.map((it) => (
-                              <Chip
-                                key={`${card.company}-${it.keyword}`}
-                                size="small"
-                                variant="outlined"
-                                label={`${it.keyword} · ${it.count}`}
-                                sx={INTERACTIVE_CHIP_SX}
-                              />
-                            ))}
-                          </Stack>
-                        </Paper>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </CardContent>
-              </Card>
-
-              <Card
-                variant="outlined"
-                sx={{ ...sectionCardSx, boxShadow: shadows.md }}
-              >
-                <CardContent sx={contentCardSx}>
-                  <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
-                    대응 인사이트
-                  </Typography>
-                  <Grid container spacing={1.1}>
-                    <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ ...subPanelSx, height: "100%", width: "100%" }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
-                          주목 이슈 TOP 5
-                        </Typography>
-                        <Stack spacing={0.8}>
-                          {(insights.top_issues || []).map((item, idx) => (
-                            <Typography
-                              key={`${item.company}-${item.keyword}-${idx}`}
-                              variant="body2"
-                              sx={{ color: colors.slate[600], lineHeight: 1.55 }}
-                            >
-                              <b>{item.company}</b> · {item.keyword} ({item.count}건, {item.share_pct}%)
-                            </Typography>
-                          ))}
-                        </Stack>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
-                      <Paper variant="outlined" sx={{ ...subPanelSx, height: "100%", width: "100%" }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.8 }}>
-                          실행 제안
-                        </Typography>
-                        <Stack spacing={0.8}>
-                          {(insights.actions || []).map((item) => (
-                            <Stack
-                              key={`${item.company}-${item.priority}`}
-                              direction="row"
-                              spacing={0.7}
-                              alignItems="baseline"
-                            >
-                              {(() => {
-                                const tone = resolvePriorityTone(item.priority);
-                                return (
-                                  <Box
-                                    component="span"
-                                    sx={{
-                                      fontSize: 11,
-                                      fontWeight: 700,
-                                      px: 0.7,
-                                      py: 0.15,
-                                      borderRadius: 0.9,
-                                      bgcolor: tone.bg,
-                                      color: tone.color,
-                                      whiteSpace: "nowrap",
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    {tone.label}
-                                  </Box>
-                                );
-                              })()}
-                              <Typography variant="body2" sx={{ color: colors.slate[600], lineHeight: 1.55 }}>
-                                <b>{item.company}</b> {item.action}
-                              </Typography>
-                            </Stack>
-                          ))}
-                        </Stack>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-
-              <Card
-                variant="outlined"
-                sx={sectionCardSx}
-              >
-                <CardContent sx={contentCardSx}>
+              {/* ───────── ARTICLE TABLE ───────── */}
+              <GlassCard>
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                   <Stack
                     direction={{ xs: "column", md: "row" }}
                     justifyContent="space-between"
-                    spacing={1.2}
-                    sx={{ mb: 1.2 }}
+                    alignItems={{ md: "center" }}
+                    spacing={1}
+                    sx={{ mb: 2 }}
                   >
-                    <Typography variant="h6" sx={sectionTitleSx}>
-                      최신 기사
-                    </Typography>
-                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                      <Chip
-                        size="small"
-                        label={`게임사: ${filterCompany}`}
-                        variant="outlined"
-                        onClick={() => setFilterCompany((prev) => cycleListValue(articleCompanyFilters, prev))}
-                        sx={INTERACTIVE_CHIP_SX}
-                      />
-                      <Chip
-                        size="small"
-                        label={`여론: ${filterSentiment}`}
-                        variant="outlined"
-                        onClick={() => setFilterSentiment((prev) => cycleListValue(SENTIMENT_FILTER_OPTIONS, prev))}
-                        sx={INTERACTIVE_CHIP_SX}
-                      />
-                      <Chip
-                        size="small"
-                        label={`표시 중: ${displayedArticles.length}건`}
-                        variant="outlined"
-                        sx={INTERACTIVE_CHIP_SX}
-                      />
+                    <Box>
+                      <Typography
+                        variant="h6"
+                        sx={{ fontWeight: 800, fontSize: 17, color: "#1e293b" }}
+                      >
+                        최신 기사
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {displayedArticles.length}건 표시 중
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.6}>
+                      <Box
+                        component="select"
+                        value={filterCompany}
+                        onChange={(e) => setFilterCompany(e.target.value)}
+                        sx={{
+                          appearance: "none",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 1.5,
+                          px: 1.2,
+                          py: 0.5,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#334155",
+                          bgcolor: "#fff",
+                          cursor: "pointer",
+                          outline: "none",
+                          "&:focus": { borderColor: "#2563eb" },
+                        }}
+                      >
+                        {articleCompanyFilters.map((c) => (
+                          <option key={c} value={c}>
+                            {c === "전체" ? "전체 게임사" : c}
+                          </option>
+                        ))}
+                      </Box>
+                      <Box
+                        component="select"
+                        value={filterSentiment}
+                        onChange={(e) => setFilterSentiment(e.target.value)}
+                        sx={{
+                          appearance: "none",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 1.5,
+                          px: 1.2,
+                          py: 0.5,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#334155",
+                          bgcolor: "#fff",
+                          cursor: "pointer",
+                          outline: "none",
+                          "&:focus": { borderColor: "#2563eb" },
+                        }}
+                      >
+                        {SENTIMENT_FILTER_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s === "전체" ? "전체 여론" : s}
+                          </option>
+                        ))}
+                      </Box>
                     </Stack>
                   </Stack>
 
-                  <Box sx={{ overflowX: "auto" }}>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: { xs: "92px minmax(220px,1fr) 78px 108px", sm: "108px minmax(280px,1fr) 84px 124px", md: "120px minmax(320px,1fr) 92px 140px" },
-                        gap: 1,
-                        px: 1.2,
-                        pb: 0.8,
-                        color: "text.secondary",
-                        fontSize: 14,
-                        fontWeight: 700,
-                      }}
-                    >
-                      <Box>게임사</Box>
-                      <Box>제목</Box>
-                      <Box>여론</Box>
-                      <Box>날짜</Box>
-                    </Box>
-                    {displayedArticles.length ? (
-                      <List
-                        rowCount={displayedArticles.length}
-                        rowHeight={ARTICLE_ROW_HEIGHT}
-                        overscanCount={6}
-                        defaultHeight={ARTICLE_LIST_MIN_HEIGHT}
-                        style={{ height: articleListHeight, width: "100%" }}
-                        rowProps={{ items: displayedArticles }}
-                        rowComponent={({ index, style, items }) => {
-                          const a = items[index];
-                          return (
+                  {/* table header */}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "80px 1fr 60px 90px",
+                        md: "110px 1fr 80px 130px",
+                      },
+                      gap: 1.5,
+                      px: 1.5,
+                      py: 0.8,
+                      bgcolor: "#f8fafc",
+                      borderRadius: 1.5,
+                      color: "#64748b",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: ".03em",
+                    }}
+                  >
+                    <Box>게임사</Box>
+                    <Box>제목</Box>
+                    <Box>여론</Box>
+                    <Box>날짜</Box>
+                  </Box>
+
+                  {/* table rows */}
+                  <Box sx={{ maxHeight: 480, overflowY: "auto", mt: 0.5 }}>
+                    {displayedArticles.length > 0 ? (
+                      displayedArticles.map((a, idx) => (
+                        <Box
+                          key={`article-${idx}-${a.title}`}
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: {
+                              xs: "80px 1fr 60px 90px",
+                              md: "110px 1fr 80px 130px",
+                            },
+                            gap: 1.5,
+                            px: 1.5,
+                            py: 1,
+                            alignItems: "center",
+                            borderBottom: "1px solid #f1f5f9",
+                            fontSize: 13,
+                            transition: "background .1s",
+                            "&:hover": { bgcolor: "#f8fafc" },
+                          }}
+                        >
+                          <Stack direction="row" spacing={0.5} alignItems="center">
                             <Box
-                              style={style}
                               sx={{
-                                display: "grid",
-                                gridTemplateColumns: { xs: "92px minmax(220px,1fr) 78px 108px", sm: "108px minmax(280px,1fr) 84px 124px", md: "120px minmax(320px,1fr) 92px 140px" },
-                                gap: 1,
-                                alignItems: "center",
-                                borderTop: "1px solid",
-                                borderColor: colors.slate[200],
-                                px: 1.2,
-                                fontSize: 14,
-                                "&:hover": { bgcolor: colors.primary[50] },
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                bgcolor: companyColor(a.company),
+                                flexShrink: 0,
                               }}
+                            />
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 600, fontSize: 12, color: "#334155" }}
                             >
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {a.company || "-"}
-                              </Typography>
-                              <Typography
-                                component={a.url ? "a" : "span"}
-                                href={a.url || undefined}
-                                target={a.url ? "_blank" : undefined}
-                                rel={a.url ? "noreferrer" : undefined}
-                                sx={{
-                                  minWidth: 0,
-                                  color: colors.brand.nexon.primary,
-                                  textDecoration: "none",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  "&:hover": { textDecoration: a.url ? "underline" : "none" },
+                              {a.company || "-"}
+                            </Typography>
+                          </Stack>
+                          <Typography
+                            component={a.url ? "a" : "span"}
+                            href={a.url || undefined}
+                            target={a.url ? "_blank" : undefined}
+                            rel={a.url ? "noreferrer" : undefined}
+                            sx={{
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              color: "#1e293b",
+                              textDecoration: "none",
+                              fontSize: 13,
+                              "&:hover": {
+                                color: "#2563eb",
+                                textDecoration: a.url ? "underline" : "none",
+                              },
+                            }}
+                          >
+                            {a.title || "(제목 없음)"}
+                            {a.url && (
+                              <ExternalLink
+                                size={11}
+                                style={{
+                                  marginLeft: 4,
+                                  verticalAlign: "middle",
+                                  opacity: 0.4,
                                 }}
-                              >
-                                {a.title || "(제목 없음)"}
-                              </Typography>
-                              <Typography variant="body2">{a.sentiment || "-"}</Typography>
-                              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                                {a.date || "-"}
-                              </Typography>
-                            </Box>
-                          );
-                        }}
-                      />
+                              />
+                            )}
+                          </Typography>
+                          <Box
+                            component="span"
+                            sx={{
+                              display: "inline-block",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              px: 0.6,
+                              py: 0.15,
+                              borderRadius: 1,
+                              bgcolor:
+                                a.sentiment === "긍정"
+                                  ? "rgba(16,185,129,.08)"
+                                  : a.sentiment === "부정"
+                                    ? "rgba(239,68,68,.08)"
+                                    : "rgba(148,163,184,.08)",
+                              color: SENTIMENT_COLORS[a.sentiment] || "#64748b",
+                              textAlign: "center",
+                            }}
+                          >
+                            {a.sentiment || "-"}
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary", fontSize: 12 }}
+                          >
+                            {a.date || "-"}
+                          </Typography>
+                        </Box>
+                      ))
                     ) : (
-                      <Box sx={{ py: 2, px: 1.2, color: "text.secondary" }}>
+                      <Box
+                        sx={{
+                          py: 4,
+                          textAlign: "center",
+                          color: "text.secondary",
+                          fontSize: 13,
+                        }}
+                      >
                         조건에 맞는 기사가 없습니다.
                       </Box>
                     )}
                   </Box>
                 </CardContent>
-              </Card>
+              </GlassCard>
             </>
           ) : null}
 
-          <Divider sx={{ my: 1 }} />
-          <Typography variant="caption" color="text.secondary" align="center">
-            실시간으로 자동 업데이트됩니다.
+          {/* ───────── FOOTER ───────── */}
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            align="center"
+            sx={{ py: 1 }}
+          >
+            실시간으로 자동 업데이트됩니다 · 최근 {windowHours}시간 기준
           </Typography>
         </Stack>
       </Container>
