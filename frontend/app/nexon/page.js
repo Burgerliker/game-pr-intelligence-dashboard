@@ -971,7 +971,7 @@ export default function NexonPage() {
             sx={{ px: { xs: 2, md: 3 }, py: 1.5 }}
           >
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
+              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, backgroundColor: "#0f3b66" }} />
               <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
@@ -1030,17 +1030,6 @@ export default function NexonPage() {
                       inset: 0,
                       background: currentBanner.visual.glow || "none",
                       pointerEvents: "none",
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      width: 4,
-                      height: "100%",
-                      bgcolor: currentBanner.visual.accent,
-                      opacity: 0.9,
                     }}
                   />
                   <Box sx={{ position: "relative", zIndex: 1 }}>
