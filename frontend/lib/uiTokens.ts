@@ -462,19 +462,28 @@ export const brandChipSx = {
   minHeight: 26,
   display: "inline-flex",
   alignItems: "center",
+  justifyContent: "center",
+  lineHeight: "26px",
   borderRadius: "20px",
   fontSize: 12,
   fontWeight: typography.weight.semibold,
   letterSpacing: "0.5px",
-  "& .MuiChip-label, & .MuiChip-labelSmall": {
+  "&& .MuiChip-label, && .MuiChip-labelSmall": {
     px: 1,
     py: 0,
-    height: "100%",
-    lineHeight: 1,
-    display: "inline-flex",
+    height: 26,
+    width: "100%",
+    lineHeight: "26px",
+    display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    textAlign: "center",
     fontVariantNumeric: "tabular-nums",
+    boxSizing: "border-box",
+  },
+  "&&.MuiChip-sizeSmall .MuiChip-label, &&.MuiChip-sizeSmall .MuiChip-labelSmall": {
+    height: 24,
+    lineHeight: "24px",
   },
 } as const;
 
