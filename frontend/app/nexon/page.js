@@ -621,17 +621,18 @@ export default function NexonPage() {
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
-  const bannerKpiCardSx = {
-    p: { xs: 1.05, md: 1.15 },
-    borderRadius: 1.8,
+  const bannerStatPillSx = {
+    px: { xs: 1, md: 1.15 },
+    py: { xs: 0.65, md: 0.75 },
+    borderRadius: 999,
     bgcolor: "rgba(255,255,255,.14)",
-    borderColor: "rgba(148,163,184,.38)",
+    border: "1px solid rgba(148,163,184,.38)",
     color: "rgba(241,245,249,.97)",
-    minHeight: { xs: 54, md: 58 },
+    minHeight: { xs: 34, md: 36 },
     display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    backdropFilter: "blur(3px)",
+    alignItems: "center",
+    gap: 0.6,
+    minWidth: 0,
   };
   const bannerKpiItems = useMemo(
     () => [
@@ -1049,30 +1050,38 @@ export default function NexonPage() {
                       }}
                     >
                       {bannerKpiItems.map((item) => (
-                        <Paper
+                        <Box
                           key={item.key}
-                          variant="outlined"
                           sx={{
-                            ...bannerKpiCardSx,
+                            ...bannerStatPillSx,
                             borderColor: item.tone,
                           }}
                         >
-                          <Typography sx={{ fontSize: 11, color: "rgba(203,213,225,.95)", lineHeight: 1.2 }}>{item.label}</Typography>
                           <Typography
                             sx={{
-                              mt: 0.45,
+                              fontSize: { xs: 10, md: 11 },
+                              color: "rgba(203,213,225,.95)",
+                              lineHeight: 1.1,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.label}
+                          </Typography>
+                          <Typography
+                            sx={{
                               fontWeight: 800,
-                              fontSize: { xs: item.key === "theme" ? 18 : 20, md: item.key === "theme" ? 19 : 21 },
-                              lineHeight: 1.08,
+                              fontSize: { xs: item.key === "theme" ? 13 : 14, md: item.key === "theme" ? 14 : 15 },
+                              lineHeight: 1.1,
                               letterSpacing: "-.01em",
                               whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
+                              minWidth: 0,
                             }}
                           >
                             {item.value}
                           </Typography>
-                        </Paper>
+                        </Box>
                       ))}
                     </Box>
                   </Box>
