@@ -22,7 +22,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, ChevronLeft, ChevronRight, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bell, ChevronLeft, ChevronRight, FileText, Info, Newspaper, RefreshCw, Tag, TrendingDown, TrendingUp } from "lucide-react";
 import { List as WindowList } from "react-window";
 import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
@@ -621,54 +621,54 @@ export default function NexonPage() {
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
-  const bannerStatPillSx = {
-    px: { xs: 0.75, md: 0.9 },
-    py: { xs: 0.45, md: 0.55 },
-    borderRadius: 999,
-    bgcolor: "rgba(255,255,255,.14)",
-    border: "1px solid rgba(148,163,184,.38)",
-    color: "rgba(241,245,249,.97)",
-    minHeight: { xs: 28, md: 30 },
-    display: "flex",
-    alignItems: "center",
-    gap: 0.45,
-    minWidth: 0,
-  };
-  const bannerKpiItems = useMemo(
+  const crisisChange = useMemo(() => {
+    if (!Array.isArray(riskTimeseries) || riskTimeseries.length < 2) return 0;
+    const rows = riskTimeseries.slice(-2);
+    return Number(rows[1]?.risk_score || 0) - Number(rows[0]?.risk_score || 0);
+  }, [riskTimeseries]);
+  const statCards = useMemo(
     () => [
-      {
-        key: "risk",
-        label: "위기 지수",
-        value: riskValue.toFixed(1),
-        tone:
-          alertLevel === "P1" ? "rgba(248,113,113,.6)" : alertLevel === "P2" ? "rgba(251,191,36,.58)" : "rgba(74,222,128,.5)",
-      },
       {
         key: "volume",
         label: "24h 보도량",
-        value: `${recent24hArticles.toLocaleString()}건`,
-        tone: "rgba(148,163,184,.38)",
+        value: recent24hArticles.toLocaleString(),
+        unit: "건",
+        icon: Newspaper,
+        color: "#3B82F6",
+        bgColor: "#EFF6FF",
       },
       {
         key: "cluster",
-        label: "이슈 분류 수",
+        label: "이슈 분류",
         value: Number(clusterData?.meta?.cluster_count || 0).toLocaleString(),
-        tone: "rgba(148,163,184,.38)",
+        unit: "개",
+        icon: Tag,
+        color: "#8B5CF6",
+        bgColor: "#F5F3FF",
       },
       {
         key: "monthly",
-        label: "총 기사 수 (한달 기준)",
-        value: `${totalArticleSum30d.toLocaleString()}건`,
-        tone: "rgba(148,163,184,.38)",
-      },
-      {
-        key: "theme",
-        label: "핵심 위험 이슈",
-        value: topRisk?.theme || "-",
-        tone: "rgba(148,163,184,.38)",
+        label: "월간 기사",
+        value: totalArticleSum30d.toLocaleString(),
+        unit: "건",
+        icon: FileText,
+        color: "#06B6D4",
+        bgColor: "#ECFEFF",
       },
     ],
-    [alertLevel, clusterData?.meta?.cluster_count, recent24hArticles, riskValue, topRisk, totalArticleSum30d]
+    [clusterData?.meta?.cluster_count, recent24hArticles, totalArticleSum30d]
+  );
+  const topIssues = useMemo(
+    () =>
+      [...themes]
+        .sort((a, b) => Number(b?.article_count || 0) - Number(a?.article_count || 0))
+        .slice(0, 3)
+        .map((x) => ({
+          name: x?.theme || "-",
+          count: Number(x?.article_count || 0),
+          severity: Number(x?.negative_ratio || 0) >= 40 ? "high" : "low",
+        })),
+    [themes]
   );
 
   useEffect(() => {
@@ -996,104 +996,110 @@ export default function NexonPage() {
         <ApiGuardBanner />
 
         <Card variant="outlined" sx={sectionCardSx}>
-          <CardContent>
-            <Stack spacing={1.2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="body2" color="text.secondary">
-                  분석 중인 게임
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {Math.max(currentBannerIndex + 1, 1)} / {bannerItems.length}
-                </Typography>
+          <CardContent sx={contentCardSx}>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }} spacing={1.2}>
+                <Box>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
+                    <Chip label="NEXON" size="small" sx={{ bgcolor: "#fff7ed", border: "1px solid #fdba74", color: "#c2410c", fontWeight: 700, height: 24 }} />
+                    <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
+                  </Stack>
+                  <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
+                    {currentBanner?.name || riskData?.meta?.ip || "메이플스토리"}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  <Chip variant="outlined" label={<span><Bell {...iconProps()} style={inlineIconSx} />알림 설정</span>} sx={statusChipSx} />
+                  <Chip variant="outlined" label={`최근 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
+                </Stack>
               </Stack>
 
-              {currentBanner ? (
-                <Paper
-                  onTouchStart={handleBannerTouchStart}
-                  onTouchEnd={handleBannerTouchEnd}
-                  sx={{
-                    width: "100%",
-                    minHeight: { xs: 236, sm: 252, md: 266 },
-                    p: { xs: 2, sm: 2.25, md: 2.5 },
-                    borderRadius: 2.4,
-                    color: "#eef2ff",
-                    position: "relative",
-                    overflow: "hidden",
-                    border: "1px solid rgba(148,163,184,.22)",
-                    background: currentBanner.visual.bg,
-                    boxShadow: "0 10px 22px rgba(15,23,42,.18)",
-                    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
-                  }}
-                >
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      inset: 0,
-                      background: currentBanner.visual.glow || "none",
-                      pointerEvents: "none",
-                    }}
-                  />
-                  <Box sx={{ position: "relative", zIndex: 1 }}>
-                    <Typography sx={{ fontSize: 12, letterSpacing: ".1em", color: currentBanner.visual.accent, fontWeight: 800 }}>
-                      {currentBanner.visual.kicker}
-                    </Typography>
-                    <Typography sx={{ ...specTypeSx.h4, mt: 0.55, pr: { xs: 2, sm: 4 }, fontSize: { xs: 34, sm: 40, md: 44 }, lineHeight: 1.06 }}>
-                      {currentBanner.name}
-                    </Typography>
-                    <Box
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.5fr 1fr 1fr 1fr" }, gap: 1.5 }}>
+                <Paper variant="outlined" sx={{ p: { xs: 2.2, md: 2.5 }, borderRadius: 2.5, borderColor: "#e2e8f0", boxShadow: "0 4px 12px rgba(15,23,42,.05)" }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>위기 지수</Typography>
+                      <Typography variant="caption" color="text.secondary">Crisis Score</Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      label={<span><AlertTriangle {...iconProps({ size: 14 })} style={inlineIconSx} />{alertInfo.label}</span>}
                       sx={{
-                        mt: { xs: 1.05, md: 1.2 },
-                        display: "grid",
-                        gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))", lg: "repeat(5, minmax(0, 1fr))" },
-                        gap: { xs: 0.55, md: 0.65 },
-                        maxWidth: { xs: "100%", md: 980 },
+                        bgcolor: alertLevel === "P1" ? "#fee2e2" : alertLevel === "P2" ? "#fef3c7" : "#d1fae5",
+                        color: alertLevel === "P1" ? "#dc2626" : alertLevel === "P2" ? "#b45309" : "#047857",
+                        border: "none",
+                        fontWeight: 700,
+                      }}
+                    />
+                  </Stack>
+                  <Stack direction="row" spacing={0.7} alignItems="flex-end" sx={{ mt: 1 }}>
+                    <Typography sx={{ fontSize: { xs: 44, md: 52 }, lineHeight: 1, fontWeight: 800, color: alertLevel === "P1" ? "#ef4444" : alertLevel === "P2" ? "#f59e0b" : "#10b981" }}>
+                      {riskValue.toFixed(1)}
+                    </Typography>
+                    <Typography sx={{ fontSize: 18, color: "#94a3b8", pb: 0.6 }}>/10</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
+                    <Chip
+                      size="small"
+                      label={<span>{crisisChange >= 0 ? <TrendingUp {...iconProps({ size: 13 })} style={inlineIconSx} /> : <TrendingDown {...iconProps({ size: 13 })} style={inlineIconSx} />}{crisisChange >= 0 ? "+" : ""}{crisisChange.toFixed(1)}</span>}
+                      sx={{ bgcolor: crisisChange >= 0 ? "#fee2e2" : "#d1fae5", color: crisisChange >= 0 ? "#dc2626" : "#047857", border: "none", fontWeight: 700 }}
+                    />
+                    <Typography variant="caption" color="text.secondary">전일 대비</Typography>
+                  </Stack>
+                </Paper>
+
+                {statCards.map((stat) => (
+                  <Paper key={stat.key} variant="outlined" sx={{ p: { xs: 2, md: 2.2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>{stat.label}</Typography>
+                      <Box sx={{ width: 34, height: 34, borderRadius: 1.2, bgcolor: stat.bgColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <stat.icon {...iconProps({ size: 18, color: stat.color })} />
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={0.5} alignItems="baseline" sx={{ mt: 1 }}>
+                      <Typography sx={{ fontSize: { xs: 30, md: 34 }, fontWeight: 800, lineHeight: 1, color: "#1e293b" }}>{stat.value}</Typography>
+                      <Typography sx={{ fontSize: 15, color: "#94a3b8" }}>{stat.unit}</Typography>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Box>
+
+              <Paper variant="outlined" sx={{ p: { xs: 1.8, md: 2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>핵심 위험 이슈 TOP 3</Typography>
+                  <Typography variant="caption" color="primary">전체 보기</Typography>
+                </Stack>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
+                  {topIssues.map((issue, idx) => (
+                    <Paper
+                      key={`${issue.name}-${idx}`}
+                      variant="outlined"
+                      sx={{
+                        p: 1.4,
+                        borderRadius: 1.5,
+                        borderColor: issue.severity === "high" ? "#fecaca" : "#e2e8f0",
+                        bgcolor: issue.severity === "high" ? "#fef2f2" : "#f8fafc",
                       }}
                     >
-                      {bannerKpiItems.map((item) => (
-                        <Box
-                          key={item.key}
-                          sx={{
-                            ...bannerStatPillSx,
-                            borderColor: item.tone,
-                          }}
-                        >
-                          <Typography
-                            sx={{
-                              fontSize: { xs: 8.5, md: 9.5 },
-                              color: "rgba(203,213,225,.95)",
-                              lineHeight: 1.1,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {item.label}
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                          <Box sx={{ width: 24, height: 24, borderRadius: 1, bgcolor: issue.severity === "high" ? "#ef4444" : "#3b82f6", color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {idx + 1}
+                          </Box>
+                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {issue.name}
                           </Typography>
-                          <Typography
-                            sx={{
-                              fontWeight: 800,
-                              fontSize: { xs: item.key === "theme" ? 11.5 : 12.5, md: item.key === "theme" ? 12 : 13.5 },
-                              lineHeight: 1.1,
-                              letterSpacing: "-.01em",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              minWidth: 0,
-                            }}
-                          >
-                            {item.value}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                </Paper>
-              ) : null}
+                        </Stack>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: issue.severity === "high" ? "#dc2626" : "#64748b" }}>
+                          {issue.count}건
+                        </Typography>
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Box>
+              </Paper>
 
-              <Stack
-                direction={{ xs: "column", lg: "row" }}
-                justifyContent="space-between"
-                alignItems={{ xs: "stretch", lg: "center" }}
-                spacing={1}
-              >
+              <Stack direction={{ xs: "column", lg: "row" }} justifyContent="space-between" alignItems={{ xs: "stretch", lg: "center" }} spacing={1}>
                 <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minHeight: 42 }}>
                   <IconButton
                     size="small"
@@ -1104,16 +1110,7 @@ export default function NexonPage() {
                   >
                     <ChevronLeft {...iconProps({ size: 20 })} />
                   </IconButton>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      px: 1.2,
-                      py: 0.9,
-                      borderRadius: 99,
-                      borderColor: "rgba(15,23,42,.14)",
-                      backgroundColor: "#f8fafc",
-                    }}
-                  >
+                  <Paper variant="outlined" sx={{ px: 1.2, py: 0.9, borderRadius: 99, borderColor: "rgba(15,23,42,.14)", backgroundColor: "#f8fafc" }}>
                     <Stack direction="row" spacing={0.8} alignItems="center">
                       {Array.from({ length: Math.max(bannerItems.length, 1) }).map((_, idx) => {
                         const active = idx === Math.max(currentBannerIndex, 0);
