@@ -1059,7 +1059,19 @@ export default function NexonPage() {
               </Stack>
 
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.5fr 1fr 1fr 1fr" }, gap: 1.5 }}>
-                <Paper variant="outlined" sx={{ p: { xs: 2.2, md: 2.5 }, borderRadius: 2.5, borderColor: "#e2e8f0", boxShadow: "0 4px 12px rgba(15,23,42,.05)" }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: { xs: 2.2, md: 2.5 },
+                    borderRadius: 2.5,
+                    borderColor: "#e2e8f0",
+                    boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+                    minHeight: { xs: 208, md: 224 },
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                  }}
+                >
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>위기 지수</Typography>
@@ -1076,55 +1088,71 @@ export default function NexonPage() {
                       }}
                     />
                   </Stack>
-                  <Stack direction="row" spacing={0.7} alignItems="flex-end" sx={{ mt: 1 }}>
-                    <Typography sx={{ fontSize: { xs: 44, md: 52 }, lineHeight: 1, fontWeight: 800, color: alertLevel === "P1" ? "#ef4444" : alertLevel === "P2" ? "#f59e0b" : "#10b981" }}>
-                      {riskValue.toFixed(1)}
-                    </Typography>
-                    <Typography sx={{ fontSize: 18, color: "#94a3b8", pb: 0.6 }}>/100</Typography>
-                  </Stack>
-                  <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
-                    <Chip
-                      size="small"
-                      label={
-                        <span>
-                          {CrisisDeltaIcon ? <CrisisDeltaIcon {...iconProps({ size: 13 })} style={inlineIconSx} /> : null}
-                          {toSignedText(crisisChange, 1)}
-                        </span>
-                      }
-                      sx={{ bgcolor: crisisDeltaTone.bg, color: crisisDeltaTone.color, border: "none", fontWeight: 700 }}
-                    />
-                    <Typography variant="caption" color="text.secondary">전일 대비</Typography>
-                  </Stack>
-                </Paper>
-
-                {statCards.map((stat) => {
-                  const tone = getDeltaTone(stat.delta);
-                  const StatDeltaIcon = tone.icon;
-                  return (
-                  <Paper key={stat.key} variant="outlined" sx={{ p: { xs: 2, md: 2.2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>{stat.label}</Typography>
-                      <Box sx={{ width: 34, height: 34, borderRadius: 1.2, bgcolor: stat.bgColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <stat.icon {...iconProps({ size: 18, color: stat.color })} />
-                      </Box>
-                    </Stack>
-                    <Stack direction="row" spacing={0.5} alignItems="baseline" sx={{ mt: 1 }}>
-                      <Typography sx={{ fontSize: { xs: 30, md: 34 }, fontWeight: 800, lineHeight: 1, color: "#1e293b" }}>{stat.value}</Typography>
-                      <Typography sx={{ fontSize: 15, color: "#94a3b8" }}>{stat.unit}</Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Stack direction="row" spacing={0.7} alignItems="flex-end">
+                      <Typography sx={{ fontSize: { xs: 44, md: 52 }, lineHeight: 1, fontWeight: 800, color: alertLevel === "P1" ? "#ef4444" : alertLevel === "P2" ? "#f59e0b" : "#10b981" }}>
+                        {riskValue.toFixed(1)}
+                      </Typography>
+                      <Typography sx={{ fontSize: 18, color: "#94a3b8", pb: 0.6 }}>/100</Typography>
                     </Stack>
                     <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
                       <Chip
                         size="small"
                         label={
                           <span>
-                            {StatDeltaIcon ? <StatDeltaIcon {...iconProps({ size: 13 })} style={inlineIconSx} /> : null}
-                            {toSignedText(stat.delta, stat.deltaDigits)}
+                            {CrisisDeltaIcon ? <CrisisDeltaIcon {...iconProps({ size: 13 })} style={inlineIconSx} /> : null}
+                            {toSignedText(crisisChange, 1)}
                           </span>
                         }
-                        sx={{ bgcolor: tone.bg, color: tone.color, border: "none", fontWeight: 700 }}
+                        sx={{ bgcolor: crisisDeltaTone.bg, color: crisisDeltaTone.color, border: "none", fontWeight: 700 }}
                       />
                       <Typography variant="caption" color="text.secondary">전일 대비</Typography>
                     </Stack>
+                  </Box>
+                </Paper>
+
+                {statCards.map((stat) => {
+                  const tone = getDeltaTone(stat.delta);
+                  const StatDeltaIcon = tone.icon;
+                  return (
+                  <Paper
+                    key={stat.key}
+                    variant="outlined"
+                    sx={{
+                      p: { xs: 2, md: 2.2 },
+                      borderRadius: 2.5,
+                      borderColor: "#e2e8f0",
+                      minHeight: { xs: 176, md: 192 },
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>{stat.label}</Typography>
+                      <Box sx={{ width: 34, height: 34, borderRadius: 1.2, bgcolor: stat.bgColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <stat.icon {...iconProps({ size: 18, color: stat.color })} />
+                      </Box>
+                    </Stack>
+                    <Box sx={{ mt: 1.5 }}>
+                      <Stack direction="row" spacing={0.5} alignItems="baseline">
+                        <Typography sx={{ fontSize: { xs: 30, md: 34 }, fontWeight: 800, lineHeight: 1, color: "#1e293b" }}>{stat.value}</Typography>
+                        <Typography sx={{ fontSize: 15, color: "#94a3b8" }}>{stat.unit}</Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
+                        <Chip
+                          size="small"
+                          label={
+                            <span>
+                              {StatDeltaIcon ? <StatDeltaIcon {...iconProps({ size: 13 })} style={inlineIconSx} /> : null}
+                              {toSignedText(stat.delta, stat.deltaDigits)}
+                            </span>
+                          }
+                          sx={{ bgcolor: tone.bg, color: tone.color, border: "none", fontWeight: 700 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">전일 대비</Typography>
+                      </Stack>
+                    </Box>
                   </Paper>
                   );
                 })}
