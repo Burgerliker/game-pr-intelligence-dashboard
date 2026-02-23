@@ -12,7 +12,6 @@ import {
   Container,
   Divider,
   Grid,
-  LinearProgress,
   Paper,
   Stack,
   Tab,
@@ -51,7 +50,6 @@ import {
   pageContainerSx,
   pageShellCleanSx,
   panelPaperSx,
-  progressBarSx,
   sectionCardSx,
   sectionTitleSx,
   shadows,
@@ -101,6 +99,7 @@ const COMPANY_COLORS = {
   넷마블: "#059669",
   크래프톤: "#d97706",
 };
+const SENTIMENT_COLORS = { 긍정: "#10b981", 중립: "#94a3b8", 부정: "#ef4444" };
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -246,6 +245,10 @@ export default function ComparePage() {
   const pollTimerRef = useRef(null);
   const debounceTimerRef = useRef(null);
   const retryAfterRef = useRef(0);
+  const trendRef = useRef(null);
+  const trendChartRef = useRef(null);
+  const sentimentRef = useRef(null);
+  const sentimentChartRef = useRef(null);
 
   const total = data?.meta?.total_articles ?? 0;
   const companyCounts = data?.company_counts ?? {};
@@ -255,7 +258,6 @@ export default function ComparePage() {
   const hasTrendMetricRows = Array.isArray(trendMetricRows) && trendMetricRows.length > 0;
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
-  const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
   const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || 0);
   const dataSource = String(data?.meta?.source || "").toLowerCase();
   const isDbSource = dataSource === "db";
@@ -395,72 +397,59 @@ export default function ComparePage() {
     return map;
   }, [sentimentRows]);
 
-  const trendSeries = useMemo(() => {
-    if (!companiesForView.length) return [];
+  const trendDates = useMemo(() => {
     const dateOrder = trendRows.slice(-14).map((row) => String(row.date));
     const fallbackDateOrder = Array.from(new Set((trendMetricRows || []).map((row) => String(row.date)))).slice(-14);
-    const dates = dateOrder.length ? dateOrder : fallbackDateOrder;
-    if (!dates.length) return [];
+    return dateOrder.length ? dateOrder : fallbackDateOrder;
+  }, [trendRows, trendMetricRows]);
 
-    const trendCountMap = new Map();
-    for (const row of trendRows) {
-      const day = String(row?.date || "");
-      if (!day) continue;
-      for (const company of companiesForView) {
-        trendCountMap.set(`${company}::${day}`, Number(row?.[company] || 0));
-      }
-    }
-    const trendMetricMap = new Map();
+  const trendMatrix = useMemo(() => {
+    const map = new Map();
     for (const row of trendMetricRows || []) {
-      const company = String(row?.company || "");
-      const date = String(row?.date || "");
-      if (!company || !date) continue;
-      trendMetricMap.set(`${company}::${date}`, row);
+      map.set(`${row.company}::${String(row.date)}`, row);
     }
+    return map;
+  }, [trendMetricRows]);
 
-    return companiesForView.map((company) => {
-      const points = dates.map((date) => {
-        const row = trendMetricMap.get(`${company}::${date}`);
-        const countValue = Number(
-          row?.count ??
-            trendCountMap.get(`${company}::${date}`) ??
-            0
-        );
-        const value = trendMetric === "risk"
-          ? (hasTrendMetricRows ? Number(row?.risk_score || 0) : countValue)
-          : trendMetric === "heat"
-            ? (hasTrendMetricRows ? Number(row?.heat_score || 0) : countValue)
-            : countValue;
-        return {
-          date,
-          value,
-          sampleSize: Number(row?.sample_size || countValue || 0),
-          qualityFlag: String(row?.quality_flag || (countValue < lowSampleThreshold ? "LOW_SAMPLE" : "OK")),
-        };
+  const trendSeries = useMemo(() => (
+    companiesForView.map((company) => {
+      const values = trendDates.map((date) => {
+        const metric = trendMatrix.get(`${company}::${date}`);
+        const countFallback = Number((trendRows.find((row) => String(row.date) === date)?.[company]) || 0);
+        const countValue = Number(metric?.count ?? countFallback ?? 0);
+        if (trendMetric === "risk") return hasTrendMetricRows ? Number(metric?.risk_score || 0) : countValue;
+        if (trendMetric === "heat") return hasTrendMetricRows ? Number(metric?.heat_score || 0) : countValue;
+        return countValue;
       });
-      const max = Math.max(...points.map((p) => p.value), 0);
-      const hasData = points.some((p) => p.value > 0);
-      const hasLowSample = points.some((p) => p.qualityFlag === "LOW_SAMPLE");
-      return { company, points, max, hasData, hasLowSample };
-    });
-  }, [companiesForView, hasTrendMetricRows, lowSampleThreshold, trendMetric, trendMetricRows, trendRows]);
+      return {
+        name: company,
+        type: "bar",
+        data: values,
+        itemStyle: { color: companyColor(company), borderRadius: [4, 4, 0, 0] },
+      };
+    })
+  ), [companiesForView, hasTrendMetricRows, trendDates, trendMatrix, trendMetric, trendRows]);
 
-  const hasAnyTrendData = useMemo(
-    () => trendSeries.some((series) => series.hasData),
-    [trendSeries]
-  );
-  const hasTrendLowSample = useMemo(
-    () => trendMetric !== "count" && trendSeries.some((series) => series.hasLowSample),
-    [trendMetric, trendSeries]
-  );
   const trendDateRangeLabel = useMemo(() => {
-    const base = trendSeries[0]?.points || [];
-    if (!base.length) return "";
-    const first = String(base[0]?.date || "");
-    const last = String(base[base.length - 1]?.date || "");
-    if (!first || !last) return "";
+    if (!trendDates.length) return "";
+    const first = trendDates[0];
+    const last = trendDates[trendDates.length - 1];
     return first === last ? first : `${first} ~ ${last}`;
-  }, [trendSeries]);
+  }, [trendDates]);
+
+  const sentimentChartData = useMemo(
+    () =>
+      companiesForView.map((company) => {
+        const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0, total: 0 };
+        return {
+          company,
+          긍정: Number(row.긍정 || 0),
+          중립: Number(row.중립 || 0),
+          부정: Number(row.부정 || 0),
+        };
+      }),
+    [companiesForView, sentimentByCompany]
+  );
 
   const keywordCards = useMemo(
     () =>
@@ -583,6 +572,71 @@ export default function ComparePage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [retryAfterSec, scheduleFetch, startPolling]);
+
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      if (!trendRef.current || !trendDates.length || activeTab !== "trend") return;
+      const echarts = await import("echarts");
+      if (disposed || !trendRef.current) return;
+      if (!trendChartRef.current) trendChartRef.current = echarts.init(trendRef.current);
+      trendChartRef.current.setOption({
+        animation: true,
+        tooltip: { trigger: "axis" },
+        legend: { top: 4 },
+        grid: { left: 32, right: 16, bottom: 24, top: 36, containLabel: true },
+        xAxis: { type: "category", data: trendDates, axisLabel: { color: "#64748b" } },
+        yAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        series: trendSeries,
+      });
+      trendChartRef.current.resize();
+    })();
+
+    const onResize = () => trendChartRef.current?.resize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      disposed = true;
+      window.removeEventListener("resize", onResize);
+    };
+  }, [activeTab, trendDates, trendSeries]);
+
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      if (!sentimentRef.current || activeTab !== "sentiment") return;
+      const echarts = await import("echarts");
+      if (disposed || !sentimentRef.current) return;
+      if (!sentimentChartRef.current) sentimentChartRef.current = echarts.init(sentimentRef.current);
+      sentimentChartRef.current.setOption({
+        animation: true,
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        legend: { top: 4 },
+        grid: { left: 48, right: 20, bottom: 24, top: 36, containLabel: true },
+        xAxis: { type: "value", max: 100, axisLabel: { color: "#64748b", formatter: "{value}%" } },
+        yAxis: { type: "category", data: sentimentChartData.map((d) => d.company), axisLabel: { color: "#334155" } },
+        series: SENTIMENTS.map((sentiment) => ({
+          name: sentiment,
+          type: "bar",
+          stack: "sentiment",
+          data: sentimentChartData.map((d) => d[sentiment]),
+          itemStyle: { color: SENTIMENT_COLORS[sentiment] },
+        })),
+      });
+      sentimentChartRef.current.resize();
+    })();
+
+    const onResize = () => sentimentChartRef.current?.resize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      disposed = true;
+      window.removeEventListener("resize", onResize);
+    };
+  }, [activeTab, sentimentChartData]);
+
+  useEffect(() => () => {
+    trendChartRef.current?.dispose();
+    sentimentChartRef.current?.dispose();
+  }, []);
 
   return (
     <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
@@ -877,92 +931,10 @@ export default function ComparePage() {
                           <span><Info {...iconProps()} style={inlineIconSx} />위기 지수 추이 데이터가 없어 보도량 추이로 표시합니다.</span>
                         </Alert>
                       ) : null}
-                      {hasTrendLowSample ? (
-                        <Alert severity="warning" icon={false} sx={{ mb: 1.1, borderRadius: 1.5 }}>
-                          <span><AlertTriangle {...iconProps()} style={inlineIconSx} />기사 수가 적은 구간이 포함되어 있어 해석 시 변동성이 클 수 있습니다.</span>
-                        </Alert>
-                      ) : null}
-                      {!trendSeries.length ? (
+                      {!trendDates.length ? (
                         <EmptyState title="추이 데이터가 없습니다." subtitle="일자별 집계 데이터가 아직 생성되지 않았습니다." compact />
-                      ) : !hasAnyTrendData ? (
-                        <EmptyState title="모든 게임사가 0건입니다." subtitle="현재 기간에는 기사가 없어 추이를 표시할 수 없습니다." tone="warning" compact />
                       ) : (
-                        <Stack spacing={1.45}>
-                          {trendSeries.map((series) => (
-                            <Box key={series.company}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                                  {series.company}
-                                </Typography>
-                                <Chip
-                                  variant="outlined"
-                                  color={series.hasLowSample && trendMetric !== "count" ? "warning" : getVolumeState(series.max).chipColor}
-                                  label={
-                                    trendMetric === "count"
-                                      ? `${getVolumeState(series.max).label} (최대 ${series.max}건)`
-                                      : trendMetric === "risk"
-                                        ? `위기 지수 최대 ${series.max.toFixed(1)}`
-                                        : `이슈량 최대 ${series.max.toFixed(1)}`
-                                  }
-                                  sx={INTERACTIVE_CHIP_SX}
-                                />
-                              </Stack>
-                              {series.hasData ? (
-                                <Stack
-                                  direction="row"
-                                  spacing={0.3}
-                                  sx={{ mt: 0.8, height: 72, alignItems: "end" }}
-                                >
-                                  {series.points.map((p) => {
-                                    const pointState = getVolumeState(p.sampleSize);
-                                    const barColor = p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count"
-                                      ? colors.status.warning.main
-                                      : trendMetric === "risk"
-                                        ? colors.status.error.dark
-                                        : trendMetric === "heat"
-                                          ? colors.chart.blue
-                                          : pointState.barColor;
-                                    return (
-                                      <Box
-                                        key={`${series.company}-${p.date}`}
-                                        title={`${p.date}: ${p.value}${trendMetric === "count" ? "건" : trendMetric === "risk" ? " 위기 지수" : " 이슈량"}${p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count" ? " (기사 부족)" : ""}`}
-                                        sx={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}
-                                      >
-                                        {p.value > 0 ? (
-                                          <Box
-                                            sx={{
-                                              width: "100%",
-                                              height: `${(p.value / series.max) * 100}%`,
-                                              borderRadius: 0.5,
-                                              bgcolor: barColor,
-                                              minHeight: 8,
-                                            }}
-                                          />
-                                        ) : (
-                                          <Box
-                                            sx={{
-                                              width: "100%",
-                                              height: 6,
-                                              borderRadius: 0.5,
-                                              bgcolor: barColor,
-                                            }}
-                                          />
-                                        )}
-                                      </Box>
-                                    );
-                                  })}
-                                </Stack>
-                              ) : (
-                                <EmptyState
-                                  title={`${series.company} · 0건`}
-                                  subtitle="해당 기간 기사가 없어 추이를 표시할 수 없습니다."
-                                  tone="warning"
-                                  compact
-                                />
-                              )}
-                            </Box>
-                          ))}
-                        </Stack>
+                        <Box ref={trendRef} sx={{ width: "100%", height: 340 }} />
                       )}
                       {trendDateRangeLabel ? (
                         <Typography variant="body2" sx={{ color: colors.slate[500], mt: 1.2 }}>
@@ -984,65 +956,11 @@ export default function ComparePage() {
                       <Typography variant="body2" sx={{ color: colors.slate[500], display: "block", mb: 1.2 }}>
                         기사가 없으면 여론 비율을 계산할 수 없습니다.
                       </Typography>
-                      <Stack spacing={1.4}>
-                        {companiesForView.map((company) => {
-                          const row = sentimentByCompany[company] || { 긍정: 0, 중립: 0, 부정: 0 };
-                          const sampleCount = Number(companyCounts?.[company] || row.total || 0);
-                          const sampleState = getVolumeState(sampleCount);
-                          return (
-                            <Box key={company}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.8 }}>
-                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                                  {company}
-                                </Typography>
-                                <Chip
-                                  color={sampleState.chipColor}
-                                  variant="outlined"
-                                  label={`${sampleState.label} · ${sampleCount}건`}
-                                  sx={INTERACTIVE_CHIP_SX}
-                                />
-                              </Stack>
-                              {sampleCount <= 0 ? (
-                                <EmptyState
-                                  compact
-                                  tone="warning"
-                                  title="기사 없음"
-                                  subtitle="여론 비율을 계산할 수 없습니다."
-                                />
-                              ) : null}
-                              {SENTIMENTS.map((s) => (
-                                <Stack
-                                  key={`${company}-${s}`}
-                                  direction="row"
-                                  spacing={1}
-                                  alignItems="center"
-                                  sx={{ mb: 0.5, display: sampleCount <= 0 ? "none" : "flex" }}
-                                >
-                                  <Typography variant="body2" sx={{ width: 36 }}>
-                                    {s}
-                                  </Typography>
-                                  <LinearProgress
-                                    variant="determinate"
-                                    value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
-                                    sx={{
-                                      ...progressBarSx,
-                                      flex: 1,
-                                      borderRadius: 99,
-                                      bgcolor: colors.primary[50],
-                                      "& .MuiLinearProgress-bar": {
-                                        bgcolor: s === "긍정" ? colors.status.success.main : s === "부정" ? colors.status.error.main : colors.status.warning.main,
-                                      },
-                                    }}
-                                  />
-                                  <Typography variant="body2" sx={{ width: 52, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                                    {Number(row[s] || 0).toFixed(1)}%
-                                  </Typography>
-                                </Stack>
-                              ))}
-                            </Box>
-                          );
-                        })}
-                      </Stack>
+                      {sentimentChartData.length ? (
+                        <Box ref={sentimentRef} sx={{ width: "100%", height: 340 }} />
+                      ) : (
+                        <EmptyState title="여론 데이터가 없습니다." compact />
+                      )}
                     </>
                   ) : null}
 
