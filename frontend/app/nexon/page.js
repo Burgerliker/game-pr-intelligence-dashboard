@@ -35,8 +35,11 @@ import {
   normalizeNexonDashboard,
 } from "../../lib/normalizeNexon";
 import {
+  borderRadius,
+  colors,
   contentCardSx,
   filterChipSx,
+  gridLayouts,
   MUI_SPEC,
   metricCardSx,
   metricValueSx,
@@ -44,12 +47,17 @@ import {
   pageContainerSx,
   pageShellCleanSx,
   panelPaperSx,
+  progressBarSx,
   riskAccent,
+  riskProgressGradient,
   sectionCardSx,
   sectionTitleSx,
+  shadows,
   specTypeSx,
   statusChipSx,
   subPanelSx,
+  topIssueBadgeSx,
+  topIssueCardSx,
 } from "../../lib/uiTokens";
 
 const USE_MOCK_FALLBACK = process.env.NEXT_PUBLIC_USE_MOCK_FALLBACK === "true";
@@ -1008,7 +1016,7 @@ export default function NexonPage() {
     <Box sx={{ ...pageShellCleanSx, py: { xs: 2, sm: 2.5, md: 4.5 } }}>
     <Container maxWidth="xl" sx={pageContainerSx}>
       <Stack spacing={{ xs: 1.7, md: 2.4 }}>
-        <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
+        <Paper sx={{ ...panelPaperSx, bgcolor: colors.background.muted, boxShadow: shadows.xl }}>
           <Stack
             direction={{ xs: "column", sm: "row" }}
             alignItems={{ xs: "flex-start", sm: "center" }}
@@ -1017,13 +1025,13 @@ export default function NexonPage() {
             sx={{ px: { xs: 2, md: 3 }, py: 1.5 }}
           >
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, backgroundColor: "#0f3b66" }} />
+              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, backgroundColor: colors.brand.nexon.primary }} />
               <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
                     ...specTypeSx.h6,
                     fontSize: { xs: 20, md: 22 },
-                    color: "#0f172a",
+                    color: colors.slate[900],
                     wordBreak: "keep-all",
                   }}
                 >
@@ -1046,7 +1054,17 @@ export default function NexonPage() {
               <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }} spacing={1.2}>
                 <Box>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
-                    <Chip label="NEXON" size="small" sx={{ bgcolor: "#fff7ed", border: "1px solid #fdba74", color: "#c2410c", fontWeight: 700, height: 24 }} />
+                    <Chip
+                      label="NEXON"
+                      size="small"
+                      sx={{
+                        bgcolor: colors.brand.maplestory.bg,
+                        border: `1px solid ${colors.brand.maplestory.border}`,
+                        color: colors.brand.maplestory.primary,
+                        fontWeight: 700,
+                        height: 24,
+                      }}
+                    />
                     <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
                   </Stack>
                   <Stack direction="row" alignItems="center" spacing={1.2} useFlexGap flexWrap="wrap">
@@ -1057,9 +1075,9 @@ export default function NexonPage() {
                       size="small"
                       label="PC · Mobile"
                       sx={{
-                        bgcolor: "#fff7ed",
-                        border: "1px solid #fdba74",
-                        color: "#c2410c",
+                        bgcolor: colors.brand.maplestory.bg,
+                        border: `1px solid ${colors.brand.maplestory.border}`,
+                        color: colors.brand.maplestory.primary,
                         fontWeight: 600,
                         height: 26,
                         mt: { xs: 0.4, md: 0 },
@@ -1072,27 +1090,27 @@ export default function NexonPage() {
                 </Stack>
               </Stack>
 
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.5fr 1fr 1fr 1fr" }, gap: 1.5 }}>
+              <Box sx={{ ...gridLayouts.statsGrid }}>
                 <Paper
                   variant="outlined"
                   sx={{
                     p: { xs: 2.2, md: 2.5 },
                     borderRadius: 2.5,
-                    borderColor: "#e2e8f0",
-                    boxShadow: "0 4px 12px rgba(15,23,42,.05)",
+                    borderColor: colors.slate[200],
+                    boxShadow: shadows.lg,
                   }}
                 >
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                     <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>위기 지수</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[600] }}>위기 지수</Typography>
                       <Typography variant="caption" color="text.secondary">Crisis Score</Typography>
                     </Box>
                     <Chip
                       size="small"
                       label={<span><AlertTriangle {...iconProps({ size: 14 })} style={inlineIconSx} />{alertInfo.label}</span>}
                       sx={{
-                        bgcolor: alertLevel === "P1" ? "#fee2e2" : alertLevel === "P2" ? "#fef3c7" : "#d1fae5",
-                        color: alertLevel === "P1" ? "#dc2626" : alertLevel === "P2" ? "#b45309" : "#047857",
+                        bgcolor: alertLevel === "P1" ? colors.status.error.light : alertLevel === "P2" ? colors.status.warning.light : colors.status.success.light,
+                        color: alertLevel === "P1" ? colors.status.error.text : alertLevel === "P2" ? colors.status.warning.text : colors.status.success.text,
                         border: "none",
                         fontWeight: 700,
                       }}
@@ -1100,10 +1118,10 @@ export default function NexonPage() {
                   </Stack>
                   <Box sx={{ mt: 2 }}>
                     <Stack direction="row" spacing={0.7} alignItems="flex-end">
-                      <Typography sx={{ fontSize: { xs: 44, md: 52 }, lineHeight: 1, fontWeight: 800, color: alertLevel === "P1" ? "#ef4444" : alertLevel === "P2" ? "#f59e0b" : "#10b981" }}>
+                      <Typography sx={{ fontSize: { xs: 44, md: 52 }, lineHeight: 1, fontWeight: 800, color: alertLevel === "P1" ? colors.status.error.main : alertLevel === "P2" ? colors.status.warning.main : colors.status.success.main }}>
                         {riskValue.toFixed(1)}
                       </Typography>
-                      <Typography sx={{ fontSize: 18, color: "#94a3b8", pb: 0.6 }}>/100</Typography>
+                      <Typography sx={{ fontSize: 18, color: colors.slate[400], pb: 0.6 }}>/100</Typography>
                     </Stack>
                     <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
                       <Chip
@@ -1119,19 +1137,19 @@ export default function NexonPage() {
                       <Typography variant="caption" color="text.secondary">전일 대비</Typography>
                     </Stack>
                     <Box sx={{ mt: 1.4 }}>
-                      <Box sx={{ height: 8, bgcolor: "#f1f5f9", borderRadius: 99, overflow: "hidden" }}>
+                      <Box sx={{ ...progressBarSx, borderRadius: borderRadius.full }}>
                         <Box
                           sx={{
                             width: `${Math.max(0, Math.min(100, riskValue))}%`,
                             height: "100%",
-                            background: "linear-gradient(90deg, #10B981 0%, #F59E0B 50%, #EF4444 100%)",
+                            background: riskProgressGradient,
                           }}
                         />
                       </Box>
                       <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.7 }}>
-                        <Typography sx={{ fontSize: 11, color: "#10B981", fontWeight: 600 }}>안전</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#F59E0B", fontWeight: 600 }}>주의</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#EF4444", fontWeight: 600 }}>위험</Typography>
+                        <Typography sx={{ fontSize: 11, color: colors.status.success.main, fontWeight: 600 }}>안전</Typography>
+                        <Typography sx={{ fontSize: 11, color: colors.status.warning.main, fontWeight: 600 }}>주의</Typography>
+                        <Typography sx={{ fontSize: 11, color: colors.status.error.main, fontWeight: 600 }}>위험</Typography>
                       </Stack>
                     </Box>
                   </Box>
@@ -1147,19 +1165,19 @@ export default function NexonPage() {
                     sx={{
                       p: { xs: 2, md: 2.2 },
                       borderRadius: 2.5,
-                      borderColor: "#e2e8f0",
+                      borderColor: colors.slate[200],
                     }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>{stat.label}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[600] }}>{stat.label}</Typography>
                       <Box sx={{ width: 34, height: 34, borderRadius: 1.2, bgcolor: stat.bgColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <stat.icon {...iconProps({ size: 18, color: stat.color })} />
                       </Box>
                     </Stack>
                     <Box sx={{ mt: 1.5 }}>
                       <Stack direction="row" spacing={0.5} alignItems="baseline">
-                        <Typography sx={{ fontSize: { xs: 30, md: 34 }, fontWeight: 800, lineHeight: 1, color: "#1e293b" }}>{stat.value}</Typography>
-                        <Typography sx={{ fontSize: 15, color: "#94a3b8" }}>{stat.unit}</Typography>
+                        <Typography sx={{ fontSize: { xs: 30, md: 34 }, fontWeight: 800, lineHeight: 1, color: colors.slate[800] }}>{stat.value}</Typography>
+                        <Typography sx={{ fontSize: 15, color: colors.slate[400] }}>{stat.unit}</Typography>
                       </Stack>
                       <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
                         <Chip
@@ -1179,32 +1197,27 @@ export default function NexonPage() {
                 })}
               </Box>
 
-              <Paper variant="outlined" sx={{ p: { xs: 1.8, md: 2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
+              <Paper variant="outlined" sx={{ p: { xs: 1.8, md: 2 }, borderRadius: 2.5, borderColor: colors.slate[200] }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>핵심 위험 이슈 TOP 3</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[600] }}>핵심 위험 이슈 TOP 3</Typography>
                 </Stack>
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
                   {topIssues.map((issue, idx) => (
                     <Paper
                       key={`${issue.name}-${idx}`}
                       variant="outlined"
-                      sx={{
-                        p: 1.4,
-                        borderRadius: 1.5,
-                        borderColor: issue.severity === "high" ? "#fecaca" : "#e2e8f0",
-                        bgcolor: issue.severity === "high" ? "#fef2f2" : "#f8fafc",
-                      }}
+                      sx={topIssueCardSx(issue.severity === "high")}
                     >
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-                          <Box sx={{ width: 24, height: 24, borderRadius: 1, bgcolor: issue.severity === "high" ? "#ef4444" : "#3b82f6", color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Box sx={topIssueBadgeSx(issue.severity === "high")}>
                             {idx + 1}
                           </Box>
-                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: colors.slate[800], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {issue.name}
                           </Typography>
                         </Stack>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: issue.severity === "high" ? "#dc2626" : "#64748b" }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: issue.severity === "high" ? colors.status.error.dark : colors.slate[500] }}>
                           {issue.count}건
                         </Typography>
                       </Stack>
