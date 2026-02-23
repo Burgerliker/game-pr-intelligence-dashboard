@@ -17,7 +17,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, BarChart3, ExternalLink, Info, RefreshCw } from "lucide-react";
 import { List } from "react-window";
 import {
   apiGet,
@@ -80,6 +80,12 @@ const INTERACTIVE_CHIP_SX = filterChipSx;
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
 const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
+const COMPANY_COLORS = {
+  넥슨: "#2563eb",
+  "NC소프트": "#7c3aed",
+  넷마블: "#059669",
+  크래프톤: "#d97706",
+};
 
 function getVolumeState(count) {
   const safeCount = Number(count || 0);
@@ -183,6 +189,26 @@ function resolvePriorityTone(priorityRaw) {
   }
   return { label: p || "P3", bg: "rgba(148,163,184,.14)", color: "#475569" };
 }
+
+function companyColor(name) {
+  return COMPANY_COLORS[name] || "#2563eb";
+}
+
+const GlassCard = ({ children, sx, ...props }) => (
+  <Card
+    variant="outlined"
+    sx={{
+      borderRadius: 3,
+      border: "1px solid rgba(148,163,184,.18)",
+      bgcolor: "#fff",
+      boxShadow: "0 1px 3px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.03)",
+      ...sx,
+    }}
+    {...props}
+  >
+    {children}
+  </Card>
+);
 
 export default function ComparePage() {
   const refreshMs = getRefreshIntervalMs();
@@ -556,13 +582,18 @@ export default function ComparePage() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <Box
                   sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 1.2,
-                    background:
-                      `linear-gradient(140deg,${colors.brand.nexon.primary} 0 58%,${colors.status.success.main} 58% 100%)`,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 1.8,
+                    background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
                   }}
-                />
+                >
+                  <BarChart3 size={17} />
+                </Box>
                 <Typography
                   sx={{
                     ...specTypeSx.h6,
@@ -729,8 +760,8 @@ export default function ComparePage() {
               <Grid container spacing={{ xs: 1.1, md: 1.6 }}>
                 {companyCards.map(({ company, count, state }) => (
                   <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
-                    <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
-                      <Box sx={{ height: 3, bgcolor: state.barColor, flexShrink: 0 }} />
+                    <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column", borderRadius: 2.5 }}>
+                      <Box sx={{ height: 3, bgcolor: companyColor(company), flexShrink: 0 }} />
                       <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.6 }}>
                           {company}
@@ -981,10 +1012,7 @@ export default function ComparePage() {
                 </Grid>
               </Grid>
 
-              <Card
-                variant="outlined"
-                sx={{ ...sectionCardSx, boxShadow: shadows.md }}
-              >
+              <GlassCard sx={{ ...sectionCardSx, boxShadow: shadows.md }}>
                 <CardContent sx={contentCardSx}>
                   <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
                     게임사별 주요 키워드
@@ -1012,12 +1040,9 @@ export default function ComparePage() {
                     ))}
                   </Grid>
                 </CardContent>
-              </Card>
+              </GlassCard>
 
-              <Card
-                variant="outlined"
-                sx={{ ...sectionCardSx, boxShadow: shadows.md }}
-              >
+              <GlassCard sx={{ ...sectionCardSx, boxShadow: shadows.md }}>
                 <CardContent sx={contentCardSx}>
                   <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
                     대응 인사이트
@@ -1085,12 +1110,9 @@ export default function ComparePage() {
                     </Grid>
                   </Grid>
                 </CardContent>
-              </Card>
+              </GlassCard>
 
-              <Card
-                variant="outlined"
-                sx={sectionCardSx}
-              >
+              <GlassCard sx={sectionCardSx}>
                 <CardContent sx={contentCardSx}>
                   <Stack
                     direction={{ xs: "column", md: "row" }}
@@ -1168,9 +1190,20 @@ export default function ComparePage() {
                                 "&:hover": { bgcolor: colors.primary[50] },
                               }}
                             >
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {a.company || "-"}
-                              </Typography>
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Box
+                                  sx={{
+                                    width: 7,
+                                    height: 7,
+                                    borderRadius: "50%",
+                                    bgcolor: companyColor(a.company),
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                  {a.company || "-"}
+                                </Typography>
+                              </Stack>
                               <Typography
                                 component={a.url ? "a" : "span"}
                                 href={a.url || undefined}
@@ -1187,8 +1220,28 @@ export default function ComparePage() {
                                 }}
                               >
                                 {a.title || "(제목 없음)"}
+                                {a.url ? (
+                                  <ExternalLink
+                                    size={11}
+                                    style={{ marginLeft: 4, verticalAlign: "middle", opacity: 0.45 }}
+                                  />
+                                ) : null}
                               </Typography>
-                              <Typography variant="body2">{a.sentiment || "-"}</Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color:
+                                    a.sentiment === "긍정"
+                                      ? "#059669"
+                                      : a.sentiment === "부정"
+                                        ? "#dc2626"
+                                        : "#64748b",
+                                }}
+                              >
+                                {a.sentiment || "-"}
+                              </Typography>
                               <Typography variant="body2" sx={{ color: "text.secondary" }}>
                                 {a.date || "-"}
                               </Typography>
@@ -1203,7 +1256,7 @@ export default function ComparePage() {
                     )}
                   </Box>
                 </CardContent>
-              </Card>
+              </GlassCard>
             </>
           ) : null}
 
