@@ -8,6 +8,7 @@ import ApiGuardBanner from "../components/ApiGuardBanner";
 import PageStatusView from "../components/PageStatusView";
 import {
   actionButtonSx,
+  colors,
   navButtonSx,
   pageContainerSx,
   pageShellSx,
@@ -177,8 +178,8 @@ export default function HomePage() {
                   sx={{
                     width: 22,
                     height: 22,
-                    borderRadius: 1.2,
-                    background: "linear-gradient(140deg, #0f3b66 0 58%, #9acb19 58% 100%)",
+                    borderRadius: "4.8px",
+                    background: `linear-gradient(140deg, ${colors.brand.nexon.primary} 0 58%, ${colors.status.success.main} 58% 100%)`,
                     boxShadow: "inset 0 0 0 1px rgba(255,255,255,.25)",
                   }}
                 />
