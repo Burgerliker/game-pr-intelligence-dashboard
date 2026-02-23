@@ -763,7 +763,7 @@ export default function ComparePage() {
                                       <Box
                                         key={`${series.company}-${p.date}`}
                                         title={`${p.date}: ${p.value}${trendMetric === "count" ? "건" : trendMetric === "risk" ? " 위기 지수" : " 이슈량"}${p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count" ? " (기사 부족)" : ""}`}
-                                        sx={{ flex: 1 }}
+                                        sx={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}
                                       >
                                         {p.value > 0 ? (
                                           <Box
