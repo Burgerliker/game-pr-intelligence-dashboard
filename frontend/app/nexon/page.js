@@ -78,6 +78,18 @@ const IP_BANNER_STYLE = {
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
 const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
+const toSignedText = (value, fractionDigits = 0) => {
+  const num = Number(value || 0);
+  const fixed = num.toFixed(fractionDigits);
+  if (num > 0) return `+${fixed}`;
+  return fixed;
+};
+const getDeltaTone = (value) => {
+  const num = Number(value || 0);
+  if (num > 0) return { bg: "#fee2e2", color: "#dc2626", icon: TrendingUp };
+  if (num < 0) return { bg: "#d1fae5", color: "#047857", icon: TrendingDown };
+  return { bg: "#e2e8f0", color: "#475569", icon: null };
+};
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
@@ -555,11 +567,36 @@ export default function NexonPage() {
     if (riskValue >= 20) return { label: "주의", color: "info" };
     return { label: "낮음", color: "success" };
   }, [riskValue]);
-  const recent24hArticles = Number(riskScore?.article_count_window ?? riskScore?.exposure_count_window ?? 0);
+  const sortedDailyRows = useMemo(() => {
+    const rows = Array.isArray(dailyRows) ? [...dailyRows] : [];
+    rows.sort((a, b) => {
+      const aKey = String(a?.date ?? a?.day ?? a?.ts ?? "");
+      const bKey = String(b?.date ?? b?.day ?? b?.ts ?? "");
+      return aKey.localeCompare(bKey);
+    });
+    return rows;
+  }, [dailyRows]);
+  const latestDailyRow = sortedDailyRows.at(-1) || null;
+  const prevDailyRow = sortedDailyRows.at(-2) || null;
+  const recent24hArticles = Number(riskScore?.article_count_window ?? riskScore?.exposure_count_window ?? getDailyExposure(latestDailyRow));
+  const dailyExposureDelta = useMemo(() => {
+    if (!latestDailyRow || !prevDailyRow) return 0;
+    return getDailyExposure(latestDailyRow) - getDailyExposure(prevDailyRow);
+  }, [latestDailyRow, prevDailyRow]);
+  const clusterCount = Number(clusterData?.meta?.cluster_count || 0);
+  const clusterPrevCount = Number(
+    clusterData?.meta?.prev_cluster_count ?? clusterData?.meta?.cluster_count_prev ?? clusterData?.meta?.yesterday_cluster_count ?? clusterCount
+  );
+  const clusterDelta = clusterCount - clusterPrevCount;
   const totalArticleSum30d = useMemo(
     () => (dailyRows || []).slice(-30).reduce((acc, row) => acc + getDailyArticleCount(row), 0),
     [dailyRows]
   );
+  const totalArticleSumPrev30d = useMemo(
+    () => (sortedDailyRows || []).slice(-60, -30).reduce((acc, row) => acc + getDailyArticleCount(row), 0),
+    [sortedDailyRows]
+  );
+  const monthlyArticleDelta = totalArticleSum30d - totalArticleSumPrev30d;
   const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
   const weeklyBaselineAvg = useMemo(() => {
     if (!recentWeekRows.length) return 0;
@@ -626,6 +663,8 @@ export default function NexonPage() {
     const rows = riskTimeseries.slice(-2);
     return Number(rows[1]?.risk_score || 0) - Number(rows[0]?.risk_score || 0);
   }, [riskTimeseries]);
+  const crisisDeltaTone = getDeltaTone(crisisChange);
+  const CrisisDeltaIcon = crisisDeltaTone.icon;
   const statCards = useMemo(
     () => [
       {
@@ -633,6 +672,8 @@ export default function NexonPage() {
         label: "24h 보도량",
         value: recent24hArticles.toLocaleString(),
         unit: "건",
+        delta: dailyExposureDelta,
+        deltaDigits: 0,
         icon: Newspaper,
         color: "#3B82F6",
         bgColor: "#EFF6FF",
@@ -640,8 +681,10 @@ export default function NexonPage() {
       {
         key: "cluster",
         label: "이슈 분류",
-        value: Number(clusterData?.meta?.cluster_count || 0).toLocaleString(),
+        value: clusterCount.toLocaleString(),
         unit: "개",
+        delta: clusterDelta,
+        deltaDigits: 0,
         icon: Tag,
         color: "#8B5CF6",
         bgColor: "#F5F3FF",
@@ -651,12 +694,14 @@ export default function NexonPage() {
         label: "월간 기사",
         value: totalArticleSum30d.toLocaleString(),
         unit: "건",
+        delta: monthlyArticleDelta,
+        deltaDigits: 0,
         icon: FileText,
         color: "#06B6D4",
         bgColor: "#ECFEFF",
       },
     ],
-    [clusterData?.meta?.cluster_count, recent24hArticles, totalArticleSum30d]
+    [clusterCount, clusterDelta, dailyExposureDelta, monthlyArticleDelta, recent24hArticles, totalArticleSum30d]
   );
   const topIssues = useMemo(
     () =>
@@ -1040,14 +1085,22 @@ export default function NexonPage() {
                   <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
                     <Chip
                       size="small"
-                      label={<span>{crisisChange >= 0 ? <TrendingUp {...iconProps({ size: 13 })} style={inlineIconSx} /> : <TrendingDown {...iconProps({ size: 13 })} style={inlineIconSx} />}{crisisChange >= 0 ? "+" : ""}{crisisChange.toFixed(1)}</span>}
-                      sx={{ bgcolor: crisisChange >= 0 ? "#fee2e2" : "#d1fae5", color: crisisChange >= 0 ? "#dc2626" : "#047857", border: "none", fontWeight: 700 }}
+                      label={
+                        <span>
+                          {CrisisDeltaIcon ? <CrisisDeltaIcon {...iconProps({ size: 13 })} style={inlineIconSx} /> : null}
+                          {toSignedText(crisisChange, 1)}
+                        </span>
+                      }
+                      sx={{ bgcolor: crisisDeltaTone.bg, color: crisisDeltaTone.color, border: "none", fontWeight: 700 }}
                     />
                     <Typography variant="caption" color="text.secondary">전일 대비</Typography>
                   </Stack>
                 </Paper>
 
-                {statCards.map((stat) => (
+                {statCards.map((stat) => {
+                  const tone = getDeltaTone(stat.delta);
+                  const StatDeltaIcon = tone.icon;
+                  return (
                   <Paper key={stat.key} variant="outlined" sx={{ p: { xs: 2, md: 2.2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>{stat.label}</Typography>
@@ -1059,8 +1112,22 @@ export default function NexonPage() {
                       <Typography sx={{ fontSize: { xs: 30, md: 34 }, fontWeight: 800, lineHeight: 1, color: "#1e293b" }}>{stat.value}</Typography>
                       <Typography sx={{ fontSize: 15, color: "#94a3b8" }}>{stat.unit}</Typography>
                     </Stack>
+                    <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
+                      <Chip
+                        size="small"
+                        label={
+                          <span>
+                            {StatDeltaIcon ? <StatDeltaIcon {...iconProps({ size: 13 })} style={inlineIconSx} /> : null}
+                            {toSignedText(stat.delta, stat.deltaDigits)}
+                          </span>
+                        }
+                        sx={{ bgcolor: tone.bg, color: tone.color, border: "none", fontWeight: 700 }}
+                      />
+                      <Typography variant="caption" color="text.secondary">전일 대비</Typography>
+                    </Stack>
                   </Paper>
-                ))}
+                  );
+                })}
               </Box>
 
               <Paper variant="outlined" sx={{ p: { xs: 1.8, md: 2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
