@@ -9,15 +9,10 @@ import {
   Card,
   CardContent,
   Chip,
-  Collapse,
   Container,
   Divider,
   Grid,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  LinearProgress,
   Paper,
   Stack,
   Typography,
@@ -26,7 +21,6 @@ import { AlertTriangle, ChevronLeft, ChevronRight, FileText, Info, Newspaper, Re
 import { List as WindowList } from "react-window";
 import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
-import LabelWithTip from "../../components/LabelWithTip";
 import { apiGet, getDiagnosticCode } from "../../lib/api";
 import { buildDiagnosticScope, toRequestErrorState } from "../../lib/pageStatus";
 import {
@@ -34,6 +28,14 @@ import {
   createEmptyRisk,
   normalizeNexonDashboard,
 } from "../../lib/normalizeNexon";
+import {
+  buildStatCards,
+  calcArticleListHeight,
+  calcCrisisChange,
+  resolveOutletRisk,
+  resolveTopIssues,
+  resolveTopRisk,
+} from "./lib/selectors";
 import {
   bannerPagerBtnSx,
   borderRadius,
@@ -46,8 +48,6 @@ import {
   gridLayouts,
   IP_BANNER_STYLE,
   MUI_SPEC,
-  metricCardSx,
-  metricValueSx,
   navButtonSx,
   pageContainerSx,
   pageShellCleanSx,
@@ -55,7 +55,6 @@ import {
   paginationDotSx,
   paginationTrackSx,
   progressBarSx,
-  riskAccent,
   riskProgressGradient,
   sectionCardSx,
   sectionTitleSx,
@@ -89,6 +88,11 @@ const toSignedText = (value, fractionDigits = 0) => {
 const DELTA_ICON_MAP = {
   TrendingUp,
   TrendingDown,
+};
+const STAT_ICON_MAP = {
+  newspaper: Newspaper,
+  tag: Tag,
+  fileText: FileText,
 };
 
 const getDailyExposure = (row) =>
@@ -164,8 +168,6 @@ export default function NexonPage() {
   const [clusterData, setClusterData] = useState(() => createEmptyCluster("maplestory"));
   const [riskScore, setRiskScore] = useState(null);
   const [riskTimeseries, setRiskTimeseries] = useState([]);
-  const [burstStatus, setBurstStatus] = useState(null);
-  const [burstEvents, setBurstEvents] = useState([]);
   const [health, setHealth] = useState(null);
   const [usingMock, setUsingMock] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -181,10 +183,6 @@ export default function NexonPage() {
   const [articleError, setArticleError] = useState("");
   const [articleErrorCode, setArticleErrorCode] = useState("");
   const [healthDiagCode, setHealthDiagCode] = useState("");
-  const [showMetricDetails, setShowMetricDetails] = useState(false);
-  const [showBurstEventList, setShowBurstEventList] = useState(false);
-  const [burstRange, setBurstRange] = useState("24h");
-  const [burstVisibleCount, setBurstVisibleCount] = useState(10);
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
   const swipeStartXRef = useRef(null);
@@ -194,12 +192,10 @@ export default function NexonPage() {
   const outletChartRef = useRef(null);
   const themeChartRef = useRef(null);
   const keywordChartRef = useRef(null);
-  const riskHeatChartRef = useRef(null);
   const trendChartInstRef = useRef(null);
   const outletChartInstRef = useRef(null);
   const themeChartInstRef = useRef(null);
   const keywordChartInstRef = useRef(null);
-  const riskHeatChartInstRef = useRef(null);
   const [chartsReady, setChartsReady] = useState(false);
   const formatUpdatedAt = useCallback((date = new Date()) => {
     const d = date instanceof Date ? date : new Date(date);
@@ -210,12 +206,6 @@ export default function NexonPage() {
     (healthError) => (healthError ? getDiagnosticCode(healthError, DIAG_SCOPE.health) : ""),
     []
   );
-  const tipMap = {
-    burst: "단기간에 기사가 급증한 이벤트 기록입니다.",
-    cluster: "비슷한 키워드의 기사를 묶은 이슈 분류 수입니다.",
-    alert: "위기 지수 수준에 따른 대응 우선순위입니다.",
-  };
-
   const loadDashboard = async (targetIp = ip) => {
     const requestSeq = ++requestSeqRef.current;
     const baseCatalog = riskData?.ip_catalog || MOCK_RISK.ip_catalog;
@@ -233,8 +223,6 @@ export default function NexonPage() {
       setClusterData(cache.clusterData);
       setRiskScore(cache.riskScore);
       setRiskTimeseries(cache.riskTimeseries || []);
-      setBurstStatus(cache.burstStatus);
-      setBurstEvents(cache.burstEvents);
       setHealth(cache.health || null);
       setHealthDiagCode(cache.healthDiagCode || "");
       setUsingMock(Boolean(cache.usingMock));
@@ -246,13 +234,11 @@ export default function NexonPage() {
 
     try {
       const base = new URLSearchParams({ ip: targetIp });
-      const [riskPayload, clusterPayload, riskScorePayload, riskTimeseriesPayload, burstStatusPayload, burstEventsPayload, healthState] = await Promise.all([
+      const [riskPayload, clusterPayload, riskScorePayload, riskTimeseriesPayload, healthState] = await Promise.all([
         apiGet(`/api/risk-dashboard?${base.toString()}`),
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
         apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
         apiGet(`/api/risk-timeseries?ip=${targetIp}&hours=168&limit=600`).catch(() => null),
-        apiGet("/api/burst-status").catch(() => null),
-        apiGet("/api/burst-events?limit=50").catch(() => null),
         apiGet("/api/health")
           .then((data) => ({ data, error: null }))
           .catch((error) => ({ data: null, error })),
@@ -279,8 +265,6 @@ export default function NexonPage() {
       setUsingMock(resolvedUsingMock);
       setRiskScore(riskScorePayload || null);
       setRiskTimeseries(riskTimeseriesPayload?.items || []);
-      setBurstStatus(burstStatusPayload || null);
-      setBurstEvents((burstEventsPayload?.items || []).slice(0, 50));
       setHealth(healthState.data || null);
       setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
       setNotice(resolvedNotice);
@@ -291,8 +275,6 @@ export default function NexonPage() {
         clusterData: resolvedCluster,
         riskScore: riskScorePayload || null,
         riskTimeseries: riskTimeseriesPayload?.items || [],
-        burstStatus: burstStatusPayload || null,
-        burstEvents: (burstEventsPayload?.items || []).slice(0, 50),
         health: healthState.data || null,
         healthDiagCode: getHealthDiagnosticCode(healthState.error),
         usingMock: resolvedUsingMock,
@@ -431,20 +413,18 @@ export default function NexonPage() {
     const timer = setInterval(async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
-        const [rs, rt, bs, healthState] = await Promise.all([
+        const [rs, rt, healthState] = await Promise.all([
           apiGet(`/api/risk-score?ip=${ip}`).catch(() => null),
           apiGet(`/api/risk-timeseries?ip=${ip}&hours=168&limit=600`).catch(() => null),
-          apiGet("/api/burst-status").catch(() => null),
           apiGet("/api/health")
             .then((data) => ({ data, error: null }))
             .catch((error) => ({ data: null, error })),
         ]);
         if (rs) setRiskScore(rs);
         if (rt?.items) setRiskTimeseries(rt.items);
-        if (bs) setBurstStatus(bs);
         if (healthState.data) setHealth(healthState.data);
         setHealthDiagCode(getHealthDiagnosticCode(healthState.error));
-        if (rs || bs || healthState.data) setLastUpdatedAt(formatUpdatedAt());
+        if (rs || healthState.data) setLastUpdatedAt(formatUpdatedAt());
       } catch {
         // noop
       }
@@ -457,71 +437,12 @@ export default function NexonPage() {
   const themes = riskData?.risk_themes || [];
   const clusters = clusterData?.clusters || [];
   const keywordCloud = clusterData?.keyword_cloud || [];
-  const topRisk = useMemo(() => {
-    if (!Array.isArray(themes) || themes.length === 0) return null;
-    const prioritized = themes
-      .filter((row) => String(row?.theme || "") !== "신작/성과")
-      .filter((row) => Number(row?.negative_ratio || 0) >= 5);
-    const source = prioritized.length ? prioritized : themes;
-    return [...source].sort((a, b) => {
-      const diffNeg = Number(b?.negative_ratio || 0) - Number(a?.negative_ratio || 0);
-      if (diffNeg !== 0) return diffNeg;
-      const diffCount = Number(b?.article_count || 0) - Number(a?.article_count || 0);
-      if (diffCount !== 0) return diffCount;
-      return Number(b?.risk_score || 0) - Number(a?.risk_score || 0);
-    })[0] || null;
-  }, [themes]);
+  const topRisk = useMemo(() => resolveTopRisk(themes), [themes]);
   const topRiskThemeScore = topRisk ? Math.round(Number(topRisk?.risk_score || 0) * 1000) / 10 : null;
-  const selectedBurstStatus = useMemo(() => {
-    const items = burstStatus?.items || [];
-    return items.find((x) => x.ip_id === ip) || items.find((x) => x.ip_id === "all") || items[0] || null;
-  }, [burstStatus, ip]);
-  const recentBurstCount = useMemo(() => {
-    const now = Date.now();
-    return (burstEvents || [])
-      .filter((evt) => (ip === "all" ? true : evt.ip_name === ip))
-      .filter((evt) => now - new Date(String(evt.occurred_at).replace(" ", "T")).getTime() <= 30 * 60 * 1000)
-      .length;
-  }, [burstEvents, ip]);
-  const filteredBurstEvents = useMemo(
-    () => (burstEvents || []).filter((evt) => (ip === "all" ? true : evt.ip_name === ip)),
-    [burstEvents, ip]
+  const articleListHeight = useMemo(
+    () => calcArticleListHeight(articleItems.length, ARTICLE_ROW_HEIGHT, ARTICLE_LIST_MIN_HEIGHT, ARTICLE_LIST_MAX_HEIGHT),
+    [articleItems.length]
   );
-  const burstRangeHours = burstRange === "7d" ? 24 * 7 : 24;
-  const rangedBurstEvents = useMemo(() => {
-    const now = Date.now();
-    const windowMs = burstRangeHours * 60 * 60 * 1000;
-    return filteredBurstEvents
-      .filter((evt) => {
-        const ts = new Date(String(evt.occurred_at || "").replace(" ", "T")).getTime();
-        return Number.isFinite(ts) && now - ts <= windowMs;
-      })
-      .sort((a, b) => {
-        const ta = new Date(String(a.occurred_at || "").replace(" ", "T")).getTime();
-        const tb = new Date(String(b.occurred_at || "").replace(" ", "T")).getTime();
-        return tb - ta;
-      });
-  }, [burstRangeHours, filteredBurstEvents]);
-  const burstSummaryCount = rangedBurstEvents.length;
-  const burstSummaryLastOccurredAt = useMemo(() => {
-    if (!rangedBurstEvents.length) return "-";
-    const raw = String(rangedBurstEvents[0]?.occurred_at || "").replace(" ", "T");
-    const dt = new Date(raw);
-    if (Number.isNaN(dt.getTime())) return String(rangedBurstEvents[0]?.occurred_at || "-");
-    return dt.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
-  }, [rangedBurstEvents]);
-  const burstStatusLabel = burstSummaryCount > 0 ? "감지됨" : "없음";
-  const visibleBurstEvents = rangedBurstEvents.slice(0, burstVisibleCount);
-  const canLoadMoreBurstEvents = visibleBurstEvents.length < rangedBurstEvents.length;
-
-  useEffect(() => {
-    setBurstVisibleCount(10);
-  }, [burstRange, ip]);
-  const articleListHeight = useMemo(() => {
-    const estimated = articleItems.length * ARTICLE_ROW_HEIGHT;
-    if (!estimated) return ARTICLE_LIST_MIN_HEIGHT;
-    return Math.max(ARTICLE_LIST_MIN_HEIGHT, Math.min(ARTICLE_LIST_MAX_HEIGHT, estimated));
-  }, [articleItems.length]);
   const handleArticleRowsRendered = (visibleRows) => {
     if (!articleHasMore || articleLoading) return;
     if (visibleRows.stopIndex >= articleItems.length - 5) {
@@ -529,9 +450,6 @@ export default function NexonPage() {
     }
   };
   const riskValue = Number(riskScore?.risk_score || 0);
-  const riskFormulaVersion = riskScore?.risk_formula_version ? String(riskScore.risk_formula_version) : "";
-  const hasHeatValue = riskScore && riskScore.issue_heat != null;
-  const heatValue = hasHeatValue ? Number(riskScore?.issue_heat || 0) : null;
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const alertInfo =
     alertLevel === "P1"
@@ -539,13 +457,6 @@ export default function NexonPage() {
       : alertLevel === "P2"
         ? { label: "주의", desc: "위기 지수 45~69", color: "warning" }
         : { label: "관심", desc: "위기 지수 0~44", color: "success" };
-  const riskGaugeColor = riskValue >= 70 ? "#dc3c4a" : riskValue >= 45 ? "#e89c1c" : "#11a36a";
-  const riskMeaning = useMemo(() => {
-    if (riskValue >= 70) return { label: "심각", color: "error" };
-    if (riskValue >= 45) return { label: "높음", color: "warning" };
-    if (riskValue >= 20) return { label: "주의", color: "info" };
-    return { label: "낮음", color: "success" };
-  }, [riskValue]);
   const sortedDailyRows = useMemo(() => {
     const rows = Array.isArray(dailyRows) ? [...dailyRows] : [];
     rows.sort((a, b) => {
@@ -576,55 +487,7 @@ export default function NexonPage() {
     [sortedDailyRows]
   );
   const monthlyArticleDelta = totalArticleSum30d - totalArticleSumPrev30d;
-  const recentWeekRows = useMemo(() => (dailyRows || []).slice(-7), [dailyRows]);
-  const weeklyBaselineAvg = useMemo(() => {
-    if (!recentWeekRows.length) return 0;
-    return recentWeekRows.reduce((acc, row) => acc + getDailyArticleCount(row), 0) / recentWeekRows.length;
-  }, [recentWeekRows]);
-  const weeklyBaselineMin = useMemo(() => {
-    if (!recentWeekRows.length) return 0;
-    return Math.min(...recentWeekRows.map((row) => getDailyArticleCount(row)));
-  }, [recentWeekRows]);
-  const weeklyBaselineMax = useMemo(() => {
-    if (!recentWeekRows.length) return 0;
-    return Math.max(...recentWeekRows.map((row) => getDailyArticleCount(row)));
-  }, [recentWeekRows]);
-  const baselineRatio = weeklyBaselineAvg > 0 ? recent24hArticles / weeklyBaselineAvg : 0;
-  const spreadValue = Number(riskScore?.spread_ratio || 0);
-  const uncertaintyValue = Number(riskScore?.uncertain_ratio || 0);
-  const volumeHint = useMemo(() => {
-    if (recent24hArticles >= 20) return "충분";
-    if (recent24hArticles >= 5) return "보통";
-    return "부족";
-  }, [recent24hArticles]);
-  const spreadHint = useMemo(() => {
-    if (spreadValue >= 1.8) return "같은 이슈가 여러 기사로 재확산되는 구간";
-    if (spreadValue >= 1.2) return "유사 이슈가 반복 보도되는 구간";
-    return "개별 이슈 위주(재확산 낮음)";
-  }, [spreadValue]);
-  const uncertaintyHint = useMemo(() => {
-    if (uncertaintyValue >= 0.5) return "여론 판정 불확실 기사 비중이 높음";
-    if (uncertaintyValue >= 0.2) return "불확실 기사 비중이 일부 존재";
-    return "여론 판정 안정";
-  }, [uncertaintyValue]);
-  const liveInterpretation = useMemo(() => {
-    if (recent24hArticles < 5) return "보도량이 매우 적어 단기 변동성이 큽니다.";
-    if (riskValue >= 70) return "보도량 급증과 고위험 이슈 집중으로 위기 지수가 심각 단계입니다.";
-    if (riskValue >= 45) return "위기 지수가 높은 상태입니다. 확산도와 여론 변화를 밀착 모니터링하세요.";
-    if (baselineRatio >= 1.2 || spreadValue >= 1.2) return "위기 지수는 낮지만 보도량 또는 확산도가 평균보다 상승 중입니다.";
-    return "보도량과 확산도가 안정적이라 현재 위기 지수는 낮은 상태입니다.";
-  }, [baselineRatio, recent24hArticles, riskValue, spreadValue]);
-  const quickSummary = useMemo(() => {
-    if (recent24hArticles < 5) return "보도량이 적어 현재 점수는 참고용입니다.";
-    if (riskValue >= 45) return "즉시 모니터링이 필요한 구간입니다.";
-    return "현재는 위기 신호가 크지 않습니다.";
-  }, [recent24hArticles, riskValue]);
-  const outletRisk = useMemo(() => {
-    if (!outletRows.length) return null;
-    return [...outletRows]
-      .map((x) => ({ ...x, score: Math.round((Number(x.article_count || 0) * Number(x.negative_ratio || 0)) / 100) }))
-      .sort((a, b) => b.score - a.score)[0];
-  }, [outletRows]);
+  const outletRisk = useMemo(() => resolveOutletRisk(outletRows), [outletRows]);
   const themeActionMap = {
     "확률형/BM": "확률·검증 근거와 산식 설명을 FAQ/공지에 고정",
     "운영/장애": "장애 타임라인과 재발방지 항목을 동일 포맷으로 배포",
@@ -637,66 +500,22 @@ export default function NexonPage() {
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
-  const crisisChange = useMemo(() => {
-    if (!Array.isArray(riskTimeseries) || riskTimeseries.length < 2) return 0;
-    const rows = riskTimeseries.slice(-2);
-    return Number(rows[1]?.risk_score || 0) - Number(rows[0]?.risk_score || 0);
-  }, [riskTimeseries]);
+  const crisisChange = useMemo(() => calcCrisisChange(riskTimeseries), [riskTimeseries]);
   const crisisDeltaTone = getDeltaToneToken(crisisChange);
   const CrisisDeltaIcon = crisisDeltaTone.iconName ? DELTA_ICON_MAP[crisisDeltaTone.iconName] : null;
   const statCards = useMemo(
-    () => [
-      {
-        key: "volume",
-        label: "24h 보도량",
-        value: recent24hArticles.toLocaleString(),
-        unit: "건",
-        delta: dailyExposureDelta,
-        deltaMode: "neutral",
-        deltaDigits: 0,
-        icon: Newspaper,
-        color: "#3B82F6",
-        bgColor: "#EFF6FF",
-      },
-      {
-        key: "cluster",
-        label: "이슈 분류",
-        value: clusterCount.toLocaleString(),
-        unit: "개",
-        delta: clusterDelta,
-        deltaMode: "neutral",
-        deltaDigits: 0,
-        icon: Tag,
-        color: "#8B5CF6",
-        bgColor: "#F5F3FF",
-      },
-      {
-        key: "monthly",
-        label: "월간 기사",
-        value: totalArticleSum30d.toLocaleString(),
-        unit: "건",
-        delta: monthlyArticleDelta,
-        deltaMode: "neutral",
-        deltaDigits: 0,
-        icon: FileText,
-        color: "#06B6D4",
-        bgColor: "#ECFEFF",
-      },
-    ],
+    () =>
+      buildStatCards({
+        recent24hArticles,
+        dailyExposureDelta,
+        clusterCount,
+        clusterDelta,
+        totalArticleSum30d,
+        monthlyArticleDelta,
+      }),
     [clusterCount, clusterDelta, dailyExposureDelta, monthlyArticleDelta, recent24hArticles, totalArticleSum30d]
   );
-  const topIssues = useMemo(
-    () =>
-      [...themes]
-        .sort((a, b) => Number(b?.article_count || 0) - Number(a?.article_count || 0))
-        .slice(0, 3)
-        .map((x) => ({
-          name: x?.theme || "-",
-          count: Number(x?.article_count || 0),
-          severity: Number(x?.negative_ratio || 0) >= 40 ? "high" : "low",
-        })),
-    [themes]
-  );
+  const topIssues = useMemo(() => resolveTopIssues(themes), [themes]);
 
   useEffect(() => {
     let active = true;
@@ -709,14 +528,12 @@ export default function NexonPage() {
       if (outletChartRef.current && !outletChartInstRef.current) outletChartInstRef.current = echarts.init(outletChartRef.current);
       if (themeChartRef.current && !themeChartInstRef.current) themeChartInstRef.current = echarts.init(themeChartRef.current);
       if (keywordChartRef.current && !keywordChartInstRef.current) keywordChartInstRef.current = echarts.init(keywordChartRef.current);
-      if (riskHeatChartRef.current && !riskHeatChartInstRef.current) riskHeatChartInstRef.current = echarts.init(riskHeatChartRef.current);
       setChartsReady(true);
       onResize = () => {
         trendChartInstRef.current?.resize();
         outletChartInstRef.current?.resize();
         themeChartInstRef.current?.resize();
         keywordChartInstRef.current?.resize();
-        riskHeatChartInstRef.current?.resize();
       };
       window.addEventListener("resize", onResize);
     };
@@ -730,12 +547,10 @@ export default function NexonPage() {
       outletChartInstRef.current?.dispose();
       themeChartInstRef.current?.dispose();
       keywordChartInstRef.current?.dispose();
-      riskHeatChartInstRef.current?.dispose();
       trendChartInstRef.current = null;
       outletChartInstRef.current = null;
       themeChartInstRef.current = null;
       keywordChartInstRef.current = null;
-      riskHeatChartInstRef.current = null;
     };
   }, []);
 
@@ -951,41 +766,6 @@ export default function NexonPage() {
     );
   }, [chartsReady, keywordCloud]);
 
-  useEffect(() => {
-    if (!chartsReady || !riskHeatChartInstRef.current) return;
-    const rows = (riskTimeseries || []).slice(-168);
-    const x = rows.map((r) => String(r.ts || "").slice(5, 16));
-    riskHeatChartInstRef.current.setOption(
-      {
-        animation: false,
-        grid: { left: 38, right: 20, top: 26, bottom: 42 },
-        tooltip: { trigger: "axis" },
-        legend: { top: 0, data: ["위기 지수", "이슈량"] },
-        xAxis: { type: "category", data: x, axisLabel: { color: echartsTokens.axisLabel.color, hideOverlap: true } },
-        yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: echartsTokens.axisLabel.color, formatter: "{value}" } },
-        series: [
-          {
-            name: "위기 지수",
-            type: "line",
-            data: rows.map((r) => Number(r.risk_score || 0)),
-            smooth: true,
-            symbol: "none",
-            lineStyle: { width: 2, color: echartsTokens.series.line },
-          },
-          {
-            name: "이슈량",
-            type: "line",
-            data: rows.map((r) => Number(r.issue_heat || 0)),
-            smooth: true,
-            symbol: "none",
-            lineStyle: { width: 2, color: echartsTokens.series.bar },
-          },
-        ],
-      },
-      { notMerge: true, lazyUpdate: true }
-    );
-  }, [chartsReady, riskTimeseries]);
-
   return (
     <Box sx={{ ...pageShellCleanSx, py: { xs: 2, sm: 2.5, md: 4.5 } }}>
     <Container maxWidth="xl" sx={pageContainerSx}>
@@ -1113,6 +893,7 @@ export default function NexonPage() {
                 {statCards.map((stat) => {
                   const tone = getDeltaToneToken(stat.delta, stat.deltaMode);
                   const StatDeltaIcon = tone.iconName ? DELTA_ICON_MAP[tone.iconName] : null;
+                  const StatIcon = STAT_ICON_MAP[stat.iconKey] || FileText;
                   return (
                   <Paper
                     key={stat.key}
@@ -1126,7 +907,7 @@ export default function NexonPage() {
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[600] }}>{stat.label}</Typography>
                       <Box sx={{ width: 34, height: 34, borderRadius: 1.2, bgcolor: stat.bgColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <stat.icon {...iconProps({ size: 18, color: stat.color })} />
+                        <StatIcon {...iconProps({ size: 18, color: stat.color })} />
                       </Box>
                     </Stack>
                     <Box sx={{ mt: 1.5 }}>
@@ -1253,267 +1034,6 @@ export default function NexonPage() {
             </Box>
           </CardContent>
         </Card>
-
-        {false ? (
-        <Card variant="outlined" sx={sectionCardSx}>
-          <CardContent sx={contentCardSx}>
-            <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.8, borderLeft: `4px solid ${riskValue >= 70 ? riskAccent.critical.color : riskValue >= 45 ? riskAccent.high.color : riskValue >= 20 ? riskAccent.caution.color : riskAccent.safe.color}` }}>
-              현재 위기 상태
-            </Typography>
-            {riskScore ? (
-              <Box sx={{ maxWidth: 1060, mx: "auto", width: "100%" }}>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "1fr", lg: "1.2fr .8fr" },
-                    gap: { xs: 1.2, sm: 1.6, md: 1.9, lg: 2.2 },
-                    alignItems: "start",
-                  }}
-                >
-                  <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
-                    <Paper variant="outlined" sx={subPanelSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>위기 지수</Typography>
-                      <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 0.6 }}>
-                        <Chip size="small" variant="outlined" label={riskFormulaVersion ? "최신 분석 기준 적용 중" : "기본 분석 기준 적용 중"} sx={controlChipSx} />
-                      </Stack>
-                      <Typography
-                        variant="h4"
-                        sx={{ mt: 0.3, ...metricValueSx }}
-                      >
-                        {riskValue.toFixed(1)}
-                      </Typography>
-                      <Chip
-                        label={riskMeaning.label}
-                        size="small"
-                        color={riskMeaning.color}
-                        variant="outlined"
-                        sx={{ ...controlChipSx, mt: 0.5 }}
-                      />
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.max(0, Math.min(100, riskValue))}
-                        sx={{
-                          mt: 0.9,
-                          height: 10,
-                          borderRadius: 999,
-                          bgcolor: "#edf2fb",
-                          "& .MuiLinearProgress-bar": { bgcolor: riskGaugeColor },
-                        }}
-                      />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
-                        최근 {Number(riskScore?.meta?.window_hours || 24)}시간 보도량 기준 · 이슈량 {hasHeatValue ? heatValue.toFixed(1) : "미제공"}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.55, fontWeight: 600 }}>
-                        {quickSummary}
-                      </Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={subPanelSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                        오늘 보도량: {recent24hArticles.toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.2, fontVariantNumeric: "tabular-nums" }}>
-                        지난 7일 평균: {weeklyBaselineMin.toLocaleString()}–{weeklyBaselineMax.toLocaleString()}건
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", fontVariantNumeric: "tabular-nums" }}>
-                        평균 대비 {baselineRatio > 0 ? `${baselineRatio.toFixed(1)}배` : "0.0배"}
-                      </Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={subPanelSx}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.3 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>위기 지수 해석</Typography>
-                        <IconButton size="small" onClick={() => setShowMetricDetails((prev) => !prev)} aria-label="상세 지표 보기">
-                          <Info {...iconProps({ size: 15 })} />
-                        </IconButton>
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary">
-                        보도량: {recent24hArticles.toLocaleString()}건 ({volumeHint}) · 확산도: {spreadValue.toFixed(2)} · 여론 불명확: {Math.round(uncertaintyValue * 100)}%
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.6, lineHeight: 1.45 }}>
-                        {liveInterpretation}
-                      </Typography>
-                      <Collapse in={showMetricDetails}>
-                        <Box sx={{ mt: 0.8, pt: 0.8, borderTop: "1px dashed", borderColor: "divider" }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 700 }}>
-                            상세 설명
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2 }}>
-                            보도량은 최근 24시간 기준 기사 수입니다. 표본이 적은 구간은 추세 중심으로 해석하세요.
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
-                            확산도는 같은 이슈가 반복 보도되는 정도입니다. {spreadHint}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
-                            여론 불명확은 긍/부정 판단이 어려운 기사 비율입니다. {uncertaintyHint}
-                          </Typography>
-                        </Box>
-                      </Collapse>
-                    </Paper>
-                  </Stack>
-
-                  <Stack spacing={{ xs: 1.1, sm: 1.4, md: 1.6 }}>
-                    <Paper variant="outlined" sx={subPanelSx}>
-                      <LabelWithTip label="대응 우선순위" tip={tipMap.alert} />
-                      <Chip
-                        size="small"
-                        label={`${alertInfo.label} (${alertLevel})`}
-                        color={alertInfo.color}
-                        sx={{ mt: 0.55, fontWeight: 700, minHeight: 30 }}
-                      />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6, fontVariantNumeric: "tabular-nums" }}>
-                        {alertInfo.desc}
-                      </Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={subPanelSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>모니터링 현황</Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.45, fontVariantNumeric: "tabular-nums" }}>
-                        {selectedBurstStatus?.mode === "burst" ? "집중 모니터링 중" : "정상 모니터링"} · 갱신 주기 {selectedBurstStatus?.interval_seconds || 600}초
-                        {selectedBurstStatus?.burst_remaining ? ` · 남은 시간 ${selectedBurstStatus.burst_remaining}초` : ""} · 최근 30분 급등 {recentBurstCount}건
-                      </Typography>
-                    </Paper>
-                    <Paper variant="outlined" sx={subPanelSx}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>위기 지수 vs 이슈량</Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
-                        위기 지수(Risk)는 부정 여론 강도, 이슈량(Heat)은 언급 빈도입니다. 언급이 많아도 부정이 적으면 위기 지수는 낮을 수 있습니다.
-                      </Typography>
-                      <Box ref={riskHeatChartRef} sx={{ mt: 0.8, width: "100%", height: { xs: 180, sm: 200 } }} />
-                    </Paper>
-                  </Stack>
-                </Box>
-
-                <Box sx={{ mt: 1 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="caption" color="text.secondary">위기 지수 구성 요소</Typography>
-                    <Button size="small" onClick={() => setShowMetricDetails((prev) => !prev)}>
-                      {showMetricDetails ? "접기" : "보기"}
-                    </Button>
-                  </Stack>
-                  <Collapse in={showMetricDetails}>
-                    <Grid container spacing={{ xs: 1, md: 1.2 }} sx={{ mt: 0.4 }}>
-                      {["S", "V", "T", "M"].map((k) => {
-                        const value = Math.max(0, Math.min(1, Number(riskScore?.components?.[k] || 0)));
-                        const signalLabel = k === "S" ? "감성 신호" : k === "V" ? "보도량 신호" : k === "T" ? "테마 신호" : "매체 신호";
-                        return (
-                          <Grid item xs={6} md={3} key={k}>
-                            <Paper variant="outlined" sx={{ ...panelPaperSx, p: { xs: 1, sm: 1.1 } }}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 700 }}>{signalLabel}</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                                  {value.toFixed(2)}
-                                </Typography>
-                              </Stack>
-                              <LinearProgress
-                                variant="determinate"
-                                value={value * 100}
-                                sx={{ height: 8, borderRadius: 999, bgcolor: "#edf2fb" }}
-                              />
-                            </Paper>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  </Collapse>
-                </Box>
-
-                <Paper variant="outlined" sx={{ ...panelPaperSx, mt: 1.6, p: { xs: 1, sm: 1.2, md: 1.4 } }}>
-                  <Box sx={{ px: 1.2, pt: 0.6 }}>
-                    <LabelWithTip label="급등 이벤트" tip={tipMap.burst} />
-                  </Box>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1}
-                    sx={{ px: 1.2, pb: 0.8, pt: 0.8, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}
-                  >
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={0.8} useFlexGap flexWrap="wrap" sx={{ minWidth: 0 }}>
-                      <Chip size="small" variant="outlined" label={`최근 ${burstRange === "24h" ? "24시간" : "7일"} 급등 ${burstSummaryCount}건`} sx={statusChipSx} />
-                      <Chip size="small" variant="outlined" label={`마지막 급등 ${burstSummaryLastOccurredAt}`} sx={statusChipSx} />
-                      <Chip
-                        size="small"
-                        label={burstStatusLabel}
-                        color={burstSummaryCount > 0 ? "warning" : "success"}
-                        variant={burstSummaryCount > 0 ? "filled" : "outlined"}
-                        sx={{ fontWeight: 700, minHeight: 30 }}
-                      />
-                    </Stack>
-                    <Stack direction="row" spacing={0.6} sx={{ justifyContent: { xs: "flex-start", sm: "flex-end" }, flexWrap: "wrap" }}>
-                      <Button
-                        size="small"
-                        variant={burstRange === "24h" ? "contained" : "outlined"}
-                        onClick={() => setBurstRange("24h")}
-                      >
-                        24시간
-                      </Button>
-                      <Button
-                        size="small"
-                        variant={burstRange === "7d" ? "contained" : "outlined"}
-                        onClick={() => setBurstRange("7d")}
-                      >
-                        7일
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => {
-                          setShowBurstEventList((prev) => {
-                            const next = !prev;
-                            if (next) setBurstVisibleCount(10);
-                            return next;
-                          });
-                        }}
-                      >
-                        {showBurstEventList ? "접기" : "목록 보기"}
-                      </Button>
-                    </Stack>
-                  </Stack>
-
-                  <Collapse in={showBurstEventList}>
-                    <List dense disablePadding>
-                      {visibleBurstEvents.length ? (
-                        visibleBurstEvents.map((evt, idx) => (
-                          <ListItem key={`${evt.occurred_at}-${idx}`} divider>
-                            <ListItemText
-                              primary={`${String(evt.occurred_at).slice(5, 16)} · ${evt.ip_name} · ${String(evt.event_type).toUpperCase()}`}
-                              secondary={evt.trigger_reason}
-                              primaryTypographyProps={{ variant: "body2" }}
-                              secondaryTypographyProps={{ variant: "caption" }}
-                            />
-                          </ListItem>
-                        ))
-                      ) : (
-                        <Box sx={{ p: 1 }}>
-                          <PageStatusView
-                            empty={{
-                              show: true,
-                              title: "급등 이벤트 없음",
-                              subtitle: "선택 기간에 기사 급증 이벤트가 없습니다.",
-                              compact: true,
-                            }}
-                          />
-                        </Box>
-                      )}
-                    </List>
-                    {canLoadMoreBurstEvents ? (
-                      <Box sx={{ px: 1.2, pb: 1, pt: 0.6, display: "flex", justifyContent: "center" }}>
-                        <Button size="small" variant="outlined" onClick={() => setBurstVisibleCount((prev) => prev + 10)}>
-                          더보기 (+10)
-                        </Button>
-                      </Box>
-                    ) : null}
-                  </Collapse>
-                </Paper>
-              </Box>
-            ) : (
-              <PageStatusView
-                empty={{
-                  show: true,
-                  title: "위기 지수 데이터를 불러오는 중입니다.",
-                  subtitle: !filteredBurstEvents.length ? "급등 이벤트 기록이 없습니다." : "",
-                  tone: "warning",
-                }}
-              />
-            )}
-          </CardContent>
-        </Card>
-        ) : null}
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
