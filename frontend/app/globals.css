@@ -33,8 +33,7 @@ body {
   font-family: "Plus Jakarta Sans", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif !important;
 }
 
-.MuiButton-root,
-.MuiChip-root {
+.MuiButton-root {
   min-height: 44px;
 }
 

@@ -468,7 +468,7 @@ export const brandChipSx = {
   fontSize: 12,
   fontWeight: typography.weight.semibold,
   letterSpacing: "0.5px",
-  "&& .MuiChip-label, && .MuiChip-labelSmall": {
+  "&& .MuiChip-label, && .MuiChip-labelMedium, && .MuiChip-labelSmall": {
     px: 1,
     py: 0,
     height: 26,
@@ -481,7 +481,7 @@ export const brandChipSx = {
     fontVariantNumeric: "tabular-nums",
     boxSizing: "border-box",
   },
-  "&&.MuiChip-sizeSmall .MuiChip-label, &&.MuiChip-sizeSmall .MuiChip-labelSmall": {
+  "&&.MuiChip-sizeSmall .MuiChip-label, &&.MuiChip-sizeSmall .MuiChip-labelMedium, &&.MuiChip-sizeSmall .MuiChip-labelSmall": {
     height: 24,
     lineHeight: "24px",
   },
