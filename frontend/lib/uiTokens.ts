@@ -98,6 +98,14 @@ export const colors = {
     red: "#DC3C4A",
     purple: "#7B61FF",
     cyan: "#00A5C4",
+    // ECharts palette
+    palette: ["#2F67D8", "#11A36A", "#F2B248", "#DC3C4A", "#7B61FF", "#00A5C4"],
+  },
+
+  // Progress bar
+  progress: {
+    track: "#EDF2FB",
+    gradient: "linear-gradient(90deg, #10B981 0%, #F59E0B 50%, #EF4444 100%)",
   },
 
   // Background
@@ -106,6 +114,49 @@ export const colors = {
     card: "#FFFFFF",
     elevated: "#FFFFFF",
     muted: "#F8FAFC",
+  },
+} as const;
+
+// ============================================
+// 1-B. IP BANNER STYLE MAP
+// ============================================
+
+export const IP_BANNER_STYLE = {
+  all: {
+    kicker: "NEXON OVERVIEW",
+    accent: "#8db5ee",
+    bg: "#5f89bd",
+    glow: "none",
+  },
+  maplestory: {
+    kicker: "MAPLESTORY",
+    accent: "#f2cb89",
+    bg: "#a5692f",
+    glow: "none",
+  },
+  dnf: {
+    kicker: "DNF",
+    accent: "#f2aebd",
+    bg: "#a45b73",
+    glow: "none",
+  },
+  arcraiders: {
+    kicker: "ARC RAIDERS",
+    accent: "#a7dff0",
+    bg: "#3b889b",
+    glow: "none",
+  },
+  bluearchive: {
+    kicker: "BLUE ARCHIVE",
+    accent: "#b6c8f2",
+    bg: "#5f72ad",
+    glow: "none",
+  },
+  fconline: {
+    kicker: "FC ONLINE",
+    accent: "#b7e3cd",
+    bg: "#3e8d67",
+    glow: "none",
   },
 } as const;
 
@@ -203,21 +254,22 @@ export const shadows = {
 // 5. MUI SX TOKENS (기존 호환성 유지)
 // ============================================
 
+// Page Shell
 export const pageShellCleanSx = {
   minHeight: "100vh",
   background: colors.background.page,
   py: { xs: 2, sm: 2.5, md: 4 },
 } as const;
 
-export const pageShellSx = {
-  minHeight: "100vh",
-  bgcolor: colors.slate[100],
-} as const;
+// Alias for backward compatibility
+export const pageShellSx = pageShellCleanSx;
 
+// Page Container
 export const pageContainerSx = {
   px: { xs: 2, sm: 3, md: 4 },
 } as const;
 
+// Section Card (주요 섹션 카드)
 export const sectionCardSx = {
   borderRadius: "20px",
   border: `1px solid ${colors.slate[200]}`,
@@ -230,10 +282,12 @@ export const sectionCardSx = {
   },
 } as const;
 
+// Content Card (카드 내부 패딩)
 export const contentCardSx = {
   p: { xs: 2.5, sm: 3, md: 3.5 },
 } as const;
 
+// Panel Paper (서브 패널)
 export const panelPaperSx = {
   borderRadius: "16px",
   border: `1px solid ${colors.slate[200]}`,
@@ -241,6 +295,7 @@ export const panelPaperSx = {
   p: { xs: 2, sm: 2.5, md: 3 },
 } as const;
 
+// Sub Panel (더 작은 내부 패널)
 export const subPanelSx = {
   borderRadius: "12px",
   border: `1px solid ${colors.slate[200]}`,
@@ -248,6 +303,7 @@ export const subPanelSx = {
   p: { xs: 1.5, sm: 2, md: 2.5 },
 } as const;
 
+// Metric Card (지표 카드)
 export const metricCardSx = {
   borderRadius: "20px",
   border: `1px solid ${colors.slate[200]}`,
@@ -260,12 +316,14 @@ export const metricCardSx = {
   minHeight: { xs: 140, md: 160 },
 } as const;
 
+// Crisis Card (위기 지수 카드 - 강조)
 export const crisisCardSx = {
   ...metricCardSx,
   p: { xs: 2.5, md: 3 },
   minHeight: { xs: 180, md: 200 },
 } as const;
 
+// Metric Value (큰 숫자 표시)
 export const metricValueSx = {
   fontSize: { xs: 36, md: 42 },
   fontWeight: typography.weight.extrabold,
@@ -273,12 +331,14 @@ export const metricValueSx = {
   color: colors.slate[800],
 } as const;
 
+// Crisis Value (위기 지수 숫자 - 더 큼)
 export const crisisValueSx = {
   fontSize: { xs: 48, md: 56 },
   fontWeight: typography.weight.extrabold,
   lineHeight: 1,
 } as const;
 
+// Section Title
 export const sectionTitleSx = {
   fontSize: { xs: 16, md: 18 },
   fontWeight: typography.weight.bold,
@@ -286,6 +346,7 @@ export const sectionTitleSx = {
   mb: 2,
 } as const;
 
+// Typography Specs
 export const specTypeSx = {
   h1: {
     fontSize: { xs: 32, md: 40 },
@@ -352,6 +413,7 @@ export const specTypeSx = {
 // 6. CHIP STYLES
 // ============================================
 
+// Filter Chip (필터/컨트롤용)
 export const filterChipSx = {
   height: 28,
   borderRadius: "8px",
@@ -368,6 +430,7 @@ export const filterChipSx = {
   },
 } as const;
 
+// Status Chip (상태 표시용)
 export const statusChipSx = {
   height: 26,
   borderRadius: "6px",
@@ -378,6 +441,7 @@ export const statusChipSx = {
   fontWeight: typography.weight.medium,
 } as const;
 
+// Delta Chip (변화량 표시)
 export const deltaChipSx = {
   height: 24,
   borderRadius: "6px",
@@ -389,6 +453,7 @@ export const deltaChipSx = {
   },
 } as const;
 
+// Brand Chip (브랜드/태그용)
 export const brandChipSx = {
   height: 24,
   borderRadius: "20px",
@@ -397,6 +462,65 @@ export const brandChipSx = {
   letterSpacing: "0.5px",
 } as const;
 
+// Brand Chip with Gradient (IP별 그라데이션 칩)
+export const brandChipGradientSx = {
+  maplestory: {
+    ...brandChipSx,
+    background: "linear-gradient(135deg, #F97316 0%, #FB923C 100%)",
+    color: "#FFFFFF",
+    border: "none",
+    px: 1.5,
+    py: 0.5,
+  },
+  dnf: {
+    ...brandChipSx,
+    background: "linear-gradient(135deg, #A45B73 0%, #F2AEBD 100%)",
+    color: "#FFFFFF",
+    border: "none",
+    px: 1.5,
+    py: 0.5,
+  },
+  bluearchive: {
+    ...brandChipSx,
+    background: "linear-gradient(135deg, #5F72AD 0%, #B6C8F2 100%)",
+    color: "#FFFFFF",
+    border: "none",
+    px: 1.5,
+    py: 0.5,
+  },
+  fconline: {
+    ...brandChipSx,
+    background: "linear-gradient(135deg, #3E8D67 0%, #B7E3CD 100%)",
+    color: "#FFFFFF",
+    border: "none",
+    px: 1.5,
+    py: 0.5,
+  },
+  arcraiders: {
+    ...brandChipSx,
+    background: "linear-gradient(135deg, #3B889B 0%, #A7DFF0 100%)",
+    color: "#FFFFFF",
+    border: "none",
+    px: 1.5,
+    py: 0.5,
+  },
+  nexon: {
+    ...brandChipSx,
+    background: "linear-gradient(135deg, #0F3B66 0%, #3B82F6 100%)",
+    color: "#FFFFFF",
+    border: "none",
+    px: 1.5,
+    py: 0.5,
+  },
+} as const;
+
+// IP별 그라데이션 가져오기 헬퍼
+export const getBrandChipSx = (ipId: string) => {
+  const key = ipId.toLowerCase().replace(/[^a-z]/g, "");
+  return brandChipGradientSx[key as keyof typeof brandChipGradientSx] || brandChipGradientSx.nexon;
+};
+
+// Alert Level Chips
 export const alertChipStyles = {
   critical: {
     bgcolor: colors.status.error.light,
@@ -422,6 +546,7 @@ export const alertChipStyles = {
 // 7. BUTTON STYLES
 // ============================================
 
+// Nav Button (네비게이션용)
 export const navButtonSx = {
   borderRadius: "12px",
   border: `1px solid ${colors.slate[200]}`,
@@ -439,23 +564,7 @@ export const navButtonSx = {
   },
 } as const;
 
-export const actionButtonSx = {
-  primary: {
-    ...navButtonSx,
-    bgcolor: colors.slate[900],
-    borderColor: colors.slate[900],
-    color: "#fff",
-    "&:hover": {
-      bgcolor: colors.slate[800],
-      borderColor: colors.slate[800],
-      boxShadow: shadows.buttonHover,
-    },
-  },
-  secondary: {
-    ...navButtonSx,
-  },
-} as const;
-
+// Icon Button (원형)
 export const iconButtonSx = {
   width: 42,
   height: 42,
@@ -477,6 +586,84 @@ export const iconButtonSx = {
   },
 } as const;
 
+// Banner Pager Button (배너 좌우 이동)
+export const bannerPagerBtnSx = {
+  width: 42,
+  height: 42,
+  borderRadius: 99,
+  border: "1px solid rgba(15,23,42,.14)",
+  color: colors.slate[900],
+  bgcolor: "rgba(255,255,255,.92)",
+  boxShadow: "0 8px 18px rgba(15,23,42,.12)",
+  transition: "all .2s ease",
+  "&:hover": {
+    bgcolor: "#fff",
+    transform: "translateY(-1px)",
+    boxShadow: "0 12px 24px rgba(15,23,42,.16)",
+  },
+  "&.Mui-disabled": {
+    color: colors.slate[400],
+    borderColor: "rgba(148,163,184,.35)",
+    boxShadow: "none",
+  },
+} as const;
+
+// Action Button (CTA용)
+export const actionButtonSx = {
+  primary: {
+    borderRadius: "12px",
+    bgcolor: colors.brand.nexon.primary,
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: typography.weight.semibold,
+    px: 2.5,
+    py: 1.25,
+    textTransform: "none",
+    boxShadow: shadows.md,
+    "&:hover": {
+      bgcolor: colors.primary[800],
+      boxShadow: shadows.lg,
+    },
+  },
+  secondary: {
+    borderRadius: "12px",
+    border: `1px solid ${colors.slate[200]}`,
+    bgcolor: colors.background.card,
+    color: colors.slate[700],
+    fontSize: 14,
+    fontWeight: typography.weight.medium,
+    px: 2.5,
+    py: 1.25,
+    textTransform: "none",
+    boxShadow: shadows.button,
+    "&:hover": {
+      bgcolor: colors.slate[50],
+      borderColor: colors.slate[300],
+      boxShadow: shadows.buttonHover,
+    },
+  },
+} as const;
+
+// ============================================
+// 8. PAGINATION STYLES
+// ============================================
+
+export const paginationTrackSx = {
+  px: 1.2,
+  py: 0.9,
+  borderRadius: 99,
+  borderColor: "rgba(15,23,42,.14)",
+  backgroundColor: colors.slate[50],
+} as const;
+
+export const paginationDotSx = (active: boolean) => ({
+  width: active ? 26 : 10,
+  height: 10,
+  borderRadius: 999,
+  bgcolor: active ? colors.primary[600] : "rgba(100,116,139,.35)",
+  transition: "all .2s ease",
+}) as const;
+
 // ============================================
 // 8. RISK ACCENT COLORS
 // ============================================
@@ -486,30 +673,36 @@ export const riskAccent = {
     color: colors.status.error.main,
     bg: colors.status.error.light,
     text: colors.status.error.text,
+    border: "#FECACA",
     gradient: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)",
   },
   high: {
     color: colors.status.warning.main,
     bg: colors.status.warning.light,
     text: colors.status.warning.text,
+    border: "#FDE68A",
     gradient: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
   },
   caution: {
     color: colors.status.info.main,
     bg: colors.status.info.light,
     text: colors.status.info.text,
+    border: "#BFDBFE",
     gradient: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)",
   },
   safe: {
     color: colors.status.success.main,
     bg: colors.status.success.light,
     text: colors.status.success.text,
+    border: "#BBF7D0",
     gradient: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
   },
+  // Neutral (호환성 유지용)
   neutral: {
     color: colors.slate[500],
     bg: colors.slate[100],
     text: colors.slate[600],
+    border: colors.slate[300],
     gradient: "linear-gradient(135deg, #94A3B8 0%, #64748B 100%)",
   },
 } as const;
@@ -521,32 +714,100 @@ export const riskAccent = {
 export const progressBarSx = {
   height: 8,
   borderRadius: "4px",
-  bgcolor: colors.slate[100],
+  bgcolor: colors.progress.track,
   overflow: "hidden",
 } as const;
 
-export const riskProgressGradient = "linear-gradient(90deg, #10B981 0%, #F59E0B 50%, #EF4444 100%)";
+export const riskProgressGradient = colors.progress.gradient;
+
+// Linear Progress MUI style
+export const linearProgressSx = {
+  height: 10,
+  borderRadius: 999,
+  bgcolor: colors.progress.track,
+  "& .MuiLinearProgress-bar": {
+    bgcolor: colors.chart.blue,
+  },
+} as const;
+
+// ============================================
+// 10. ECHARTS CONFIG TOKENS
+// ============================================
+
+export const echartsTokens = {
+  // 공통 그리드
+  grid: {
+    default: { left: 38, right: 20, top: 26, bottom: 38 },
+    horizontal: { left: 90, right: 20, top: 26, bottom: 24 },
+  },
+
+  // 축 라벨 색상
+  axisLabel: {
+    color: colors.slate[500],
+  },
+
+  // 시리즈 색상
+  series: {
+    bar: colors.chart.blue,
+    barRadius: [4, 4, 0, 0],
+    line: colors.chart.red,
+    positive: colors.chart.green,
+    neutral: colors.chart.yellow,
+    negative: colors.chart.red,
+  },
+
+  // 트리맵 팔레트
+  treemapPalette: [
+    colors.chart.blue,
+    colors.chart.green,
+    colors.chart.yellow,
+    colors.chart.red,
+    "#4A63D9",
+    colors.chart.cyan,
+  ],
+} as const;
+
+// ECharts 옵션 헬퍼
+export const getEchartsAxisStyle = () => ({
+  axisLabel: { color: colors.slate[500] },
+  axisLine: { lineStyle: { color: colors.slate[300] } },
+  splitLine: { lineStyle: { color: colors.slate[200] } },
+});
+
+export const getEchartsBarStyle = (customColor?: string) => ({
+  color: customColor || colors.chart.blue,
+  borderRadius: [4, 4, 0, 0],
+});
+
+export const getEchartsLineStyle = (customColor?: string) => ({
+  color: customColor || colors.chart.red,
+  width: 2,
+});
 
 // ============================================
 // 10. GRID LAYOUTS
 // ============================================
 
 export const gridLayouts = {
+  // 메인 스탯 카드 그리드 (위기지수 강조)
   statsGrid: {
     display: "grid",
     gridTemplateColumns: { xs: "1fr", lg: "1.5fr 1fr 1fr 1fr" },
     gap: { xs: 1.5, md: 2 },
   },
+  // 2열 그리드
   twoColumn: {
     display: "grid",
     gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
     gap: { xs: 1.5, md: 2 },
   },
+  // 3열 그리드
   threeColumn: {
     display: "grid",
     gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
     gap: { xs: 1, md: 1.5 },
   },
+  // 4열 그리드
   fourColumn: {
     display: "grid",
     gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" },
@@ -575,6 +836,7 @@ export const inlineIconSx = {
   marginRight: "6px",
 } as const;
 
+// Icon Background (아이콘 배경 박스)
 export const iconBgSx = (color: string, bgColor: string) => ({
   width: 36,
   height: 36,
@@ -592,26 +854,49 @@ export const iconBgSx = (color: string, bgColor: string) => ({
 
 export const statCardPresets = {
   volume: {
+    key: "volume",
     label: "24h 보도량",
+    unit: "건",
     color: "#3B82F6",
     bgColor: "#EFF6FF",
+    iconName: "Newspaper" as const,
   },
   cluster: {
+    key: "cluster",
     label: "이슈 분류",
+    unit: "개",
     color: "#8B5CF6",
     bgColor: "#F5F3FF",
+    iconName: "Tag" as const,
   },
   monthly: {
+    key: "monthly",
     label: "월간 기사",
+    unit: "건",
     color: "#06B6D4",
     bgColor: "#ECFEFF",
+    iconName: "FileText" as const,
   },
   outlet: {
+    key: "outlet",
     label: "언론사",
+    unit: "개",
     color: "#EC4899",
     bgColor: "#FDF2F8",
+    iconName: "Globe" as const,
   },
 } as const;
+
+// statCards 배열 생성 헬퍼
+export const createStatCards = (data: {
+  volume: { value: number; delta: number };
+  cluster: { value: number; delta: number };
+  monthly: { value: number; delta: number };
+}) => [
+  { ...statCardPresets.volume, value: data.volume.value, delta: data.volume.delta },
+  { ...statCardPresets.cluster, value: data.cluster.value, delta: data.cluster.delta },
+  { ...statCardPresets.monthly, value: data.monthly.value, delta: data.monthly.delta },
+];
 
 // ============================================
 // 13. TOP ISSUE CARD STYLES
@@ -653,6 +938,9 @@ export const transitions = {
 // 15. UTILITY FUNCTIONS
 // ============================================
 
+/**
+ * 위기 지수에 따른 색상 반환
+ */
 export const getCrisisColor = (score: number) => {
   if (score >= 70) return riskAccent.critical;
   if (score >= 45) return riskAccent.high;
@@ -660,18 +948,40 @@ export const getCrisisColor = (score: number) => {
   return riskAccent.safe;
 };
 
+/**
+ * 델타값에 따른 톤 반환 (아이콘 이름 포함)
+ */
 export const getDeltaTone = (value: number) => {
-  if (value > 0) return { bg: colors.status.error.light, color: colors.status.error.text };
-  if (value < 0) return { bg: colors.status.success.light, color: colors.status.success.text };
-  return { bg: colors.slate[200], color: colors.slate[600] };
+  const num = Number(value || 0);
+  if (num > 0) return {
+    bg: colors.status.error.light,
+    color: colors.status.error.text,
+    iconName: "TrendingUp" as const,
+  };
+  if (num < 0) return {
+    bg: colors.status.success.light,
+    color: colors.status.success.text,
+    iconName: "TrendingDown" as const,
+  };
+  return {
+    bg: colors.slate[200],
+    color: colors.slate[600],
+    iconName: null,
+  };
 };
 
+/**
+ * 부호 포함 텍스트 변환
+ */
 export const toSignedText = (value: number, fractionDigits = 0) => {
   const fixed = value.toFixed(fractionDigits);
   if (value > 0) return `+${fixed}`;
   return fixed;
 };
 
+/**
+ * Alert Level 정보 반환
+ */
 export const getAlertInfo = (level: string) => {
   const normalized = level.toUpperCase();
   if (normalized === "P1") return { label: "심각", desc: "위기 지수 70 이상", ...alertChipStyles.critical };
@@ -689,9 +999,20 @@ export const MUI_SPEC = {
   spacing,
   borderRadius,
   shadows,
+  // Typography sizes (MUI 기본 사이즈 참조용)
   type: {
+    h1: 96,
+    h2: 60,
     h3: 48,
     h4: 34,
+    h5: 24,
+    h6: 20,
+    subtitle1: 16,
+    subtitle2: 14,
+    body1: 16,
+    body2: 14,
+    caption: 12,
+    overline: 12,
   },
 } as const;
 
@@ -705,8 +1026,11 @@ export default {
   spacing,
   borderRadius,
   shadows,
-  pageShellSx,
+  // IP Banner
+  IP_BANNER_STYLE,
+  // SX Tokens
   pageShellCleanSx,
+  pageShellSx,
   pageContainerSx,
   sectionCardSx,
   contentCardSx,
@@ -718,26 +1042,47 @@ export default {
   crisisValueSx,
   sectionTitleSx,
   specTypeSx,
+  // Chips
   filterChipSx,
   statusChipSx,
   deltaChipSx,
   brandChipSx,
+  brandChipGradientSx,
+  getBrandChipSx,
   alertChipStyles,
-  actionButtonSx,
+  // Buttons
   navButtonSx,
   iconButtonSx,
+  bannerPagerBtnSx,
+  actionButtonSx,
+  // Pagination
+  paginationTrackSx,
+  paginationDotSx,
+  // Risk
   riskAccent,
   progressBarSx,
   riskProgressGradient,
+  linearProgressSx,
+  // Layouts
   gridLayouts,
+  // Icons
   iconToken,
   iconProps,
   inlineIconSx,
   iconBgSx,
+  // Presets
   statCardPresets,
+  createStatCards,
   topIssueCardSx,
   topIssueBadgeSx,
+  // ECharts
+  echartsTokens,
+  getEchartsAxisStyle,
+  getEchartsBarStyle,
+  getEchartsLineStyle,
+  // Transitions
   transitions,
+  // Utils
   getCrisisColor,
   getDeltaTone,
   toSignedText,
