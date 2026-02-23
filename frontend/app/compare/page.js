@@ -32,6 +32,7 @@ import {
   toRequestErrorState,
 } from "../../lib/pageStatus";
 import {
+  colors,
   contentCardSx,
   filterChipSx,
   MUI_SPEC,
@@ -40,8 +41,10 @@ import {
   pageContainerSx,
   pageShellCleanSx,
   panelPaperSx,
+  progressBarSx,
   sectionCardSx,
   sectionTitleSx,
+  shadows,
   specTypeSx,
   statusChipSx,
   subPanelSx,
@@ -81,7 +84,7 @@ function getVolumeState(count) {
       label: "0건",
       chipColor: "warning",
       helper: "기사 없음",
-      barColor: "#e2e8f0",
+      barColor: colors.slate[200],
     };
   }
   if (safeCount < LOW_SAMPLE_THRESHOLD) {
@@ -89,14 +92,14 @@ function getVolumeState(count) {
       label: "소량",
       chipColor: "warning",
       helper: `${LOW_SAMPLE_THRESHOLD}건 미만`,
-      barColor: "#f59e0b",
+      barColor: colors.status.warning.main,
     };
   }
   return {
     label: "충분",
     chipColor: "success",
     helper: "분석 가능",
-    barColor: "#2f67d8",
+    barColor: colors.chart.blue,
   };
 }
 const DIAG_SCOPE = {
@@ -502,7 +505,7 @@ export default function ComparePage() {
     <Box sx={{ ...pageShellCleanSx, py: { xs: 2.5, md: 6 } }}>
       <Container maxWidth="xl" sx={pageContainerSx}>
         <Stack spacing={2.5}>
-          <Paper sx={{ ...panelPaperSx, bgcolor: "#f8fafc", px: { xs: 2, md: 3 }, py: 1.5, boxShadow: "0 8px 24px rgba(15,23,42,.04)" }}>
+          <Paper sx={{ ...panelPaperSx, bgcolor: colors.background.muted, px: { xs: 2, md: 3 }, py: 1.5, boxShadow: shadows.xl }}>
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -516,14 +519,14 @@ export default function ComparePage() {
                     height: 22,
                     borderRadius: 1.2,
                     background:
-                      "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)",
+                      `linear-gradient(140deg,${colors.brand.nexon.primary} 0 58%,${colors.status.success.main} 58% 100%)`,
                   }}
                 />
                 <Typography
                   sx={{
                     ...specTypeSx.h6,
                     fontSize: { xs: 20, md: 22 },
-                    color: "#0f172a",
+                    color: colors.slate[900],
                   }}
                 >
                   경쟁사 비교 현황판
@@ -645,12 +648,12 @@ export default function ComparePage() {
                           {Number(count).toLocaleString()}
                         </Typography>
                         <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.6 }}>
-                          <Typography variant="caption" sx={{ color: "#64748b" }}>
+                          <Typography variant="caption" sx={{ color: colors.slate[500] }}>
                             보도 건수
                           </Typography>
                           <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} sx={INTERACTIVE_CHIP_SX} />
                         </Stack>
-                        <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.4 }}>
+                        <Typography variant="caption" sx={{ color: colors.slate[500], display: "block", mt: 0.4 }}>
                           {state.helper}
                         </Typography>
                       </Box>
@@ -659,7 +662,7 @@ export default function ComparePage() {
                 ))}
                 <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
                   <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
-                    <Box sx={{ height: 3, bgcolor: "#0f3b66", flexShrink: 0 }} />
+                    <Box sx={{ height: 3, bgcolor: colors.brand.nexon.primary, flexShrink: 0 }} />
                       <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" color="text.secondary">
                           총합
@@ -690,7 +693,7 @@ export default function ComparePage() {
                       <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4, lineHeight: 1.3 }}>
                         보도 추이 (최근 14일)
                       </Typography>
-                      <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
+                      <Typography variant="body2" sx={{ color: colors.slate[500], display: "block", mb: 1.2 }}>
                         지표는 시스템 산출값입니다.
                       </Typography>
                       <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mb: 1 }}>
@@ -750,11 +753,11 @@ export default function ComparePage() {
                                   {series.points.map((p) => {
                                     const pointState = getVolumeState(p.sampleSize);
                                     const barColor = p.qualityFlag === "LOW_SAMPLE" && trendMetric !== "count"
-                                      ? "#f59e0b"
+                                      ? colors.status.warning.main
                                       : trendMetric === "risk"
-                                        ? "#dc3c4a"
+                                        ? colors.status.error.dark
                                         : trendMetric === "heat"
-                                          ? "#2f67d8"
+                                          ? colors.chart.blue
                                           : pointState.barColor;
                                     return (
                                       <Box
@@ -798,7 +801,7 @@ export default function ComparePage() {
                         </Stack>
                       )}
                       {trendDateRangeLabel ? (
-                        <Typography variant="body2" sx={{ color: "#64748b", mt: 1.2 }}>
+                        <Typography variant="body2" sx={{ color: colors.slate[500], mt: 1.2 }}>
                           기준 일자: {trendDateRangeLabel} · 단위: {
                             trendMetric === "count" || !hasTrendMetricRows
                               ? "기사 건수"
@@ -819,7 +822,7 @@ export default function ComparePage() {
                       <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4 }}>
                         여론 분포
                       </Typography>
-                      <Typography variant="body2" sx={{ color: "#64748b", display: "block", mb: 1.2 }}>
+                      <Typography variant="body2" sx={{ color: colors.slate[500], display: "block", mb: 1.2 }}>
                         기사가 없으면 여론 비율을 계산할 수 없습니다.
                       </Typography>
                       <Stack spacing={1.4}>
@@ -862,7 +865,7 @@ export default function ComparePage() {
                                   <LinearProgress
                                     variant="determinate"
                                     value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
-                                    sx={{ flex: 1, height: 8, borderRadius: 99, bgcolor: "#edf2fb" }}
+                                    sx={{ ...progressBarSx, flex: 1, borderRadius: 99, bgcolor: colors.primary[50] }}
                                   />
                                   <Typography variant="body2" sx={{ width: 52, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                                     {Number(row[s] || 0).toFixed(1)}%
@@ -1035,10 +1038,10 @@ export default function ComparePage() {
                                 gap: 1,
                                 alignItems: "center",
                                 borderTop: "1px solid",
-                                borderColor: "rgba(15,23,42,.08)",
+                                borderColor: colors.slate[200],
                                 px: 1.2,
                                 fontSize: 14,
-                                "&:hover": { bgcolor: "rgba(15,59,102,.04)" },
+                                "&:hover": { bgcolor: colors.primary[50] },
                               }}
                             >
                               <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -1051,7 +1054,7 @@ export default function ComparePage() {
                                 rel={a.url ? "noreferrer" : undefined}
                                 sx={{
                                   minWidth: 0,
-                                  color: "#0f3b66",
+                                  color: colors.brand.nexon.primary,
                                   textDecoration: "none",
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
