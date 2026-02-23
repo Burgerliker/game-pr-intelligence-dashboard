@@ -7,6 +7,7 @@ import time
 import os
 import math
 import logging
+import sqlite3
 from threading import Lock
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from datetime import UTC, datetime, timedelta
@@ -449,6 +450,66 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
     meta["failed_companies"] = sorted(set(failed_companies))
     meta["empty_companies"] = sorted(set(empty_companies))
     meta["partial_fetch"] = bool(timeout_companies or failed_companies)
+    payload["meta"] = meta
+    return payload
+
+
+def _build_compare_live_payload_from_db(selected: list[str], limit: int, window_hours: int) -> dict[str, Any]:
+    db_path = get_active_db_path()
+    window_mod = f"-{max(1, int(window_hours))} hours"
+    per_company = max(10, int(limit))
+    frames: list[pd.DataFrame] = []
+
+    query = """
+        SELECT
+            company,
+            COALESCE(title_clean, '') AS title_clean,
+            COALESCE(description_clean, '') AS description_clean,
+            COALESCE(originallink, '') AS originallink,
+            COALESCE(link, '') AS link,
+            COALESCE(pub_date, '') AS pub_date,
+            COALESCE(date, '') AS date,
+            COALESCE(sentiment, '중립') AS sentiment,
+            COALESCE(created_at, '') AS created_at
+        FROM articles
+        WHERE is_test = 0
+          AND company = ?
+          AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) >= datetime('now', ?)
+        ORDER BY datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) DESC, id DESC
+        LIMIT ?
+    """
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        for company in selected:
+            part = pd.read_sql_query(query, conn, params=[company, window_mod, per_company])
+            if part.empty:
+                continue
+            part["pubDate_parsed"] = pd.to_datetime(
+                part["pub_date"].where(part["pub_date"].astype(str).str.len() > 0, part["created_at"]),
+                errors="coerce",
+            )
+            missing_pub = part["pubDate_parsed"].isna()
+            if missing_pub.any():
+                part.loc[missing_pub, "pubDate_parsed"] = pd.to_datetime(part.loc[missing_pub, "date"], errors="coerce")
+            frames.append(part)
+    finally:
+        conn.close()
+
+    if not frames:
+        raise RuntimeError(f"window_hours={int(window_hours)} 조건에 해당하는 DB 뉴스가 없습니다.")
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["company", "originallink", "title_clean"], keep="first").reset_index(drop=True)
+    payload = _build_payload(merged, selected)
+    meta = dict(payload.get("meta") or {})
+    meta["window_hours"] = int(window_hours)
+    meta["fetch_limit_per_company"] = int(per_company)
+    meta["timed_out_companies"] = []
+    meta["failed_companies"] = []
+    meta["empty_companies"] = [company for company in selected if int((merged["company"] == company).sum()) == 0]
+    meta["partial_fetch"] = False
+    meta["source"] = "db"
     payload["meta"] = meta
     return payload
 
@@ -901,20 +962,70 @@ def _run_backfill_tick() -> None:
         record_scheduler_log(job_id=job_id, status="error", run_time=run_ts, error_message=str(exc))
 
 
+def _collect_competitor_articles_to_db(
+    companies: list[str],
+    *,
+    articles_per_company: int,
+    strict_sentiment: bool = False,
+) -> dict[str, Any]:
+    selected = [c for c in companies if c in COMPANIES]
+    per_company = max(10, min(int(articles_per_company), 100))
+    frames: list[pd.DataFrame] = []
+    failed_companies: list[str] = []
+
+    for company in selected:
+        try:
+            part = fetch_company_news_compare(company=company, total=per_company)
+        except Exception:  # noqa: BLE001
+            failed_companies.append(company)
+            continue
+        part = _filter_recent_pubdate_rows(part, LIVE_COLLECT_MAX_AGE_DAYS)
+        if not part.empty:
+            frames.append(part)
+
+    if not frames:
+        return {
+            "selected_companies": selected,
+            "failed_companies": sorted(set(failed_companies)),
+            "rows": 0,
+            "inserted": 0,
+            "per_company": per_company,
+        }
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["company", "originallink", "title_clean"], keep="first").reset_index(
+        drop=True
+    )
+
+    try:
+        merged = add_sentiment_column(merged)
+    except Exception:
+        if strict_sentiment:
+            raise
+
+    inserted = int(save_articles(merged))
+    return {
+        "selected_companies": selected,
+        "failed_companies": sorted(set(failed_companies)),
+        "rows": int(len(merged)),
+        "inserted": inserted,
+        "per_company": per_company,
+    }
+
+
 def _run_competitor_collect_tick() -> None:
     job_id = "collect-competitors"
     run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     started = time.time()
     try:
         companies = COMPETITOR_AUTO_COMPANIES or list(COMPANIES.keys())
-        frames: list[pd.DataFrame] = []
-        for company in companies:
-            part = fetch_company_news_compare(company=company, total=max(10, min(COMPETITOR_COLLECT_ARTICLES, 100)))
-            part = _filter_recent_pubdate_rows(part, LIVE_COLLECT_MAX_AGE_DAYS)
-            if not part.empty:
-                frames.append(part)
+        result = _collect_competitor_articles_to_db(
+            companies,
+            articles_per_company=COMPETITOR_COLLECT_ARTICLES,
+            strict_sentiment=False,
+        )
 
-        if not frames:
+        if int(result.get("rows", 0)) <= 0:
             scheduler_job_state[job_id] = {
                 "last_run_time": run_ts,
                 "last_status": "success",
@@ -923,32 +1034,32 @@ def _run_competitor_collect_tick() -> None:
                 "last_group_count": 0,
                 "last_collect_duration_ms": int((time.time() - started) * 1000),
             }
-            record_scheduler_log(job_id=job_id, status="success", run_time=run_ts, error_message="rows=0;inserted=0")
+            failed = ",".join(result.get("failed_companies") or []) or "-"
+            record_scheduler_log(
+                job_id=job_id,
+                status="success",
+                run_time=run_ts,
+                error_message=f"rows=0;inserted=0;failed={failed}",
+            )
             return
 
-        merged = pd.concat(frames, ignore_index=True)
-        merged = merged.drop_duplicates(subset=["company", "originallink", "title_clean"], keep="first").reset_index(
-            drop=True
-        )
-        try:
-            merged = add_sentiment_column(merged)
-        except Exception:
-            pass
-
-        inserted = int(save_articles(merged))
+        inserted = int(result.get("inserted", 0))
+        selected = result.get("selected_companies") or companies
+        failed = result.get("failed_companies") or []
+        rows = int(result.get("rows", 0))
         scheduler_job_state[job_id] = {
             "last_run_time": run_ts,
             "last_status": "success",
             "last_error": "",
             "last_collect_count": inserted,
-            "last_group_count": int(len(companies)),
+            "last_group_count": int(len(selected)),
             "last_collect_duration_ms": int((time.time() - started) * 1000),
         }
         record_scheduler_log(
             job_id=job_id,
             status="success",
             run_time=run_ts,
-            error_message=f"companies={','.join(companies)};rows={len(merged)};inserted={inserted}",
+            error_message=f"companies={','.join(selected)};rows={rows};inserted={inserted};failed={','.join(failed) or '-'}",
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("competitor collect tick failed")
@@ -1872,7 +1983,7 @@ def compare_live(
     _increment_compare_live_metric("cache_misses")
     logger.info("compare_live cache miss key=%s", key)
     try:
-        payload = _build_compare_live_payload(selected=selected, limit=limit, window_hours=window_hours)
+        payload = _build_compare_live_payload_from_db(selected=selected, limit=limit, window_hours=window_hours)
         payload = _with_compare_live_meta(payload, cache_hit=False, cache_fallback=False)
         with compare_live_cache_lock:
             compare_live_cache[key] = {
@@ -1892,6 +2003,44 @@ def compare_live(
             logger.warning("compare_live fallback cache used key=%s", key)
             return _with_compare_live_meta(fallback, cache_hit=False, cache_fallback=True)
         raise HTTPException(status_code=502, detail=get_last_api_error() or f"비교 라이브 조회 실패: {exc}") from exc
+
+
+@app.post("/api/competitor-collect")
+def competitor_collect(req: AnalyzeRequest) -> dict:
+    if not ENABLE_MANUAL_COLLECTION:
+        raise HTTPException(status_code=403, detail="수동 수집 API는 비활성화되어 있습니다.")
+
+    selected = [c for c in req.companies if c in COMPANIES]
+    if not selected:
+        raise HTTPException(status_code=400, detail="최소 1개 이상의 회사를 선택해 주세요.")
+
+    try:
+        result = _collect_competitor_articles_to_db(
+            selected,
+            articles_per_company=req.articles_per_company,
+            strict_sentiment=True,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"감성 분석 실패: {exc}") from exc
+
+    if int(result.get("rows", 0)) <= 0:
+        failed = result.get("failed_companies") or []
+        detail = get_last_api_error() or "뉴스를 수집하지 못했습니다."
+        if failed:
+            detail = f"{detail} (실패 회사: {', '.join(failed)})"
+        raise HTTPException(status_code=502, detail=detail)
+
+    return {
+        "meta": {
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "selected_companies": result.get("selected_companies") or selected,
+            "articles_per_company": int(result.get("per_company", req.articles_per_company)),
+            "fetched_rows": int(result.get("rows", 0)),
+            "inserted_rows": int(result.get("inserted", 0)),
+            "failed_companies": result.get("failed_companies") or [],
+            "model_id": get_model_id(),
+        }
+    }
 
 
 @app.post("/api/analyze")
