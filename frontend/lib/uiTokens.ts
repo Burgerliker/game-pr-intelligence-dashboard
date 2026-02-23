@@ -460,17 +460,21 @@ export const deltaChipSx = {
 export const brandChipSx = {
   height: 26,
   minHeight: 26,
+  display: "inline-flex",
+  alignItems: "center",
   borderRadius: "20px",
   fontSize: 12,
   fontWeight: typography.weight.semibold,
   letterSpacing: "0.5px",
-  "& .MuiChip-label": {
+  "& .MuiChip-label, & .MuiChip-labelSmall": {
     px: 1,
     py: 0,
-    lineHeight: 1,
+    minHeight: 26,
+    lineHeight: "26px",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    fontVariantNumeric: "tabular-nums",
   },
 } as const;
 
@@ -948,11 +952,33 @@ export const getCrisisColor = (score: number) => {
   return riskAccent.safe;
 };
 
+type DeltaToneMode = "risk" | "neutral";
+
 /**
  * 델타값에 따른 톤 반환 (아이콘 이름 포함)
+ * - risk: 증가=경고(빨강), 감소=안정(초록)
+ * - neutral: 증가/감소 모두 중립 정보 톤
  */
-export const getDeltaTone = (value: number) => {
+export const getDeltaTone = (value: number, mode: DeltaToneMode = "risk") => {
   const num = Number(value || 0);
+  if (mode === "neutral") {
+    if (num > 0) return {
+      bg: colors.status.info.light,
+      color: colors.status.info.text,
+      iconName: "TrendingUp" as const,
+    };
+    if (num < 0) return {
+      bg: colors.slate[200],
+      color: colors.slate[600],
+      iconName: "TrendingDown" as const,
+    };
+    return {
+      bg: colors.slate[200],
+      color: colors.slate[600],
+      iconName: null,
+    };
+  }
+
   if (num > 0) return {
     bg: colors.status.error.light,
     color: colors.status.error.text,

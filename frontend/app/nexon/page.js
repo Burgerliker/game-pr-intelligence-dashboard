@@ -652,6 +652,7 @@ export default function NexonPage() {
         value: recent24hArticles.toLocaleString(),
         unit: "건",
         delta: dailyExposureDelta,
+        deltaMode: "neutral",
         deltaDigits: 0,
         icon: Newspaper,
         color: "#3B82F6",
@@ -663,6 +664,7 @@ export default function NexonPage() {
         value: clusterCount.toLocaleString(),
         unit: "개",
         delta: clusterDelta,
+        deltaMode: "neutral",
         deltaDigits: 0,
         icon: Tag,
         color: "#8B5CF6",
@@ -674,6 +676,7 @@ export default function NexonPage() {
         value: totalArticleSum30d.toLocaleString(),
         unit: "건",
         delta: monthlyArticleDelta,
+        deltaMode: "neutral",
         deltaDigits: 0,
         icon: FileText,
         color: "#06B6D4",
@@ -1117,7 +1120,7 @@ export default function NexonPage() {
                 </Paper>
 
                 {statCards.map((stat) => {
-                  const tone = getDeltaToneToken(stat.delta);
+                  const tone = getDeltaToneToken(stat.delta, stat.deltaMode);
                   const StatDeltaIcon = tone.iconName ? DELTA_ICON_MAP[tone.iconName] : null;
                   return (
                   <Paper
