@@ -348,8 +348,8 @@ def _parse_companies(companies_raw: str) -> list[str]:
     return selected
 
 
-def _compare_live_cache_key(selected: list[str], window_hours: int, limit: int) -> str:
-    return f"companies={','.join(selected)}|window_hours={int(window_hours)}|limit={int(limit)}"
+def _compare_live_cache_key(selected: list[str], window_hours: int) -> str:
+    return f"companies={','.join(selected)}|window_hours={int(window_hours)}"
 
 
 def _compare_live_client_ip(request: Request) -> str:
@@ -454,10 +454,9 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
     return payload
 
 
-def _build_compare_live_payload_from_db(selected: list[str], limit: int, window_hours: int) -> dict[str, Any]:
+def _build_compare_live_payload_from_db(selected: list[str], window_hours: int) -> dict[str, Any]:
     db_path = get_active_db_path()
     window_mod = f"-{max(1, int(window_hours))} hours"
-    per_company = max(10, int(limit))
     frames: list[pd.DataFrame] = []
 
     query = """
@@ -476,13 +475,12 @@ def _build_compare_live_payload_from_db(selected: list[str], limit: int, window_
           AND company = ?
           AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) >= datetime('now', ?)
         ORDER BY datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) DESC, id DESC
-        LIMIT ?
     """
 
     conn = sqlite3.connect(str(db_path))
     try:
         for company in selected:
-            part = pd.read_sql_query(query, conn, params=[company, window_mod, per_company])
+            part = pd.read_sql_query(query, conn, params=[company, window_mod])
             if part.empty:
                 continue
             part["pubDate_parsed"] = pd.to_datetime(
@@ -504,7 +502,7 @@ def _build_compare_live_payload_from_db(selected: list[str], limit: int, window_
     payload = _build_payload(merged, selected)
     meta = dict(payload.get("meta") or {})
     meta["window_hours"] = int(window_hours)
-    meta["fetch_limit_per_company"] = int(per_company)
+    meta["fetch_limit_per_company"] = None
     meta["timed_out_companies"] = []
     meta["failed_companies"] = []
     meta["empty_companies"] = [company for company in selected if int((merged["company"] == company).sum()) == 0]
@@ -1956,7 +1954,6 @@ def compare_live(
     request: Request,
     companies: str = Query(default="넥슨,NC소프트,넷마블,크래프톤"),
     window_hours: int = Query(default=24, ge=1, le=168),
-    limit: int = Query(default=100, ge=10, le=100),
 ) -> dict:
     selected = _parse_companies(companies)
     if not selected:
@@ -1971,7 +1968,7 @@ def compare_live(
             headers={"Retry-After": str(int(retry_after))},
         )
 
-    key = _compare_live_cache_key(selected, window_hours=window_hours, limit=limit)
+    key = _compare_live_cache_key(selected, window_hours=window_hours)
     now_ts = time.time()
     with compare_live_cache_lock:
         cached = compare_live_cache.get(key)
@@ -1983,7 +1980,7 @@ def compare_live(
     _increment_compare_live_metric("cache_misses")
     logger.info("compare_live cache miss key=%s", key)
     try:
-        payload = _build_compare_live_payload_from_db(selected=selected, limit=limit, window_hours=window_hours)
+        payload = _build_compare_live_payload_from_db(selected=selected, window_hours=window_hours)
         payload = _with_compare_live_meta(payload, cache_hit=False, cache_fallback=False)
         with compare_live_cache_lock:
             compare_live_cache[key] = {

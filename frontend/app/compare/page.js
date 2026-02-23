@@ -56,7 +56,6 @@ const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
 const DEFAULT_WINDOW_HOURS = 72;
-const COMPARE_FETCH_LIMIT = 100;
 const LOW_SAMPLE_THRESHOLD = 5;
 const ARTICLE_ROW_HEIGHT = 62;
 const ARTICLE_LIST_MAX_HEIGHT = 500;
@@ -215,7 +214,7 @@ export default function ComparePage() {
   const sentimentRows = data?.sentiment_summary ?? [];
   const keywordsMap = data?.keywords ?? {};
   const lowSampleThreshold = Number(data?.meta?.low_sample_threshold || LOW_SAMPLE_THRESHOLD);
-  const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || COMPARE_FETCH_LIMIT);
+  const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || 0);
   const dataSource = String(data?.meta?.source || "").toLowerCase();
   const isDbSource = dataSource === "db";
   const timedOutCompanies = Array.isArray(data?.meta?.timed_out_companies) ? data.meta.timed_out_companies : [];
@@ -254,7 +253,6 @@ export default function ComparePage() {
       const query = new URLSearchParams({
         companies: selectedCompanies.join(","),
         window_hours: String(windowHours),
-        limit: String(COMPARE_FETCH_LIMIT),
       });
       const payload = await apiGet(`/api/compare-live?${query.toString()}`, {
         signal: controller.signal,
@@ -652,8 +650,10 @@ export default function ComparePage() {
                 <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
                   <span><Info {...iconProps()} style={inlineIconSx} />
                     {isDbSource
-                      ? `DB 적재 기사 기준으로 회사별 최대 ${fetchLimitPerCompany}건을 표본으로 집계합니다.`
-                      : `회사별 최대 ${fetchLimitPerCompany}건을 표본으로 집계합니다.`}
+                      ? "DB 적재 기사 전체를 기간 기준으로 집계합니다."
+                      : (fetchLimitPerCompany > 0
+                        ? `회사별 최대 ${fetchLimitPerCompany}건을 표본으로 집계합니다.`
+                        : "기간 기준으로 집계합니다.")}
                   </span>
                 </Alert>
                 {partialFetch ? (
