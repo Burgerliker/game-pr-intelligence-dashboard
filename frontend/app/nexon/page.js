@@ -35,13 +35,17 @@ import {
   normalizeNexonDashboard,
 } from "../../lib/normalizeNexon";
 import {
+  bannerPagerBtnSx,
   brandChipSx,
   borderRadius,
   colors,
   contentCardSx,
+  echartsTokens,
   filterChipSx,
   getBrandChipSx,
+  getDeltaTone as getDeltaToneToken,
   gridLayouts,
+  IP_BANNER_STYLE,
   MUI_SPEC,
   metricCardSx,
   metricValueSx,
@@ -49,6 +53,8 @@ import {
   pageContainerSx,
   pageShellCleanSx,
   panelPaperSx,
+  paginationDotSx,
+  paginationTrackSx,
   progressBarSx,
   riskAccent,
   riskProgressGradient,
@@ -72,19 +78,6 @@ const DIAG_SCOPE = {
   dashboard: buildDiagnosticScope("NEX", "DASH"),
   article: buildDiagnosticScope("NEX", "ART"),
 };
-const IP_BANNER_STYLE = {
-  all: {
-    kicker: "NEXON OVERVIEW",
-    accent: "#8db5ee",
-    bg: "#5f89bd",
-    glow: "none",
-  },
-  maplestory: { kicker: "MAPLESTORY", accent: "#f2cb89", bg: "#a5692f", glow: "none" },
-  dnf: { kicker: "DNF", accent: "#f2aebd", bg: "#a45b73", glow: "none" },
-  arcraiders: { kicker: "ARC RAIDERS", accent: "#a7dff0", bg: "#3b889b", glow: "none" },
-  bluearchive: { kicker: "BLUE ARCHIVE", accent: "#b6c8f2", bg: "#5f72ad", glow: "none" },
-  fconline: { kicker: "FC ONLINE", accent: "#b7e3cd", bg: "#3e8d67", glow: "none" },
-};
 const ICON_TOKEN = Object.freeze({ size: 16, strokeWidth: 2, color: "currentColor" });
 const iconProps = (overrides) => ({ ...ICON_TOKEN, ...overrides });
 const inlineIconSx = { display: "inline-flex", verticalAlign: "middle", marginRight: "6px" };
@@ -94,37 +87,14 @@ const toSignedText = (value, fractionDigits = 0) => {
   if (num > 0) return `+${fixed}`;
   return fixed;
 };
-const getDeltaTone = (value) => {
-  const num = Number(value || 0);
-  if (num > 0) return { bg: "#fee2e2", color: "#dc2626", icon: TrendingUp };
-  if (num < 0) return { bg: "#d1fae5", color: "#047857", icon: TrendingDown };
-  return { bg: "#e2e8f0", color: "#475569", icon: null };
+const DELTA_ICON_MAP = {
+  TrendingUp,
+  TrendingDown,
 };
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
 const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
-
-const bannerPagerBtnSx = {
-  width: 42,
-  height: 42,
-  borderRadius: 99,
-  border: "1px solid rgba(15,23,42,.14)",
-  color: "#0f172a",
-  bgcolor: "rgba(255,255,255,.92)",
-  boxShadow: "0 8px 18px rgba(15,23,42,.12)",
-  transition: "all .2s ease",
-  "&:hover": {
-    bgcolor: "#fff",
-    transform: "translateY(-1px)",
-    boxShadow: "0 12px 24px rgba(15,23,42,.16)",
-  },
-  "&.Mui-disabled": {
-    color: "#94a3b8",
-    borderColor: "rgba(148,163,184,.35)",
-    boxShadow: "none",
-  },
-};
 
 const MOCK_RISK = {
   meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
@@ -673,8 +643,8 @@ export default function NexonPage() {
     const rows = riskTimeseries.slice(-2);
     return Number(rows[1]?.risk_score || 0) - Number(rows[0]?.risk_score || 0);
   }, [riskTimeseries]);
-  const crisisDeltaTone = getDeltaTone(crisisChange);
-  const CrisisDeltaIcon = crisisDeltaTone.icon;
+  const crisisDeltaTone = getDeltaToneToken(crisisChange);
+  const CrisisDeltaIcon = crisisDeltaTone.iconName ? DELTA_ICON_MAP[crisisDeltaTone.iconName] : null;
   const statCards = useMemo(
     () => [
       {
@@ -794,7 +764,7 @@ export default function NexonPage() {
           data: x,
           axisLabel: {
             formatter: (v) => String(v || "").slice(5),
-            color: "#64748b",
+            color: echartsTokens.axisLabel.color,
           },
         },
         yAxis: [
@@ -802,7 +772,7 @@ export default function NexonPage() {
             type: "value",
             name: "보도량(건)",
             axisLabel: {
-              color: "#64748b",
+              color: echartsTokens.axisLabel.color,
               formatter: (v) => Number(v || 0).toLocaleString(),
             },
           },
@@ -811,7 +781,7 @@ export default function NexonPage() {
             name: "부정 비율(%)",
             min: 0,
             max: 100,
-            axisLabel: { color: "#64748b", formatter: "{value}%" },
+            axisLabel: { color: echartsTokens.axisLabel.color, formatter: "{value}%" },
           },
         ],
         series: [
@@ -820,7 +790,7 @@ export default function NexonPage() {
             type: "bar",
             yAxisIndex: 0,
             data: dailyRows.map((r) => getDailyArticleCount(r)),
-            itemStyle: { color: "#2f67d8", borderRadius: [4, 4, 0, 0] },
+            itemStyle: { color: echartsTokens.series.bar, borderRadius: echartsTokens.series.barRadius },
             barMaxWidth: 18,
             large: dailyRows.length > 220,
             largeThreshold: 220,
@@ -837,7 +807,7 @@ export default function NexonPage() {
             progressive: 2000,
             progressiveThreshold: 3000,
             data: dailyRows.map((r) => Number(r.negative_ratio || 0)),
-            lineStyle: { color: "#dc3c4a", width: 2 },
+            lineStyle: { color: echartsTokens.series.line, width: 2 },
           },
         ],
       },
@@ -853,12 +823,12 @@ export default function NexonPage() {
         animation: false,
         grid: { left: 90, right: 20, top: 26, bottom: 24 },
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-        xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        xAxis: { type: "value", axisLabel: { color: echartsTokens.axisLabel.color } },
         yAxis: {
           type: "category",
           data: displayedOutlets.map((r) => r.outlet),
           axisLabel: {
-            color: "#64748b",
+            color: echartsTokens.axisLabel.color,
             width: 120,
             interval: 0,
             formatter: (value) => {
@@ -876,21 +846,21 @@ export default function NexonPage() {
             type: "bar",
             stack: "sent",
             data: displayedOutlets.map((r) => Number(r.positive_ratio || 0)),
-            itemStyle: { color: "#11a36a" },
+            itemStyle: { color: echartsTokens.series.positive },
           },
           {
             name: "중립",
             type: "bar",
             stack: "sent",
             data: displayedOutlets.map((r) => Number(r.neutral_ratio || 0)),
-            itemStyle: { color: "#f2b248" },
+            itemStyle: { color: echartsTokens.series.neutral },
           },
           {
             name: "부정",
             type: "bar",
             stack: "sent",
             data: displayedOutlets.map((r) => Number(r.negative_ratio || 0)),
-            itemStyle: { color: "#dc3c4a" },
+            itemStyle: { color: echartsTokens.series.negative },
           },
         ],
       },
@@ -905,12 +875,12 @@ export default function NexonPage() {
         animation: false,
         grid: { left: 90, right: 20, top: 26, bottom: 24 },
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-        xAxis: { type: "value", axisLabel: { color: "#64748b" } },
+        xAxis: { type: "value", axisLabel: { color: echartsTokens.axisLabel.color } },
         yAxis: {
           type: "category",
           data: themes.map((t) => t.theme),
           axisLabel: {
-            color: "#64748b",
+            color: echartsTokens.axisLabel.color,
             width: 96,
             interval: 0,
             formatter: (value) => {
@@ -925,7 +895,7 @@ export default function NexonPage() {
             name: "위험도(%)",
             type: "bar",
             data: themes.map((t) => Math.round(Number(t.risk_score || 0) * 100)),
-            itemStyle: { color: "#7b61ff", borderRadius: [0, 4, 4, 0] },
+            itemStyle: { color: colors.chart.purple, borderRadius: [0, 4, 4, 0] },
             barMaxWidth: 20,
           },
         ],
@@ -957,17 +927,17 @@ export default function NexonPage() {
               show: true,
               formatter: "{b}",
               fontSize: 13,
-              color: "#fff",
+              color: colors.background.card,
             },
             upperLabel: { show: false },
             itemStyle: {
-              borderColor: "#fff",
+              borderColor: colors.background.card,
               borderWidth: 1,
               gapWidth: 1,
             },
             levels: [
               {
-                color: ["#2f67d8", "#11a36a", "#e89c1c", "#dc3c4a", "#4a63d9", "#00a5c4"],
+                color: echartsTokens.treemapPalette,
                 colorMappingBy: "value",
               },
             ],
@@ -989,8 +959,8 @@ export default function NexonPage() {
         grid: { left: 38, right: 20, top: 26, bottom: 42 },
         tooltip: { trigger: "axis" },
         legend: { top: 0, data: ["위기 지수", "이슈량"] },
-        xAxis: { type: "category", data: x, axisLabel: { color: "#64748b", hideOverlap: true } },
-        yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: "#64748b", formatter: "{value}" } },
+        xAxis: { type: "category", data: x, axisLabel: { color: echartsTokens.axisLabel.color, hideOverlap: true } },
+        yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: echartsTokens.axisLabel.color, formatter: "{value}" } },
         series: [
           {
             name: "위기 지수",
@@ -998,7 +968,7 @@ export default function NexonPage() {
             data: rows.map((r) => Number(r.risk_score || 0)),
             smooth: true,
             symbol: "none",
-            lineStyle: { width: 2, color: "#dc3c4a" },
+            lineStyle: { width: 2, color: echartsTokens.series.line },
           },
           {
             name: "이슈량",
@@ -1006,7 +976,7 @@ export default function NexonPage() {
             data: rows.map((r) => Number(r.issue_heat || 0)),
             smooth: true,
             symbol: "none",
-            lineStyle: { width: 2, color: "#2f67d8" },
+            lineStyle: { width: 2, color: echartsTokens.series.bar },
           },
         ],
       },
@@ -1062,13 +1032,6 @@ export default function NexonPage() {
                       sx={{
                         ...getBrandChipSx("nexon"),
                         ...brandChipSx,
-                        height: 22,
-                        minHeight: 22,
-                        "& .MuiChip-label": {
-                          px: 1,
-                          py: 0.5,
-                          lineHeight: "14px",
-                        },
                       }}
                     />
                     <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
@@ -1083,13 +1046,6 @@ export default function NexonPage() {
                       sx={{
                         ...getBrandChipSx("maplestory"),
                         ...brandChipSx,
-                        height: 22,
-                        minHeight: 22,
-                        "& .MuiChip-label": {
-                          px: 1,
-                          py: 0.5,
-                          lineHeight: "14px",
-                        },
                         mt: { xs: 0.4, md: 0 },
                       }}
                     />
@@ -1166,8 +1122,8 @@ export default function NexonPage() {
                 </Paper>
 
                 {statCards.map((stat) => {
-                  const tone = getDeltaTone(stat.delta);
-                  const StatDeltaIcon = tone.icon;
+                  const tone = getDeltaToneToken(stat.delta);
+                  const StatDeltaIcon = tone.iconName ? DELTA_ICON_MAP[tone.iconName] : null;
                   return (
                   <Paper
                     key={stat.key}
@@ -1247,20 +1203,14 @@ export default function NexonPage() {
                   >
                     <ChevronLeft {...iconProps({ size: 20 })} />
                   </IconButton>
-                  <Paper variant="outlined" sx={{ px: 1.2, py: 0.9, borderRadius: 99, borderColor: "rgba(15,23,42,.14)", backgroundColor: "#f8fafc" }}>
+                  <Paper variant="outlined" sx={paginationTrackSx}>
                     <Stack direction="row" spacing={0.8} alignItems="center">
                       {Array.from({ length: Math.max(bannerItems.length, 1) }).map((_, idx) => {
                         const active = idx === Math.max(currentBannerIndex, 0);
                         return (
                           <Box
                             key={`banner-dot-${idx}`}
-                            sx={{
-                              width: active ? 26 : 10,
-                              height: 10,
-                              borderRadius: 999,
-                              bgcolor: active ? "#2563eb" : "rgba(100,116,139,.35)",
-                              transition: "all .2s ease",
-                            }}
+                            sx={paginationDotSx(active)}
                           />
                         );
                       })}

@@ -458,11 +458,20 @@ export const deltaChipSx = {
 
 // Brand Chip (브랜드/태그용)
 export const brandChipSx = {
-  height: 24,
+  height: 26,
+  minHeight: 26,
   borderRadius: "20px",
   fontSize: 12,
   fontWeight: typography.weight.semibold,
   letterSpacing: "0.5px",
+  "& .MuiChip-label": {
+    px: 1,
+    py: 0,
+    lineHeight: 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 } as const;
 
 // Brand Chip with Gradient (IP별 그라데이션 칩)
@@ -472,48 +481,36 @@ export const brandChipGradientSx = {
     background: "linear-gradient(135deg, #F97316 0%, #FB923C 100%)",
     color: "#FFFFFF",
     border: "none",
-    px: 1.5,
-    py: 0.5,
   },
   dnf: {
     ...brandChipSx,
     background: "linear-gradient(135deg, #A45B73 0%, #F2AEBD 100%)",
     color: "#FFFFFF",
     border: "none",
-    px: 1.5,
-    py: 0.5,
   },
   bluearchive: {
     ...brandChipSx,
     background: "linear-gradient(135deg, #5F72AD 0%, #B6C8F2 100%)",
     color: "#FFFFFF",
     border: "none",
-    px: 1.5,
-    py: 0.5,
   },
   fconline: {
     ...brandChipSx,
     background: "linear-gradient(135deg, #3E8D67 0%, #B7E3CD 100%)",
     color: "#FFFFFF",
     border: "none",
-    px: 1.5,
-    py: 0.5,
   },
   arcraiders: {
     ...brandChipSx,
     background: "linear-gradient(135deg, #3B889B 0%, #A7DFF0 100%)",
     color: "#FFFFFF",
     border: "none",
-    px: 1.5,
-    py: 0.5,
   },
   nexon: {
     ...brandChipSx,
     background: "linear-gradient(135deg, #0F3B66 0%, #3B82F6 100%)",
     color: "#FFFFFF",
     border: "none",
-    px: 1.5,
-    py: 0.5,
   },
 } as const;
 
