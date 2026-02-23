@@ -469,8 +469,8 @@ export const brandChipSx = {
   "& .MuiChip-label, & .MuiChip-labelSmall": {
     px: 1,
     py: 0,
-    minHeight: 26,
-    lineHeight: "26px",
+    height: "100%",
+    lineHeight: 1,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
