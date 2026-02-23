@@ -1039,14 +1039,6 @@ export default function NexonPage() {
                     <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
                       🍁 {currentBanner?.name || riskData?.meta?.ip || "메이플스토리"}
                     </Typography>
-                    <Chip
-                      size="small"
-                      label="PC · Mobile"
-                      sx={{
-                        ...getBrandChipSx("maplestory"),
-                        mt: { xs: 0.4, md: 0 },
-                      }}
-                    />
                   </Stack>
                 </Box>
                 <Stack spacing={0.8} alignItems={{ xs: "flex-start", md: "flex-end" }}>
