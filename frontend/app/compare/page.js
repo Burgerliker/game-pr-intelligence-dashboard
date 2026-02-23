@@ -58,14 +58,15 @@ const DEFAULT_COMPANIES = ["넥슨", "NC소프트", "넷마블", "크래프톤"]
 const DEFAULT_REFRESH_MS = 60000;
 const MIN_REFRESH_MS = 10000;
 const REQUEST_DEBOUNCE_MS = 350;
-const DEFAULT_WINDOW_HOURS = 72;
-const COMPARE_FETCH_LIMIT = 100;
+const DEFAULT_WINDOW_HOURS = 24 * 30;
+const COMPARE_FETCH_LIMIT = 500;
 const LOW_SAMPLE_THRESHOLD = 5;
 
 const WINDOW_HOURS_OPTIONS = [
   { hours: 24, label: "24시간" },
   { hours: 72, label: "3일" },
   { hours: 168, label: "7일" },
+  { hours: 24 * 30, label: "30일" },
 ];
 const TREND_METRIC_OPTIONS = [
   { key: "count", label: "보도 건수" },
@@ -290,6 +291,7 @@ export default function ComparePage() {
   const partialFetch = Boolean(data?.meta?.partial_fetch) || timedOutCompanies.length > 0 || failedCompanies.length > 0;
   const companiesForView = selectedCompanies;
   const windowHours = Number(selectedWindowHours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
+  const trendDays = useMemo(() => Math.max(7, Math.min(30, Math.ceil(windowHours / 24))), [windowHours]);
 
   /* ═══════════════ POLLING / FETCH LOGIC ═══════════════ */
   const stopPolling = useCallback(() => {
@@ -415,10 +417,10 @@ export default function ComparePage() {
 
   /** Recharts-ready trend data: [{ date, 넥슨: n, NC소프트: n, ... }] */
   const rechartsData = useMemo(() => {
-    const dateOrder = trendRows.slice(-14).map((r) => String(r.date));
+    const dateOrder = trendRows.slice(-trendDays).map((r) => String(r.date));
     const fallback = Array.from(
       new Set((trendMetricRows || []).map((r) => String(r.date))),
-    ).slice(-14);
+    ).slice(-trendDays);
     const dates = dateOrder.length ? dateOrder : fallback;
     if (!dates.length) return [];
 
@@ -453,7 +455,7 @@ export default function ComparePage() {
       }
       return entry;
     });
-  }, [companiesForView, hasTrendMetricRows, trendMetric, trendMetricRows, trendRows]);
+  }, [companiesForView, hasTrendMetricRows, trendDays, trendMetric, trendMetricRows, trendRows]);
 
   /** Sentiment stacked bar data */
   const sentimentChartData = useMemo(
@@ -986,7 +988,7 @@ export default function ComparePage() {
                   {activeTab === "trend" && (
                     <>
                       <SectionHeader
-                        title="보도 추이 (최근 14일)"
+                        title={`보도 추이 (최근 ${trendDays}일)`}
                         subtitle={
                           !hasTrendMetricRows && trendMetric !== "count"
                             ? "위기 지수 데이터가 없어 보도량 기준으로 표시합니다."
@@ -1552,7 +1554,7 @@ export default function ComparePage() {
             align="center"
             sx={{ py: 1 }}
           >
-            실시간으로 자동 업데이트됩니다 · 최근 {windowHours}시간 기준
+            실시간으로 자동 업데이트됩니다 · 최근 {windowHours}시간(약 {trendDays}일) 기준
           </Typography>
         </Stack>
       </Container>

@@ -7,6 +7,7 @@ import time
 import os
 import math
 import logging
+import sqlite3
 from threading import Lock
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from datetime import UTC, datetime, timedelta
@@ -385,6 +386,44 @@ def _increment_compare_live_metric(metric_key: str) -> None:
         compare_live_metrics[metric_key] = int(compare_live_metrics.get(metric_key, 0)) + 1
 
 
+def _load_compare_window_from_db(selected: list[str], window_hours: int) -> pd.DataFrame:
+    if not selected:
+        return pd.DataFrame()
+    db_path = get_active_db_path()
+    placeholders = ",".join(["?"] * len(selected))
+    cutoff_expr = f"-{max(1, int(window_hours))} hour"
+    sql = f"""
+        SELECT
+            company,
+            COALESCE(title_clean, '') AS title_clean,
+            COALESCE(description_clean, '') AS description_clean,
+            COALESCE(originallink, '') AS originallink,
+            COALESCE(date, '') AS date,
+            COALESCE(sentiment, '중립') AS sentiment,
+            COALESCE(pub_date, '') AS pub_date,
+            COALESCE(created_at, '') AS created_at
+        FROM articles
+        WHERE is_test = 0
+          AND company IN ({placeholders})
+          AND datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00'))
+              >= datetime('now', ?)
+        ORDER BY datetime(COALESCE(NULLIF(pub_date, ''), NULLIF(created_at, ''), date || ' 00:00:00')) DESC
+        LIMIT 50000
+    """
+    params = [*selected, cutoff_expr]
+    conn = sqlite3.connect(db_path)
+    try:
+        df = pd.read_sql_query(sql, conn, params=params)
+    finally:
+        conn.close()
+    if df.empty:
+        return df
+    pub_fallback = df["pub_date"].replace("", pd.NA).fillna(df["created_at"])
+    df["pubDate_parsed"] = pd.to_datetime(pub_fallback, errors="coerce", utc=True).dt.tz_convert(None)
+    df["sentiment"] = df["sentiment"].apply(lambda v: v if str(v or "") in SENTIMENT_BUCKETS else "중립")
+    return df
+
+
 def _build_compare_live_payload(selected: list[str], limit: int, window_hours: int) -> dict[str, Any]:
     def _fetch_one(company: str) -> tuple[str, pd.DataFrame]:
         return company, fetch_company_news_compare(company, total=int(limit))
@@ -408,7 +447,11 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
             processed_companies.add(company)
 
     max_workers = max(1, min(int(COMPARE_LIVE_MAX_WORKERS), len(selected)))
-    per_company_timeout = max(1, int(COMPARE_LIVE_COMPANY_TIMEOUT_SECONDS))
+    timeout_scale = max(1.0, float(limit) / 100.0)
+    per_company_timeout = max(
+        1,
+        min(60, int(round(int(COMPARE_LIVE_COMPANY_TIMEOUT_SECONDS) * timeout_scale))),
+    )
     executor = ThreadPoolExecutor(max_workers=max_workers)
     try:
         futures = {executor.submit(_fetch_one, company): company for company in selected}
@@ -441,10 +484,14 @@ def _build_compare_live_payload(selected: list[str], limit: int, window_hours: i
         raise RuntimeError(f"window_hours={int(window_hours)} 조건에 해당하는 뉴스가 없습니다.")
     merged = add_sentiment_column(merged)
     save_articles(merged)
-    payload = _build_payload(merged, selected)
+
+    db_window_df = _load_compare_window_from_db(selected=selected, window_hours=window_hours)
+    payload_source_df = db_window_df if not db_window_df.empty else merged
+    payload = _build_payload(payload_source_df, selected)
     meta = dict(payload.get("meta") or {})
     meta["window_hours"] = int(window_hours)
     meta["fetch_limit_per_company"] = int(limit)
+    meta["payload_source"] = "db_window" if not db_window_df.empty else "live_fetch"
     meta["timed_out_companies"] = sorted(set(timeout_companies))
     meta["failed_companies"] = sorted(set(failed_companies))
     meta["empty_companies"] = sorted(set(empty_companies))
@@ -1396,7 +1443,7 @@ def _build_payload(df: pd.DataFrame, selected: list[str]) -> dict:
         df.sort_values("pubDate_parsed", ascending=False)
         .loc[:, ["company", "title_clean", "sentiment", "date", "originallink"]]
         .rename(columns={"title_clean": "title", "originallink": "url"})
-        .head(200)
+        .head(2000)
     )
     if not latest.empty:
         latest["sentiment"] = latest["sentiment"].apply(
@@ -1844,8 +1891,8 @@ def backtest(
 def compare_live(
     request: Request,
     companies: str = Query(default="넥슨,NC소프트,넷마블,크래프톤"),
-    window_hours: int = Query(default=24, ge=1, le=168),
-    limit: int = Query(default=100, ge=10, le=100),
+    window_hours: int = Query(default=24 * 30, ge=1, le=24 * 31),
+    limit: int = Query(default=500, ge=10, le=1000),
 ) -> dict:
     selected = _parse_companies(companies)
     if not selected:
