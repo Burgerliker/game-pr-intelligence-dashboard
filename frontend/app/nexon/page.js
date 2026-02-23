@@ -43,6 +43,7 @@ import {
   contentCardSx,
   echartsTokens,
   filterChipSx,
+  getBrandChipSx,
   getDeltaTone as getDeltaToneToken,
   gridLayouts,
   IP_BANNER_STYLE,
@@ -70,7 +71,6 @@ const ARTICLE_PAGE_SIZE = 20;
 const ARTICLE_ROW_HEIGHT = 122;
 const ARTICLE_LIST_MAX_HEIGHT = 640;
 const ARTICLE_LIST_MIN_HEIGHT = 244;
-const NEXON_LOGO_SRC = "/nexon-logo.svg";
 const DIAG_SCOPE = {
   health: buildDiagnosticScope("NEX", "HEALTH"),
   dashboard: buildDiagnosticScope("NEX", "DASH"),
@@ -816,16 +816,9 @@ export default function NexonPage() {
               <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }} spacing={1.2}>
                 <Box>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
-                    <Box
-                      component="img"
-                      src={NEXON_LOGO_SRC}
-                      alt="NEXON"
-                      sx={{
-                        height: 20,
-                        width: "auto",
-                        objectFit: "contain",
-                        display: "block",
-                      }}
+                    <Chip
+                      label="NEXON"
+                      sx={getBrandChipSx("nexon")}
                     />
                     <Typography variant="body2" color="text.secondary">Game PR Risk Analytics</Typography>
                   </Stack>
