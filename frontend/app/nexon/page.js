@@ -1030,7 +1030,6 @@ export default function NexonPage() {
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
                     <Chip
                       label="NEXON"
-                      size="small"
                       sx={getBrandChipSx("nexon")}
                     />
                     <Typography variant="body2" color="text.secondary">Game PR Risk Analytics</Typography>
