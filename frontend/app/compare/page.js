@@ -16,6 +16,8 @@ import {
   Stack,
   Tab,
   Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import {
@@ -44,8 +46,6 @@ import {
   colors,
   contentCardSx,
   filterChipSx,
-  MUI_SPEC,
-  metricCardSx,
   navButtonSx,
   pageContainerSx,
   pageShellCleanSx,
@@ -224,6 +224,80 @@ const GlassCard = ({ children, sx, ...props }) => (
   </Card>
 );
 
+const MetricBox = ({ label, value, sub, accentColor, volumeState }) => (
+  <Box
+    sx={{
+      position: "relative",
+      p: { xs: 2, md: 2.5 },
+      borderRadius: 2.5,
+      bgcolor: "#fff",
+      border: "1px solid rgba(148,163,184,.15)",
+      boxShadow: "0 1px 3px rgba(15,23,42,.03)",
+      overflow: "hidden",
+      transition: "box-shadow .2s, transform .2s",
+      "&:hover": { boxShadow: "0 4px 16px rgba(15,23,42,.08)", transform: "translateY(-1px)" },
+    }}
+  >
+    <Box
+      sx={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        bgcolor: accentColor,
+        borderRadius: "12px 12px 0 0",
+      }}
+    />
+    <Typography
+      variant="caption"
+      sx={{
+        color: "text.secondary",
+        fontWeight: 600,
+        letterSpacing: ".02em",
+        textTransform: "uppercase",
+        fontSize: 11,
+      }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      variant="h4"
+      sx={{
+        fontWeight: 800,
+        mt: 0.5,
+        fontVariantNumeric: "tabular-nums",
+        fontSize: { xs: 30, md: 34 },
+        lineHeight: 1.1,
+        color: "#0f172a",
+      }}
+    >
+      {value}
+    </Typography>
+    <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.8 }}>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {sub}
+      </Typography>
+      {volumeState ? (
+        <Box
+          component="span"
+          sx={{
+            fontSize: 10,
+            fontWeight: 700,
+            px: 0.8,
+            py: 0.15,
+            borderRadius: 1,
+            bgcolor: volumeState.chipColor === "success" ? "rgba(16,185,129,.1)" : "rgba(245,158,11,.1)",
+            color: volumeState.chipColor === "success" ? "#059669" : "#d97706",
+          }}
+        >
+          {volumeState.label}
+        </Box>
+      ) : null}
+    </Stack>
+  </Box>
+);
+
 export default function ComparePage() {
   const refreshMs = getRefreshIntervalMs();
   const [selectedCompanies, setSelectedCompanies] = useState(DEFAULT_COMPANIES);
@@ -261,9 +335,6 @@ export default function ComparePage() {
   const fetchLimitPerCompany = Number(data?.meta?.fetch_limit_per_company || 0);
   const dataSource = String(data?.meta?.source || "").toLowerCase();
   const isDbSource = dataSource === "db";
-  const timedOutCompanies = Array.isArray(data?.meta?.timed_out_companies) ? data.meta.timed_out_companies : [];
-  const failedCompanies = Array.isArray(data?.meta?.failed_companies) ? data.meta.failed_companies : [];
-  const partialFetch = Boolean(data?.meta?.partial_fetch) || timedOutCompanies.length > 0 || failedCompanies.length > 0;
   const companiesForView = selectedCompanies;
   const windowHours = Number(selectedWindowHours || DEFAULT_WINDOW_HOURS) || DEFAULT_WINDOW_HOURS;
 
@@ -759,84 +830,104 @@ export default function ComparePage() {
             </Stack>
           </Paper>
 
-          <Card
-            variant="outlined"
-            sx={{ ...sectionCardSx, boxShadow: "0 10px 24px rgba(15,23,42,.06)" }}
-          >
-            <CardContent sx={contentCardSx}>
-              <Stack spacing={1.3}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: colors.slate[700] }}>
-                  비교 설정
+          <GlassCard sx={{ px: { xs: 2, md: 2.5 }, py: 2 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{ fontWeight: 700, mb: 1.5, fontSize: 13, color: "#475569" }}
+            >
+              비교 설정
+            </Typography>
+            <Stack spacing={1.8}>
+              <Box>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", fontWeight: 600, mb: 0.6, display: "block" }}
+                >
+                  게임사 선택
                 </Typography>
-                <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
-                  <span><Info {...iconProps()} style={inlineIconSx} />최근 {windowHours}시간 기사 기준입니다.</span>
-                </Alert>
-                <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
-                  <span><Info {...iconProps()} style={inlineIconSx} />
-                    {isDbSource
-                      ? "DB 적재 기사 전체를 기간 기준으로 집계합니다."
-                      : (fetchLimitPerCompany > 0
-                        ? `회사별 최대 ${fetchLimitPerCompany}건을 표본으로 집계합니다.`
-                        : "기간 기준으로 집계합니다.")}
-                  </span>
-                </Alert>
-                {partialFetch ? (
-                  <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
-                    <span><AlertTriangle {...iconProps()} style={inlineIconSx} />일부 회사 데이터 수집이 지연되었습니다.</span>
-                    {timedOutCompanies.length ? ` 타임아웃: ${timedOutCompanies.join(", ")}` : ""}
-                    {failedCompanies.length ? ` 실패: ${failedCompanies.join(", ")}` : ""}
-                  </Alert>
-                ) : null}
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Stack direction="row" spacing={0.6} useFlexGap flexWrap="wrap">
                   {DEFAULT_COMPANIES.map((name) => (
                     <Chip
                       key={name}
                       label={name}
+                      size="small"
                       onClick={() => toggleSelectedCompany(name)}
-                      color={selectedCompanies.includes(name) ? "primary" : "default"}
-                      variant={selectedCompanies.includes(name) ? "filled" : "outlined"}
-                      sx={INTERACTIVE_CHIP_SX}
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: 12,
+                        borderRadius: 1.5,
+                        bgcolor: selectedCompanies.includes(name) ? companyColor(name) : "transparent",
+                        color: selectedCompanies.includes(name) ? "#fff" : "#475569",
+                        border: "1px solid",
+                        borderColor: selectedCompanies.includes(name) ? companyColor(name) : "#cbd5e1",
+                        "&:hover": { opacity: 0.85 },
+                      }}
                     />
                   ))}
                 </Stack>
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              </Box>
+              <Box>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", fontWeight: 600, mb: 0.6, display: "block" }}
+                >
+                  기간
+                </Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  value={windowHours}
+                  onChange={(_, value) => {
+                    if (value !== null) setSelectedWindowHours(value);
+                  }}
+                  sx={{
+                    "& .MuiToggleButton-root": {
+                      borderRadius: 1.5,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      px: 1.5,
+                      textTransform: "none",
+                    },
+                  }}
+                >
                   {WINDOW_HOURS_OPTIONS.map(({ hours, label }) => (
-                    <Chip
-                      key={hours}
-                      label={label}
-                      onClick={() => setSelectedWindowHours(hours)}
-                      color={windowHours === hours ? "primary" : "default"}
-                      variant={windowHours === hours ? "filled" : "outlined"}
-                      sx={INTERACTIVE_CHIP_SX}
-                    />
+                    <ToggleButton key={hours} value={hours}>
+                      {label}
+                    </ToggleButton>
                   ))}
-                </Stack>
-                {retryAfterSec ? (
-                  <Alert severity="warning" icon={false} sx={{ borderRadius: 2 }}>
-                    <span><AlertTriangle {...iconProps()} style={inlineIconSx} />호출 제한(HTTP 429): 요청량이 많습니다.</span>
-                    {` ${retryAfterSec}초 후 자동 재시도 예정 (${formatRetryAt(retryAfterSec)} KST)`}
-                    {errorCode ? ` · 호출 제한 중 (${errorCode})` : ""}
-                  </Alert>
-                ) : null}
-                <PageStatusView
-                  spacing={1}
-                  error={{
-                    show: hasBlockingError,
-                    title: "분석 실패",
-                    details: error,
-                    diagnosticCode: errorCode,
-                  }}
-                  loading={{
-                    show: loading,
-                    title: "경쟁사 비교 데이터 확인 중",
-                    subtitle: isDbSource
-                      ? "DB에 적재된 최신 기사와 지표를 불러오고 있습니다."
-                      : "최신 기사와 지표를 업데이트하고 있습니다.",
-                  }}
-                />
+                </ToggleButtonGroup>
+              </Box>
+              <Stack direction="row" spacing={1.5} sx={{ color: "text.secondary", fontSize: 12 }}>
+                <Typography variant="caption">
+                  {isDbSource
+                    ? "DB 기간 집계"
+                    : fetchLimitPerCompany > 0
+                      ? `회사별 최대 ${fetchLimitPerCompany}건 집계`
+                      : "기간 집계"}
+                </Typography>
+                <Typography variant="caption">
+                  자동 갱신 {Math.round(refreshMs / 1000)}초
+                </Typography>
               </Stack>
-            </CardContent>
-          </Card>
+            </Stack>
+          </GlassCard>
+
+          <PageStatusView
+            spacing={1}
+            error={{
+              show: hasBlockingError,
+              title: "분석 실패",
+              details: error,
+              diagnosticCode: errorCode,
+            }}
+            loading={{
+              show: loading,
+              title: "경쟁사 비교 데이터 확인 중",
+              subtitle: isDbSource
+                ? "DB에 적재된 최신 기사와 지표를 불러오고 있습니다."
+                : "최신 기사와 지표를 업데이트하고 있습니다.",
+            }}
+          />
 
           <PageStatusView
             empty={{
@@ -850,53 +941,19 @@ export default function ComparePage() {
 
           {data ? (
             <>
-              <Grid container spacing={{ xs: 1.1, md: 1.6 }}>
+              <Grid container spacing={{ xs: 1.2, md: 1.5 }}>
                 {companyCards.map(({ company, count, state }) => (
-                  <Grid item xs={6} md={4} xl={2} key={company} sx={{ display: "flex", minWidth: 0 }}>
-                    <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column", borderRadius: 2.5 }}>
-                      <Box sx={{ height: 3, bgcolor: companyColor(company), flexShrink: 0 }} />
-                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.6 }}>
-                          {company}
-                        </Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.08, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 } }}>
-                          {Number(count).toLocaleString()}
-                        </Typography>
-                        <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.6 }}>
-                          <Typography variant="caption" sx={{ color: colors.slate[500] }}>
-                            보도 건수
-                          </Typography>
-                          <Chip size="small" color={state.chipColor} variant="outlined" label={state.label} sx={INTERACTIVE_CHIP_SX} />
-                        </Stack>
-                        <Typography variant="caption" sx={{ color: colors.slate[500], display: "block", mt: 0.4 }}>
-                          {state.helper}
-                        </Typography>
-                      </Box>
-                    </Box>
+                  <Grid item xs={6} md={3} key={company}>
+                    <MetricBox
+                      label={company}
+                      value={Number(count).toLocaleString()}
+                      sub="보도 건수"
+                      accentColor={companyColor(company)}
+                      volumeState={state}
+                    />
                   </Grid>
                 ))}
-                <Grid item xs={6} md={4} xl={2} sx={{ display: "flex", minWidth: 0 }}>
-                  <Box sx={{ ...metricCardSx, height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
-                    <Box sx={{ height: 3, bgcolor: colors.brand.nexon.primary, flexShrink: 0 }} />
-                      <Box sx={{ p: { xs: 2, md: 2.25 }, flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          총합
-                        </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", fontSize: { xs: 34, md: MUI_SPEC.type.h4 }, lineHeight: 1.08 }}>
-                        {Number(total).toLocaleString()}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        전체 기사
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
               </Grid>
-              <Stack direction="row" spacing={0.9} useFlexGap flexWrap="wrap" sx={{ mt: 0.8, mb: 0.4 }}>
-                <Chip label="0건: 기사 없음" color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-                <Chip label={`소량: ${LOW_SAMPLE_THRESHOLD}건 미만`} color="warning" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-                <Chip label="충분: 분석 가능" color="success" variant="outlined" sx={INTERACTIVE_CHIP_SX} />
-              </Stack>
 
               <GlassCard sx={{ ...sectionCardSx, boxShadow: shadows.lg, overflow: "hidden" }}>
                 <Tabs
