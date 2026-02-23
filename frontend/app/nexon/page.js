@@ -106,6 +106,9 @@ const IP_EMOJI_MAP = {
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
 const getDailyArticleCount = (row) => Number(row?.article_count ?? 0);
+const getRiskPointScore = (row) => Number(row?.risk_score ?? row?.score ?? row?.risk ?? row?.value ?? 0);
+const getRiskPointTime = (row) =>
+  String(row?.timestamp ?? row?.ts ?? row?.recorded_at ?? row?.datetime ?? row?.date ?? row?.day ?? "").trim();
 
 const MOCK_RISK = {
   meta: { company: "넥슨", ip: "메이플스토리", ip_id: "maplestory", date_from: "2024-01-01", date_to: "2026-12-31", total_articles: 4320 },
@@ -197,10 +200,12 @@ export default function NexonPage() {
   const ipCacheRef = useRef(new Map());
   const requestSeqRef = useRef(0);
   const trendChartRef = useRef(null);
+  const crisisChartRef = useRef(null);
   const outletChartRef = useRef(null);
   const themeChartRef = useRef(null);
   const keywordChartRef = useRef(null);
   const trendChartInstRef = useRef(null);
+  const crisisChartInstRef = useRef(null);
   const outletChartInstRef = useRef(null);
   const themeChartInstRef = useRef(null);
   const keywordChartInstRef = useRef(null);
@@ -509,6 +514,30 @@ export default function NexonPage() {
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
   const crisisChange = useMemo(() => calcCrisisChange(riskTimeseries), [riskTimeseries]);
+  const crisisTrendRows = useMemo(() => {
+    const rows = (Array.isArray(riskTimeseries) ? riskTimeseries : [])
+      .map((row) => {
+        const rawTime = getRiskPointTime(row);
+        if (!rawTime) return null;
+        const normalized = rawTime.includes("T") ? rawTime : rawTime.replace(" ", "T");
+        const timeMs = new Date(normalized).getTime();
+        if (Number.isNaN(timeMs)) return null;
+        return {
+          ts: timeMs,
+          label: new Date(timeMs).toLocaleString("ko-KR", {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
+          score: getRiskPointScore(row),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.ts - b.ts);
+    return rows.slice(-120);
+  }, [riskTimeseries]);
   const crisisDeltaTone = getDeltaToneToken(crisisChange);
   const CrisisDeltaIcon = crisisDeltaTone.iconName ? DELTA_ICON_MAP[crisisDeltaTone.iconName] : null;
   const statCards = useMemo(
@@ -533,12 +562,14 @@ export default function NexonPage() {
       const echarts = await import("echarts");
       if (!active) return;
       if (trendChartRef.current && !trendChartInstRef.current) trendChartInstRef.current = echarts.init(trendChartRef.current);
+      if (crisisChartRef.current && !crisisChartInstRef.current) crisisChartInstRef.current = echarts.init(crisisChartRef.current);
       if (outletChartRef.current && !outletChartInstRef.current) outletChartInstRef.current = echarts.init(outletChartRef.current);
       if (themeChartRef.current && !themeChartInstRef.current) themeChartInstRef.current = echarts.init(themeChartRef.current);
       if (keywordChartRef.current && !keywordChartInstRef.current) keywordChartInstRef.current = echarts.init(keywordChartRef.current);
       setChartsReady(true);
       onResize = () => {
         trendChartInstRef.current?.resize();
+        crisisChartInstRef.current?.resize();
         outletChartInstRef.current?.resize();
         themeChartInstRef.current?.resize();
         keywordChartInstRef.current?.resize();
@@ -552,15 +583,82 @@ export default function NexonPage() {
       setChartsReady(false);
       if (onResize) window.removeEventListener("resize", onResize);
       trendChartInstRef.current?.dispose();
+      crisisChartInstRef.current?.dispose();
       outletChartInstRef.current?.dispose();
       themeChartInstRef.current?.dispose();
       keywordChartInstRef.current?.dispose();
       trendChartInstRef.current = null;
+      crisisChartInstRef.current = null;
       outletChartInstRef.current = null;
       themeChartInstRef.current = null;
       keywordChartInstRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!chartsReady || !crisisChartInstRef.current) return;
+    const x = crisisTrendRows.map((row) => row.label);
+    const y = crisisTrendRows.map((row) => row.score);
+    crisisChartInstRef.current.setOption(
+      {
+        animation: false,
+        grid: { left: 38, right: 18, top: 26, bottom: 38 },
+        tooltip: {
+          trigger: "axis",
+          formatter: (params) => {
+            if (!Array.isArray(params) || !params.length) return "";
+            const point = params[0];
+            const idx = Number(point?.dataIndex || 0);
+            const current = Number(point?.value || 0);
+            const prev = idx > 0 ? Number(y[idx - 1] || 0) : current;
+            const delta = current - prev;
+            const deltaText = delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1);
+            return [
+              String(point?.axisValue || "-"),
+              `${point?.marker || ""}위기 지수: ${current.toFixed(1)}점`,
+              `전 구간 대비: ${deltaText}p`,
+            ].join("<br/>");
+          },
+        },
+        xAxis: {
+          type: "category",
+          data: x,
+          axisLabel: {
+            color: echartsTokens.axisLabel.color,
+            formatter: (v) => String(v || "").replace(".", "").slice(0, 11),
+          },
+        },
+        yAxis: {
+          type: "value",
+          min: 0,
+          max: 100,
+          name: "위기 지수",
+          axisLabel: {
+            color: echartsTokens.axisLabel.color,
+            formatter: "{value}",
+          },
+        },
+        series: [
+          {
+            name: "위기 지수",
+            type: "line",
+            data: y,
+            smooth: true,
+            symbol: "none",
+            lineStyle: { color: colors.chart.red, width: 2.2 },
+            areaStyle: { color: "rgba(220,60,74,.12)" },
+            markLine: {
+              symbol: "none",
+              label: { color: echartsTokens.axisLabel.color },
+              lineStyle: { type: "dashed", opacity: 0.6 },
+              data: [{ yAxis: 20 }, { yAxis: 45 }, { yAxis: 70 }],
+            },
+          },
+        ],
+      },
+      { notMerge: true, lazyUpdate: true }
+    );
+  }, [chartsReady, crisisTrendRows]);
 
   useEffect(() => {
     if (!chartsReady || !trendChartInstRef.current) return;
@@ -1055,6 +1153,13 @@ export default function NexonPage() {
                 }}
               />
             </Box>
+          </CardContent>
+        </Card>
+
+        <Card variant="outlined" sx={sectionCardSx}>
+          <CardContent sx={contentCardSx}>
+            <Typography variant="h6" sx={sectionTitleSx}>실시간 위기지수 추이</Typography>
+            <Box ref={crisisChartRef} sx={{ width: "100%", height: { xs: 210, sm: 240, md: 260 } }} />
           </CardContent>
         </Card>
 
