@@ -36,7 +36,6 @@ import {
 } from "../../lib/normalizeNexon";
 import {
   bannerPagerBtnSx,
-  brandChipSx,
   borderRadius,
   colors,
   contentCardSx,
@@ -1029,10 +1028,7 @@ export default function NexonPage() {
                     <Chip
                       label="NEXON"
                       size="small"
-                      sx={{
-                        ...getBrandChipSx("nexon"),
-                        ...brandChipSx,
-                      }}
+                      sx={getBrandChipSx("nexon")}
                     />
                     <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
                   </Stack>
@@ -1045,7 +1041,6 @@ export default function NexonPage() {
                       label="PC · Mobile"
                       sx={{
                         ...getBrandChipSx("maplestory"),
-                        ...brandChipSx,
                         mt: { xs: 0.4, md: 0 },
                       }}
                     />
