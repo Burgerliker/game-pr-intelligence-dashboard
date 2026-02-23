@@ -1623,7 +1623,7 @@ def risk_score(
 def risk_timeseries(
     ip: str = Query(default="all"),
     hours: int = Query(default=24 * 7, ge=24, le=24 * 30),
-    limit: int = Query(default=600, ge=50, le=2000),
+    limit: int = Query(default=2000, ge=50, le=10000),
 ) -> dict:
     try:
         return get_risk_timeseries(ip_id=ip, hours=hours, limit=limit)

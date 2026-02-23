@@ -1864,7 +1864,7 @@ def get_risk_timeseries(ip_id: str = "all", hours: int = 24 * 7, limit: int = 60
             SELECT ts, risk_score, issue_heat, alert_level, s_comp, v_comp, t_comp, m_comp
             FROM risk_timeseries
             WHERE ip_id = ? AND ts >= ?
-            ORDER BY ts ASC, id ASC
+            ORDER BY ts DESC, id DESC
             LIMIT ?
             """,
             (ip_val, since, int(limit)),
@@ -1883,6 +1883,7 @@ def get_risk_timeseries(ip_id: str = "all", hours: int = 24 * 7, limit: int = 60
                     "m_comp": float(r["m_comp"] or 0.0),
                 }
             )
+        items.reverse()
         return {
             "meta": {
                 "ip_id": ip_val,

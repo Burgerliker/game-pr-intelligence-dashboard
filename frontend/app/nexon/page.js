@@ -71,6 +71,8 @@ const ARTICLE_PAGE_SIZE = 20;
 const ARTICLE_ROW_HEIGHT = 122;
 const ARTICLE_LIST_MAX_HEIGHT = 640;
 const ARTICLE_LIST_MIN_HEIGHT = 244;
+const RISK_TIMESERIES_HOURS = 24 * 30;
+const RISK_TIMESERIES_LIMIT = 5000;
 const DIAG_SCOPE = {
   health: buildDiagnosticScope("NEX", "HEALTH"),
   dashboard: buildDiagnosticScope("NEX", "DASH"),
@@ -251,7 +253,7 @@ export default function NexonPage() {
         apiGet(`/api/risk-dashboard?${base.toString()}`),
         apiGet(`/api/ip-clusters?${base.toString()}&limit=6`),
         apiGet(`/api/risk-score?ip=${targetIp}`).catch(() => null),
-        apiGet(`/api/risk-timeseries?ip=${targetIp}&hours=168&limit=600`).catch(() => null),
+        apiGet(`/api/risk-timeseries?ip=${targetIp}&hours=${RISK_TIMESERIES_HOURS}&limit=${RISK_TIMESERIES_LIMIT}`).catch(() => null),
         apiGet("/api/health")
           .then((data) => ({ data, error: null }))
           .catch((error) => ({ data: null, error })),
@@ -428,7 +430,7 @@ export default function NexonPage() {
       try {
         const [rs, rt, healthState] = await Promise.all([
           apiGet(`/api/risk-score?ip=${ip}`).catch(() => null),
-          apiGet(`/api/risk-timeseries?ip=${ip}&hours=168&limit=600`).catch(() => null),
+          apiGet(`/api/risk-timeseries?ip=${ip}&hours=${RISK_TIMESERIES_HOURS}&limit=${RISK_TIMESERIES_LIMIT}`).catch(() => null),
           apiGet("/api/health")
             .then((data) => ({ data, error: null }))
             .catch((error) => ({ data: null, error })),
