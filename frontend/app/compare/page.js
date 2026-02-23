@@ -156,6 +156,19 @@ function cycleListValue(items, current) {
   return items[(index + 1) % items.length];
 }
 
+function formatRelativeUpdate(value) {
+  if (!value) return "갱신 정보 없음";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return "방금 갱신";
+  const diffSec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000));
+  if (diffSec < 60) return "방금 갱신";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  return `${Math.floor(diffHour / 24)}일 전`;
+}
+
 export default function ComparePage() {
   const refreshMs = getRefreshIntervalMs();
   const [selectedCompanies, setSelectedCompanies] = useState(DEFAULT_COMPANIES);
@@ -275,6 +288,13 @@ export default function ComparePage() {
       })),
     [companyCounts, selectedCompanies]
   );
+  const lowSampleCompanyCount = useMemo(
+    () => companyCards.filter((item) => item.state.label === "소량" || item.state.label === "0건").length,
+    [companyCards]
+  );
+  const liveStatusTone = lowSampleCompanyCount > 0
+    ? { bg: colors.status.warning.light, color: colors.status.warning.text, label: "표본 주의" }
+    : { bg: colors.status.success.light, color: colors.status.success.text, label: "표본 안정" };
 
   const scheduleFetch = useCallback(
     (delayMs = REQUEST_DEBOUNCE_MS, { force = false, allowDuringRateLimit = false } = {}) => {
@@ -549,10 +569,44 @@ export default function ComparePage() {
                 label={<span><RefreshCw {...iconProps()} style={inlineIconSx} />{Math.round(refreshMs / 1000)}초마다 자동 업데이트</span>}
                 sx={statusChipSx}
               />
+              <Chip
+                size="small"
+                label={liveStatusTone.label}
+                sx={{
+                  ...statusChipSx,
+                  bgcolor: liveStatusTone.bg,
+                  color: liveStatusTone.color,
+                  border: "none",
+                  fontWeight: 700,
+                }}
+              />
             </Stack>
           </Paper>
 
           <ApiGuardBanner />
+
+          <Paper
+            variant="outlined"
+            sx={{
+              ...subPanelSx,
+              bgcolor: "#ffffff",
+              borderColor: colors.slate[200],
+              py: 1.2,
+              px: { xs: 1.5, md: 2 },
+            }}
+          >
+            <Stack direction={{ xs: "column", md: "row" }} spacing={0.9} justifyContent="space-between">
+              <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
+                <Chip size="small" variant="outlined" label={`선택 게임사 ${selectedCompanies.length}개`} sx={INTERACTIVE_CHIP_SX} />
+                <Chip size="small" variant="outlined" label={`최근 ${windowHours}시간`} sx={INTERACTIVE_CHIP_SX} />
+                <Chip size="small" variant="outlined" label={`총 기사 ${Number(total || 0).toLocaleString()}건`} sx={INTERACTIVE_CHIP_SX} />
+                <Chip size="small" variant="outlined" label={`저표본 ${lowSampleCompanyCount}개`} sx={INTERACTIVE_CHIP_SX} />
+              </Stack>
+              <Typography variant="caption" sx={{ color: colors.slate[500], alignSelf: { xs: "flex-start", md: "center" } }}>
+                상태: {formatRelativeUpdate(lastUpdatedAt)} · 비교 지표는 서버 산출값 기준
+              </Typography>
+            </Stack>
+          </Paper>
 
           <Card
             variant="outlined"
@@ -684,10 +738,10 @@ export default function ComparePage() {
               </Stack>
 
               <Grid container spacing={{ xs: 1.2, md: 1.6 }}>
-                <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
+                <Grid item xs={12} lg={8} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
-                    sx={{ ...sectionCardSx, width: "100%" }}
+                    sx={{ ...sectionCardSx, width: "100%", boxShadow: shadows.lg }}
                   >
                     <CardContent sx={contentCardSx}>
                       <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4, lineHeight: 1.3 }}>
@@ -772,6 +826,7 @@ export default function ComparePage() {
                                               height: `${(p.value / series.max) * 100}%`,
                                               borderRadius: 0.5,
                                               bgcolor: barColor,
+                                              minHeight: 8,
                                             }}
                                           />
                                         ) : (
@@ -813,10 +868,10 @@ export default function ComparePage() {
                   </Card>
                 </Grid>
 
-                <Grid item xs={12} md={6} sx={{ display: "flex", minWidth: 0 }}>
+                <Grid item xs={12} lg={4} sx={{ display: "flex", minWidth: 0 }}>
                   <Card
                     variant="outlined"
-                    sx={{ ...sectionCardSx, width: "100%" }}
+                    sx={{ ...sectionCardSx, width: "100%", boxShadow: shadows.lg }}
                   >
                     <CardContent sx={contentCardSx}>
                       <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 0.4 }}>
@@ -865,7 +920,15 @@ export default function ComparePage() {
                                   <LinearProgress
                                     variant="determinate"
                                     value={Math.max(0, Math.min(100, Number(row[s] || 0)))}
-                                    sx={{ ...progressBarSx, flex: 1, borderRadius: 99, bgcolor: colors.primary[50] }}
+                                    sx={{
+                                      ...progressBarSx,
+                                      flex: 1,
+                                      borderRadius: 99,
+                                      bgcolor: colors.primary[50],
+                                      "& .MuiLinearProgress-bar": {
+                                        bgcolor: s === "긍정" ? colors.status.success.main : s === "부정" ? colors.status.error.main : colors.status.warning.main,
+                                      },
+                                    }}
                                   />
                                   <Typography variant="body2" sx={{ width: 52, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                                     {Number(row[s] || 0).toFixed(1)}%
@@ -883,7 +946,7 @@ export default function ComparePage() {
 
               <Card
                 variant="outlined"
-                sx={sectionCardSx}
+                sx={{ ...sectionCardSx, boxShadow: shadows.md }}
               >
                 <CardContent sx={contentCardSx}>
                   <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
@@ -916,7 +979,7 @@ export default function ComparePage() {
 
               <Card
                 variant="outlined"
-                sx={sectionCardSx}
+                sx={{ ...sectionCardSx, boxShadow: shadows.md }}
               >
                 <CardContent sx={contentCardSx}>
                   <Typography variant="h6" sx={{ ...sectionTitleSx, mb: 1.2 }}>
@@ -932,8 +995,8 @@ export default function ComparePage() {
                           {(insights.top_issues || []).map((item, idx) => (
                             <Typography
                               key={`${item.company}-${item.keyword}-${idx}`}
-                              variant="caption"
-                              color="text.secondary"
+                              variant="body2"
+                              sx={{ color: colors.slate[600], lineHeight: 1.55 }}
                             >
                               <b>{item.company}</b> · {item.keyword} ({item.count}건, {item.share_pct}%)
                             </Typography>
@@ -950,8 +1013,8 @@ export default function ComparePage() {
                           {(insights.actions || []).map((item) => (
                             <Typography
                               key={`${item.company}-${item.priority}`}
-                              variant="caption"
-                              color="text.secondary"
+                              variant="body2"
+                              sx={{ color: colors.slate[600], lineHeight: 1.55 }}
                             >
                               <b>{item.company}</b> ({item.priority}) {item.action}
                             </Typography>
