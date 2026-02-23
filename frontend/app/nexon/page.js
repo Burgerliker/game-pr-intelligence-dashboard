@@ -205,7 +205,6 @@ export default function NexonPage() {
   const [showMetricDetails, setShowMetricDetails] = useState(false);
   const [showBurstEventList, setShowBurstEventList] = useState(false);
   const [burstRange, setBurstRange] = useState("24h");
-  const [summaryRange, setSummaryRange] = useState("24h");
   const [burstVisibleCount, setBurstVisibleCount] = useState(10);
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
@@ -1070,19 +1069,6 @@ export default function NexonPage() {
                 </Box>
                 <Stack spacing={0.8} alignItems={{ xs: "flex-start", md: "flex-end" }}>
                   <Chip variant="outlined" label={`최근 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
-                  <Stack direction="row" spacing={0.8}>
-                    {["24h", "7d", "30d"].map((range) => (
-                      <Button
-                        key={`summary-range-${range}`}
-                        size="small"
-                        variant={summaryRange === range ? "contained" : "outlined"}
-                        onClick={() => setSummaryRange(range)}
-                        sx={{ minWidth: 52, borderRadius: 99, textTransform: "none", fontWeight: 700 }}
-                      >
-                        {range}
-                      </Button>
-                    ))}
-                  </Stack>
                 </Stack>
               </Stack>
 
