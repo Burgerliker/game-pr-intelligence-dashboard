@@ -526,6 +526,9 @@ export const brandChipGradientSx = {
     background: "linear-gradient(135deg, #0F3B66 0%, #3B82F6 100%)",
     color: "#FFFFFF",
     border: "none",
+    "&& .MuiChip-label, && .MuiChip-labelMedium, && .MuiChip-labelSmall": {
+      transform: "translateY(1px)",
+    },
   },
 } as const;
 
