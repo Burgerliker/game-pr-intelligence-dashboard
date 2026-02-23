@@ -787,7 +787,15 @@ export default function NexonPage() {
             sx={{ px: { xs: 2, md: 3 }, py: 1.5 }}
           >
             <Stack direction="row" alignItems="center" spacing={1.2}>
-              <Box sx={{ width: 22, height: 22, borderRadius: 1.2, backgroundColor: colors.brand.nexon.primary }} />
+              <Box
+                sx={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "4.8px",
+                  background: `linear-gradient(140deg, ${colors.brand.nexon.primary} 0 58%, ${colors.status.success.main} 58% 100%)`,
+                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,.25)",
+                }}
+              />
               <Box sx={{ py: 0.2 }}>
                 <Typography
                   sx={{
