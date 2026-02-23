@@ -512,6 +512,34 @@ export default function NexonPage() {
     "신작/성과": "성과 메시지와 리스크 메시지를 분리해 혼선 방지",
   };
   const recommendedAction = themeActionMap[topRisk?.theme] || "핵심 팩트와 대응 일정을 짧고 명확하게 공지";
+  const insightTone = useMemo(() => {
+    const score = Number(topRiskThemeScore || 0);
+    if (score >= 70) {
+      return {
+        label: "고위험",
+        accent: "#dc2626",
+        softBg: "#fef2f2",
+        softBorder: "#fecaca",
+        text: "#991b1b",
+      };
+    }
+    if (score >= 45) {
+      return {
+        label: "주의",
+        accent: "#d97706",
+        softBg: "#fffbeb",
+        softBorder: "#fde68a",
+        text: "#92400e",
+      };
+    }
+    return {
+      label: "관심",
+      accent: "#0f766e",
+      softBg: "#f0fdfa",
+      softBorder: "#99f6e4",
+      text: "#115e59",
+    };
+  }, [topRiskThemeScore]);
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
@@ -1211,28 +1239,61 @@ export default function NexonPage() {
         <Card variant="outlined" sx={sectionCardSx}><CardContent sx={contentCardSx}>
           <Typography variant="h6" sx={sectionTitleSx}>대응 인사이트</Typography>
           <Grid container spacing={1.2}>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <Paper variant="outlined" sx={subPanelSx}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 위험 이슈</Typography>
-                <Typography variant="h6" sx={{ mt: 1 }}>{topRisk?.theme || "-"}</Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 위험 이슈</Typography>
+                  <Chip
+                    size="small"
+                    label={insightTone.label}
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor: insightTone.softBg,
+                      color: insightTone.text,
+                      border: `1px solid ${insightTone.softBorder}`,
+                    }}
+                  />
+                </Stack>
+                <Typography variant="h6" sx={{ mt: 0.6, color: insightTone.text, fontWeight: 800 }}>{topRisk?.theme || "-"}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.7 }}>
                   이슈 점수 {topRiskThemeScore ?? "-"}점 · 부정 {topRisk?.negative_ratio ?? "-"}%
+                </Typography>
+                <Box
+                  sx={{
+                    mt: 1.2,
+                    height: 6,
+                    borderRadius: 999,
+                    bgcolor: "#eef2ff",
+                    overflow: "hidden",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: `${Math.max(0, Math.min(100, Number(topRiskThemeScore || 0)))}%`,
+                      height: "100%",
+                      background: `linear-gradient(90deg, ${insightTone.accent}, #f97316)`,
+                    }}
+                  />
+                </Box>
+                <Typography variant="caption" sx={{ display: "block", mt: 0.65, color: "text.secondary" }}>
+                  위험 지수 기준으로 즉시 대응 우선순위를 표시합니다.
                 </Typography>
               </Paper>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <Paper variant="outlined" sx={subPanelSx}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>주목할 언론사</Typography>
-                <Typography variant="h6" sx={{ mt: 1 }}>{outletRisk?.outlet || "-"}</Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="h6" sx={{ mt: 1, fontWeight: 800 }}>{outletRisk?.outlet || "-"}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
                   기사 {outletRisk?.article_count || 0}건 · 부정 {outletRisk?.negative_ratio || 0}% · 위험 점수 {outletRisk?.score || 0}
                 </Typography>
               </Paper>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <Paper variant="outlined" sx={subPanelSx}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>대응 권고</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, lineHeight: 1.55 }}>
                   {recommendedAction}
                 </Typography>
               </Paper>
