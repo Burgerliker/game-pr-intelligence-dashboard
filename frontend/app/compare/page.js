@@ -61,6 +61,11 @@ const LOW_SAMPLE_THRESHOLD = 5;
 const ARTICLE_ROW_HEIGHT = 62;
 const ARTICLE_LIST_MAX_HEIGHT = 500;
 const ARTICLE_LIST_MIN_HEIGHT = 112;
+const ARTICLE_GRID_COLUMNS = {
+  xs: "92px minmax(220px,1fr) 78px 108px",
+  sm: "108px minmax(280px,1fr) 84px 124px",
+  md: "120px minmax(320px,1fr) 92px 140px",
+};
 const WINDOW_HOURS_OPTIONS = [
   { hours: 24, label: "하루" },
   { hours: 72, label: "3일" },
@@ -1027,15 +1032,15 @@ export default function ComparePage() {
                         </Typography>
                         <Stack spacing={0.8}>
                           {(insights.actions || []).map((item) => (
-                            <Stack
-                              key={`${item.company}-${item.priority}`}
-                              direction="row"
-                              spacing={0.7}
-                              alignItems="baseline"
-                            >
-                              {(() => {
-                                const tone = resolvePriorityTone(item.priority);
-                                return (
+                            (() => {
+                              const tone = resolvePriorityTone(item.priority);
+                              return (
+                                <Stack
+                                  key={`${item.company}-${item.priority}`}
+                                  direction="row"
+                                  spacing={0.7}
+                                  alignItems="baseline"
+                                >
                                   <Box
                                     component="span"
                                     sx={{
@@ -1052,12 +1057,12 @@ export default function ComparePage() {
                                   >
                                     {tone.label}
                                   </Box>
-                                );
-                              })()}
-                              <Typography variant="body2" sx={{ color: colors.slate[600], lineHeight: 1.55 }}>
-                                <b>{item.company}</b> {item.action}
-                              </Typography>
-                            </Stack>
+                                  <Typography variant="body2" sx={{ color: colors.slate[600], lineHeight: 1.55 }}>
+                                    <b>{item.company}</b> {item.action}
+                                  </Typography>
+                                </Stack>
+                              );
+                            })()
                           ))}
                         </Stack>
                       </Paper>
@@ -1108,7 +1113,7 @@ export default function ComparePage() {
                     <Box
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: { xs: "92px minmax(220px,1fr) 78px 108px", sm: "108px minmax(280px,1fr) 84px 124px", md: "120px minmax(320px,1fr) 92px 140px" },
+                        gridTemplateColumns: ARTICLE_GRID_COLUMNS,
                         gap: 1,
                         px: 1.2,
                         pb: 0.8,
@@ -1137,7 +1142,7 @@ export default function ComparePage() {
                               style={style}
                               sx={{
                                 display: "grid",
-                                gridTemplateColumns: { xs: "92px minmax(220px,1fr) 78px 108px", sm: "108px minmax(280px,1fr) 84px 124px", md: "120px minmax(320px,1fr) 92px 140px" },
+                                gridTemplateColumns: ARTICLE_GRID_COLUMNS,
                                 gap: 1,
                                 alignItems: "center",
                                 borderTop: "1px solid",
