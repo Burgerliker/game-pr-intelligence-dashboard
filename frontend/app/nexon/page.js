@@ -515,28 +515,28 @@ export default function NexonPage() {
   const controlButtonSx = navButtonSx;
   const crisisChange = useMemo(() => calcCrisisChange(riskTimeseries), [riskTimeseries]);
   const crisisTrendRows = useMemo(() => {
-    const rows = (Array.isArray(riskTimeseries) ? riskTimeseries : [])
-      .map((row) => {
-        const rawTime = getRiskPointTime(row);
-        if (!rawTime) return null;
-        const normalized = rawTime.includes("T") ? rawTime : rawTime.replace(" ", "T");
-        const timeMs = new Date(normalized).getTime();
-        if (Number.isNaN(timeMs)) return null;
-        return {
-          ts: timeMs,
-          label: new Date(timeMs).toLocaleString("ko-KR", {
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          }),
-          score: getRiskPointScore(row),
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.ts - b.ts);
-    return rows.slice(-120);
+    const byDate = new Map();
+    (Array.isArray(riskTimeseries) ? riskTimeseries : []).forEach((row) => {
+      const rawTime = getRiskPointTime(row);
+      if (!rawTime) return;
+      const normalized = rawTime.includes("T") ? rawTime : rawTime.replace(" ", "T");
+      const timeMs = new Date(normalized).getTime();
+      if (Number.isNaN(timeMs)) return;
+      const dateKey = new Date(timeMs).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+      const prev = byDate.get(dateKey);
+      if (!prev || timeMs > prev.ts) {
+        byDate.set(dateKey, { ts: timeMs, score: getRiskPointScore(row) });
+      }
+    });
+    return [...byDate.entries()]
+      .map(([date, value]) => ({
+        ts: value.ts,
+        date,
+        label: date.slice(5),
+        score: value.score,
+      }))
+      .sort((a, b) => a.ts - b.ts)
+      .slice(-30);
   }, [riskTimeseries]);
   const crisisDeltaTone = getDeltaToneToken(crisisChange);
   const CrisisDeltaIcon = crisisDeltaTone.iconName ? DELTA_ICON_MAP[crisisDeltaTone.iconName] : null;
@@ -616,7 +616,7 @@ export default function NexonPage() {
             return [
               String(point?.axisValue || "-"),
               `${point?.marker || ""}위기 지수: ${current.toFixed(1)}점`,
-              `전 구간 대비: ${deltaText}p`,
+              `전일 대비: ${deltaText}p`,
             ].join("<br/>");
           },
         },
@@ -1158,7 +1158,7 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}>
           <CardContent sx={contentCardSx}>
-            <Typography variant="h6" sx={sectionTitleSx}>실시간 위기지수 추이</Typography>
+            <Typography variant="h6" sx={sectionTitleSx}>일별 위기지수 추이</Typography>
             <Box ref={crisisChartRef} sx={{ width: "100%", height: { xs: 210, sm: 240, md: 260 } }} />
           </CardContent>
         </Card>
