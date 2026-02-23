@@ -24,27 +24,14 @@ import {
 import {
   AlertTriangle,
   BarChart3,
-  ChevronRight,
   ExternalLink,
   Globe,
-  Info,
   Layers,
   MessageSquare,
-  RefreshCw,
   Settings2,
   TrendingUp,
   Zap,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  Legend,
-} from "recharts";
 import {
   apiGet,
   getRetryAfterSeconds,
@@ -58,22 +45,9 @@ import {
   toRequestErrorState,
 } from "../../lib/pageStatus";
 import {
-  colors,
-  contentCardSx,
-  filterChipSx,
-  MUI_SPEC,
-  metricCardSx,
   navButtonSx,
   pageContainerSx,
   pageShellCleanSx,
-  panelPaperSx,
-  progressBarSx,
-  sectionCardSx,
-  sectionTitleSx,
-  shadows,
-  specTypeSx,
-  statusChipSx,
-  subPanelSx,
 } from "../../lib/uiTokens";
 
 /* ═══════════════════════════════════════════════
@@ -268,31 +242,6 @@ const SectionHeader = ({ title, subtitle, action }) => (
   </Stack>
 );
 
-/** Custom Recharts tooltip */
-const ChartTooltipContent = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <Paper
-      sx={{
-        p: 1.2,
-        borderRadius: 2,
-        boxShadow: "0 4px 16px rgba(0,0,0,.12)",
-        border: "1px solid rgba(148,163,184,.15)",
-      }}
-    >
-      <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.4, display: "block" }}>{label}</Typography>
-      {payload.map((entry) => (
-        <Stack key={entry.dataKey} direction="row" spacing={0.8} alignItems="center" sx={{ py: 0.15 }}>
-          <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: entry.color, flexShrink: 0 }} />
-          <Typography variant="caption">
-            {entry.name}: <b>{typeof entry.value === "number" ? entry.value.toLocaleString() : entry.value}</b>
-          </Typography>
-        </Stack>
-      ))}
-    </Paper>
-  );
-};
-
 /* ═══════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ═══════════════════════════════════════════════ */
@@ -321,6 +270,10 @@ export default function ComparePage() {
   const pollTimerRef = useRef(null);
   const debounceTimerRef = useRef(null);
   const retryAfterRef = useRef(0);
+  const trendChartRef = useRef(null);
+  const sentimentChartRef = useRef(null);
+  const trendChartInstRef = useRef(null);
+  const sentimentChartInstRef = useRef(null);
 
   /* ── derived from data ── */
   const total = data?.meta?.total_articles ?? 0;
@@ -539,6 +492,8 @@ export default function ComparePage() {
     return rows;
   }, [data, filterCompany, filterSentiment]);
 
+  const trendDates = useMemo(() => rechartsData.map((row) => String(row.date || "")), [rechartsData]);
+
   /* ═══════════════ EFFECTS ═══════════════ */
   useEffect(() => {
     scheduleFetch(0, { force: true });
@@ -631,6 +586,114 @@ export default function ComparePage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [retryAfterSec, scheduleFetch, startPolling]);
+
+  useEffect(() => {
+    let mounted = true;
+    let removeResize = null;
+
+    const mountTrend = async () => {
+      if (activeTab !== "trend" || !trendChartRef.current || !rechartsData.length) return;
+      const echarts = await import("echarts");
+      if (!mounted || !trendChartRef.current) return;
+      trendChartInstRef.current?.dispose();
+      const inst = echarts.init(trendChartRef.current);
+      trendChartInstRef.current = inst;
+      const option = {
+        animation: false,
+        grid: { left: 32, right: 20, top: 40, bottom: 36 },
+        legend: { top: 0, textStyle: { color: "#475569", fontSize: 12 } },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: {
+          type: "category",
+          data: trendDates,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: "#94a3b8", fontSize: 11 },
+        },
+        yAxis: {
+          type: "value",
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { lineStyle: { color: "#e2e8f0" } },
+          axisLabel: { color: "#94a3b8", fontSize: 11 },
+        },
+        series: companiesForView.map((company) => ({
+          name: company,
+          type: "bar",
+          barMaxWidth: 28,
+          itemStyle: { color: companyColor(company), borderRadius: [3, 3, 0, 0] },
+          data: rechartsData.map((row) => Number(row?.[company] || 0)),
+        })),
+      };
+      inst.setOption(option, { notMerge: true, lazyUpdate: true });
+      const onResize = () => inst.resize();
+      window.addEventListener("resize", onResize);
+      removeResize = () => window.removeEventListener("resize", onResize);
+    };
+
+    mountTrend();
+    return () => {
+      mounted = false;
+      if (removeResize) removeResize();
+      trendChartInstRef.current?.dispose();
+      trendChartInstRef.current = null;
+    };
+  }, [activeTab, companiesForView, rechartsData, trendDates]);
+
+  useEffect(() => {
+    let mounted = true;
+    let removeResize = null;
+
+    const mountSentiment = async () => {
+      if (activeTab !== "sentiment" || !sentimentChartRef.current || !sentimentChartData.length) return;
+      const echarts = await import("echarts");
+      if (!mounted || !sentimentChartRef.current) return;
+      sentimentChartInstRef.current?.dispose();
+      const inst = echarts.init(sentimentChartRef.current);
+      sentimentChartInstRef.current = inst;
+      const option = {
+        animation: false,
+        grid: { left: 80, right: 20, top: 20, bottom: 24 },
+        legend: { top: 0, textStyle: { color: "#475569", fontSize: 12 } },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: {
+          type: "value",
+          max: 100,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { lineStyle: { color: "#e2e8f0" } },
+          axisLabel: { color: "#94a3b8", fontSize: 11, formatter: "{value}%" },
+        },
+        yAxis: {
+          type: "category",
+          data: sentimentChartData.map((row) => row.company),
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: "#334155", fontSize: 12, fontWeight: 700 },
+        },
+        series: SENTIMENTS.map((label) => ({
+          name: label,
+          type: "bar",
+          stack: "sentiment",
+          emphasis: { focus: "series" },
+          itemStyle: { color: SENTIMENT_COLORS[label] },
+          data: sentimentChartData.map((row) => Number(row?.[label] || 0)),
+        })),
+      };
+      inst.setOption(option, { notMerge: true, lazyUpdate: true });
+      const onResize = () => inst.resize();
+      window.addEventListener("resize", onResize);
+      removeResize = () => window.removeEventListener("resize", onResize);
+    };
+
+    mountSentiment();
+    return () => {
+      mounted = false;
+      if (removeResize) removeResize();
+      sentimentChartInstRef.current?.dispose();
+      sentimentChartInstRef.current = null;
+    };
+  }, [activeTab, sentimentChartData]);
 
   /* ═══════════════════════════════════════════════
      RENDER
@@ -965,45 +1028,7 @@ export default function ComparePage() {
                             border: "1px solid rgba(148,163,184,.1)",
                           }}
                         >
-                          <ResponsiveContainer width="100%" height={320}>
-                            <BarChart data={rechartsData} barCategoryGap="18%">
-                              <CartesianGrid
-                                strokeDasharray="3 3"
-                                stroke="#e2e8f0"
-                                vertical={false}
-                              />
-                              <XAxis
-                                dataKey="date"
-                                tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                axisLine={false}
-                                tickLine={false}
-                              />
-                              <YAxis
-                                tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                axisLine={false}
-                                tickLine={false}
-                                width={36}
-                              />
-                              <RechartsTooltip content={<ChartTooltipContent />} />
-                              <Legend
-                                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                                formatter={(value) => (
-                                  <span style={{ color: "#475569", fontWeight: 600 }}>
-                                    {value}
-                                  </span>
-                                )}
-                              />
-                              {companiesForView.map((company) => (
-                                <Bar
-                                  key={company}
-                                  dataKey={company}
-                                  fill={companyColor(company)}
-                                  radius={[3, 3, 0, 0]}
-                                  maxBarSize={28}
-                                />
-                              ))}
-                            </BarChart>
-                          </ResponsiveContainer>
+                          <Box ref={trendChartRef} sx={{ width: "100%", height: 320 }} />
                         </Box>
                       ) : (
                         <EmptyState
@@ -1029,60 +1054,10 @@ export default function ComparePage() {
                             border: "1px solid rgba(148,163,184,.1)",
                           }}
                         >
-                          <ResponsiveContainer
-                            width="100%"
-                            height={Math.max(200, sentimentChartData.length * 56 + 60)}
-                          >
-                            <BarChart data={sentimentChartData} layout="vertical" barSize={24}>
-                              <CartesianGrid
-                                strokeDasharray="3 3"
-                                stroke="#e2e8f0"
-                                horizontal={false}
-                              />
-                              <XAxis
-                                type="number"
-                                domain={[0, 100]}
-                                tick={{ fontSize: 11, fill: "#94a3b8" }}
-                                axisLine={false}
-                                tickLine={false}
-                                unit="%"
-                              />
-                              <YAxis
-                                type="category"
-                                dataKey="company"
-                                width={72}
-                                tick={{ fontSize: 12, fill: "#334155", fontWeight: 700 }}
-                                axisLine={false}
-                                tickLine={false}
-                              />
-                              <RechartsTooltip
-                                content={<ChartTooltipContent />}
-                                formatter={(value) => `${Number(value).toFixed(1)}%`}
-                              />
-                              <Legend
-                                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                                formatter={(value) => (
-                                  <span
-                                    style={{
-                                      color: SENTIMENT_COLORS[value] || "#475569",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {value}
-                                  </span>
-                                )}
-                              />
-                              {SENTIMENTS.map((s) => (
-                                <Bar
-                                  key={s}
-                                  dataKey={s}
-                                  stackId="sentiment"
-                                  fill={SENTIMENT_COLORS[s]}
-                                  radius={0}
-                                />
-                              ))}
-                            </BarChart>
-                          </ResponsiveContainer>
+                          <Box
+                            ref={sentimentChartRef}
+                            sx={{ width: "100%", height: Math.max(200, sentimentChartData.length * 56 + 60) }}
+                          />
                         </Box>
                       ) : (
                         <EmptyState title="여론 데이터가 없습니다." compact />
