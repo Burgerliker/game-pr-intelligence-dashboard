@@ -15,17 +15,31 @@ NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "")
 NAVER_NEWS_URL = "https://openapi.naver.com/v1/search/news.json"
 LAST_API_ERROR = ""
+COMPARE_MIN_PAGES_PER_QUERY = max(1, int(os.getenv("COMPARE_MIN_PAGES_PER_QUERY", "2")))
+COMPARE_MAX_PAGES_PER_QUERY = max(COMPARE_MIN_PAGES_PER_QUERY, int(os.getenv("COMPARE_MAX_PAGES_PER_QUERY", "3")))
 
 # 비교 대상 회사 설정
 COMPANIES = {
-    "넥슨": {"query": "넥슨", "color": "#0066FF"},
+    "넥슨": {
+        "query": "넥슨",
+        "queries": ["넥슨", "NEXON", "메이플스토리", "던전앤파이터", "FC 온라인"],
+        "color": "#0066FF",
+    },
     "NC소프트": {
         "query": "엔씨소프트",
         "queries": ["엔씨소프트", "NC소프트", "NCSOFT", "리니지", "쓰론 앤 리버티"],
         "color": "#FF6B35",
     },
-    "넷마블": {"query": "넷마블", "color": "#28A745"},
-    "크래프톤": {"query": "크래프톤", "color": "#9B59B6"},
+    "넷마블": {
+        "query": "넷마블",
+        "queries": ["넷마블", "넷마블 신작", "세븐나이츠", "나 혼자만 레벨업", "레이븐2"],
+        "color": "#28A745",
+    },
+    "크래프톤": {
+        "query": "크래프톤",
+        "queries": ["크래프톤", "KRAFTON", "배틀그라운드", "PUBG", "inZOI"],
+        "color": "#9B59B6",
+    },
 }
 
 # 넥슨 군집 분석용 쿼리 그룹(다양한 이슈를 확보하기 위한 확장형 쿼리)
@@ -234,13 +248,19 @@ def fetch_company_news_compare(company: str, total: int = 100) -> pd.DataFrame:
     for query in query_list:
         fetched = 0
         start = 1
-        while fetched < per_query_target:
+        page_count = 0
+        while fetched < per_query_target or page_count < COMPARE_MIN_PAGES_PER_QUERY:
+            if page_count >= COMPARE_MAX_PAGES_PER_QUERY:
+                break
             batch_size = min(100, per_query_target - fetched)
+            if batch_size <= 0:
+                batch_size = 10
             items = search_news(query, display=batch_size, start=start, sort="date")
             if not items:
                 break
             all_items.extend(items)
             fetched += len(items)
+            page_count += 1
             start += len(items)
             if len(items) < batch_size:
                 break
