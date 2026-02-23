@@ -1035,7 +1035,7 @@ export default function NexonPage() {
                     <Typography sx={{ fontSize: { xs: 44, md: 52 }, lineHeight: 1, fontWeight: 800, color: alertLevel === "P1" ? "#ef4444" : alertLevel === "P2" ? "#f59e0b" : "#10b981" }}>
                       {riskValue.toFixed(1)}
                     </Typography>
-                    <Typography sx={{ fontSize: 18, color: "#94a3b8", pb: 0.6 }}>/10</Typography>
+                    <Typography sx={{ fontSize: 18, color: "#94a3b8", pb: 0.6 }}>/100</Typography>
                   </Stack>
                   <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 1 }}>
                     <Chip
