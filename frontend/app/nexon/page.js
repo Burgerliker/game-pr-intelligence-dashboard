@@ -22,7 +22,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { AlertTriangle, Bell, ChevronLeft, ChevronRight, FileText, Info, Newspaper, RefreshCw, Tag, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, FileText, Info, Newspaper, RefreshCw, Tag, TrendingDown, TrendingUp } from "lucide-react";
 import { List as WindowList } from "react-window";
 import PageStatusView from "../../components/PageStatusView";
 import ApiGuardBanner from "../../components/ApiGuardBanner";
@@ -1009,7 +1009,6 @@ export default function NexonPage() {
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  <Chip variant="outlined" label={<span><Bell {...iconProps()} style={inlineIconSx} />알림 설정</span>} sx={statusChipSx} />
                   <Chip variant="outlined" label={`최근 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
                 </Stack>
               </Stack>
@@ -1067,7 +1066,6 @@ export default function NexonPage() {
               <Paper variant="outlined" sx={{ p: { xs: 1.8, md: 2 }, borderRadius: 2.5, borderColor: "#e2e8f0" }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: "#475569" }}>핵심 위험 이슈 TOP 3</Typography>
-                  <Typography variant="caption" color="primary">전체 보기</Typography>
                 </Stack>
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
                   {topIssues.map((issue, idx) => (
