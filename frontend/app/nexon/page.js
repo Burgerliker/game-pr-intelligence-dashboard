@@ -877,7 +877,14 @@ export default function NexonPage() {
                           sx={{
                             width: `${Math.max(0, Math.min(100, riskValue))}%`,
                             height: "100%",
-                            background: riskProgressGradient,
+                            borderRadius: "inherit",
+                            transition: "width 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+                            background:
+                              alertLevel === "P1"
+                                ? "linear-gradient(90deg, #f87171 0%, #dc2626 100%)"
+                                : alertLevel === "P2"
+                                  ? "linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%)"
+                                  : "linear-gradient(90deg, #34d399 0%, #10b981 100%)",
                           }}
                         />
                       </Box>
