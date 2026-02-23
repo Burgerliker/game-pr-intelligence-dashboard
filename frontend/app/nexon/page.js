@@ -94,6 +94,14 @@ const STAT_ICON_MAP = {
   tag: Tag,
   fileText: FileText,
 };
+const IP_EMOJI_MAP = {
+  all: "🧭",
+  maplestory: "🍁",
+  dnf: "⚔️",
+  arcraiders: "🚀",
+  fconline: "⚽",
+  bluearchive: "📘",
+};
 
 const getDailyExposure = (row) =>
   Number(row?.total_mentions ?? row?.mention_count ?? row?.exposure_count ?? row?.exposure ?? row?.total_exposure ?? row?.article_count ?? 0);
@@ -816,7 +824,7 @@ export default function NexonPage() {
                   </Stack>
                   <Stack direction="row" alignItems="center" spacing={1.2} useFlexGap flexWrap="wrap">
                     <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
-                      🍁 {currentBanner?.name || riskData?.meta?.ip || "메이플스토리"}
+                      {(IP_EMOJI_MAP[currentBanner?.id] || "🎮")} {currentBanner?.name || riskData?.meta?.ip || "메이플스토리"}
                     </Typography>
                   </Stack>
                 </Box>
