@@ -143,7 +143,7 @@ export default function ProjectPage() {
                 <Box sx={{ width: 20, height: 20, borderRadius: 1, background: "linear-gradient(140deg,#0f3b66 0 58%,#9acb19 58% 100%)" }} />
                 <Typography sx={{ ...specTypeSx.h6, color: "#0f172a" }}>PR Portfolio</Typography>
               </Stack>
-              <Button component={Link} href="/rebuild" variant="outlined" size="small" sx={navButtonSx}>
+              <Button component={Link} href="/" variant="outlined" size="small" sx={navButtonSx}>
                 ← 메인으로
               </Button>
             </Stack>
@@ -544,13 +544,13 @@ export default function ProjectPage() {
               <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#0f172a", mb: 0.5 }}>직접 확인해보세요</Typography>
               <Typography sx={{ fontSize: 14, color: "#64748b", mb: 2 }}>실시간 모니터링·과거 분석·경쟁사 비교 모든 기능이 작동 중입니다.</Typography>
               <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
-                <Button component={Link} href="/rebuild/nexon" variant="contained" sx={actionButtonSx.primary}>
+                <Button component={Link} href="/nexon" variant="contained" sx={actionButtonSx.primary}>
                   넥슨 IP 리스크 →
                 </Button>
-                <Button component={Link} href="/rebuild/nexon/backtest" variant="outlined" sx={actionButtonSx.secondary}>
+                <Button component={Link} href="/nexon/backtest" variant="outlined" sx={actionButtonSx.secondary}>
                   과거 분석 →
                 </Button>
-                <Button component={Link} href="/rebuild/compare" variant="outlined" sx={actionButtonSx.secondary}>
+                <Button component={Link} href="/compare" variant="outlined" sx={actionButtonSx.secondary}>
                   경쟁사 비교 →
                 </Button>
               </Stack>
