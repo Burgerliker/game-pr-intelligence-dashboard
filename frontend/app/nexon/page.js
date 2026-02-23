@@ -622,16 +622,16 @@ export default function NexonPage() {
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
   const bannerStatPillSx = {
-    px: { xs: 1, md: 1.15 },
-    py: { xs: 0.65, md: 0.75 },
+    px: { xs: 0.75, md: 0.9 },
+    py: { xs: 0.45, md: 0.55 },
     borderRadius: 999,
     bgcolor: "rgba(255,255,255,.14)",
     border: "1px solid rgba(148,163,184,.38)",
     color: "rgba(241,245,249,.97)",
-    minHeight: { xs: 34, md: 36 },
+    minHeight: { xs: 28, md: 30 },
     display: "flex",
     alignItems: "center",
-    gap: 0.6,
+    gap: 0.45,
     minWidth: 0,
   };
   const bannerKpiItems = useMemo(
@@ -1042,10 +1042,10 @@ export default function NexonPage() {
                     </Typography>
                     <Box
                       sx={{
-                        mt: { xs: 1.3, md: 1.55 },
+                        mt: { xs: 1.05, md: 1.2 },
                         display: "grid",
-                        gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))" },
-                        gap: { xs: 0.8, md: 0.9 },
+                        gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))", lg: "repeat(5, minmax(0, 1fr))" },
+                        gap: { xs: 0.55, md: 0.65 },
                         maxWidth: { xs: "100%", md: 980 },
                       }}
                     >
@@ -1059,7 +1059,7 @@ export default function NexonPage() {
                         >
                           <Typography
                             sx={{
-                              fontSize: { xs: 10, md: 11 },
+                              fontSize: { xs: 8.5, md: 9.5 },
                               color: "rgba(203,213,225,.95)",
                               lineHeight: 1.1,
                               whiteSpace: "nowrap",
@@ -1070,7 +1070,7 @@ export default function NexonPage() {
                           <Typography
                             sx={{
                               fontWeight: 800,
-                              fontSize: { xs: item.key === "theme" ? 13 : 14, md: item.key === "theme" ? 14 : 15 },
+                              fontSize: { xs: item.key === "theme" ? 11.5 : 12.5, md: item.key === "theme" ? 12 : 13.5 },
                               lineHeight: 1.1,
                               letterSpacing: "-.01em",
                               whiteSpace: "nowrap",
