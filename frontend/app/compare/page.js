@@ -574,12 +574,26 @@ export default function ComparePage() {
   }, [retryAfterSec, scheduleFetch, startPolling]);
 
   useEffect(() => {
+    if (activeTab !== "trend") {
+      trendChartRef.current?.dispose();
+      trendChartRef.current = null;
+      return undefined;
+    }
+
     let disposed = false;
     (async () => {
-      if (!trendRef.current || !trendDates.length || activeTab !== "trend") return;
+      if (!trendRef.current || !trendDates.length) return;
       const echarts = await import("echarts");
       if (disposed || !trendRef.current) return;
-      if (!trendChartRef.current) trendChartRef.current = echarts.init(trendRef.current);
+
+      if (trendChartRef.current && trendChartRef.current.getDom() !== trendRef.current) {
+        trendChartRef.current.dispose();
+        trendChartRef.current = null;
+      }
+      if (!trendChartRef.current) {
+        trendChartRef.current = echarts.init(trendRef.current);
+      }
+
       trendChartRef.current.setOption({
         animation: true,
         tooltip: { trigger: "axis" },
@@ -588,7 +602,7 @@ export default function ComparePage() {
         xAxis: { type: "category", data: trendDates, axisLabel: { color: "#64748b" } },
         yAxis: { type: "value", axisLabel: { color: "#64748b" } },
         series: trendSeries,
-      });
+      }, true);
       trendChartRef.current.resize();
     })();
 
@@ -601,12 +615,26 @@ export default function ComparePage() {
   }, [activeTab, trendDates, trendSeries]);
 
   useEffect(() => {
+    if (activeTab !== "sentiment") {
+      sentimentChartRef.current?.dispose();
+      sentimentChartRef.current = null;
+      return undefined;
+    }
+
     let disposed = false;
     (async () => {
-      if (!sentimentRef.current || activeTab !== "sentiment") return;
+      if (!sentimentRef.current) return;
       const echarts = await import("echarts");
       if (disposed || !sentimentRef.current) return;
-      if (!sentimentChartRef.current) sentimentChartRef.current = echarts.init(sentimentRef.current);
+
+      if (sentimentChartRef.current && sentimentChartRef.current.getDom() !== sentimentRef.current) {
+        sentimentChartRef.current.dispose();
+        sentimentChartRef.current = null;
+      }
+      if (!sentimentChartRef.current) {
+        sentimentChartRef.current = echarts.init(sentimentRef.current);
+      }
+
       sentimentChartRef.current.setOption({
         animation: true,
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -621,7 +649,7 @@ export default function ComparePage() {
           data: sentimentChartData.map((d) => d[sentiment]),
           itemStyle: { color: SENTIMENT_COLORS[sentiment] },
         })),
-      });
+      }, true);
       sentimentChartRef.current.resize();
     })();
 
