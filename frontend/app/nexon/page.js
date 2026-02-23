@@ -205,6 +205,7 @@ export default function NexonPage() {
   const [showMetricDetails, setShowMetricDetails] = useState(false);
   const [showBurstEventList, setShowBurstEventList] = useState(false);
   const [burstRange, setBurstRange] = useState("24h");
+  const [summaryRange, setSummaryRange] = useState("24h");
   const [burstVisibleCount, setBurstVisibleCount] = useState(10);
   const articleReqSeqRef = useRef(0);
   const articleAbortRef = useRef(null);
@@ -1049,12 +1050,39 @@ export default function NexonPage() {
                     <Chip label="NEXON" size="small" sx={{ bgcolor: "#fff7ed", border: "1px solid #fdba74", color: "#c2410c", fontWeight: 700, height: 24 }} />
                     <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
                   </Stack>
-                  <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
-                    {currentBanner?.name || riskData?.meta?.ip || "메이플스토리"}
-                  </Typography>
+                  <Stack direction="row" alignItems="center" spacing={1.2} useFlexGap flexWrap="wrap">
+                    <Typography sx={{ ...specTypeSx.h4, fontSize: { xs: 34, md: 40 }, lineHeight: 1.08 }}>
+                      🍁 {currentBanner?.name || riskData?.meta?.ip || "메이플스토리"}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label="PC · Mobile"
+                      sx={{
+                        bgcolor: "#fff7ed",
+                        border: "1px solid #fdba74",
+                        color: "#c2410c",
+                        fontWeight: 600,
+                        height: 26,
+                        mt: { xs: 0.4, md: 0 },
+                      }}
+                    />
+                  </Stack>
                 </Box>
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Stack spacing={0.8} alignItems={{ xs: "flex-start", md: "flex-end" }}>
                   <Chip variant="outlined" label={`최근 갱신: ${lastUpdatedAt || "-"}`} sx={statusChipSx} />
+                  <Stack direction="row" spacing={0.8}>
+                    {["24h", "7d", "30d"].map((range) => (
+                      <Button
+                        key={`summary-range-${range}`}
+                        size="small"
+                        variant={summaryRange === range ? "contained" : "outlined"}
+                        onClick={() => setSummaryRange(range)}
+                        sx={{ minWidth: 52, borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                      >
+                        {range}
+                      </Button>
+                    ))}
+                  </Stack>
                 </Stack>
               </Stack>
 
@@ -1066,10 +1094,6 @@ export default function NexonPage() {
                     borderRadius: 2.5,
                     borderColor: "#e2e8f0",
                     boxShadow: "0 4px 12px rgba(15,23,42,.05)",
-                    minHeight: { xs: 208, md: 224 },
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
                   }}
                 >
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
@@ -1108,6 +1132,22 @@ export default function NexonPage() {
                       />
                       <Typography variant="caption" color="text.secondary">전일 대비</Typography>
                     </Stack>
+                    <Box sx={{ mt: 1.4 }}>
+                      <Box sx={{ height: 8, bgcolor: "#f1f5f9", borderRadius: 99, overflow: "hidden" }}>
+                        <Box
+                          sx={{
+                            width: `${Math.max(0, Math.min(100, riskValue))}%`,
+                            height: "100%",
+                            background: "linear-gradient(90deg, #10B981 0%, #F59E0B 50%, #EF4444 100%)",
+                          }}
+                        />
+                      </Box>
+                      <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.7 }}>
+                        <Typography sx={{ fontSize: 11, color: "#10B981", fontWeight: 600 }}>안전</Typography>
+                        <Typography sx={{ fontSize: 11, color: "#F59E0B", fontWeight: 600 }}>주의</Typography>
+                        <Typography sx={{ fontSize: 11, color: "#EF4444", fontWeight: 600 }}>위험</Typography>
+                      </Stack>
+                    </Box>
                   </Box>
                 </Paper>
 
@@ -1122,10 +1162,6 @@ export default function NexonPage() {
                       p: { xs: 2, md: 2.2 },
                       borderRadius: 2.5,
                       borderColor: "#e2e8f0",
-                      minHeight: { xs: 176, md: 192 },
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
                     }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -1150,7 +1186,6 @@ export default function NexonPage() {
                           }
                           sx={{ bgcolor: tone.bg, color: tone.color, border: "none", fontWeight: 700 }}
                         />
-                        <Typography variant="caption" color="text.secondary">전일 대비</Typography>
                       </Stack>
                     </Box>
                   </Paper>
