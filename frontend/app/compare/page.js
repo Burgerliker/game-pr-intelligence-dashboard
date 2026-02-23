@@ -169,6 +169,17 @@ function formatRelativeUpdate(value) {
   return `${Math.floor(diffHour / 24)}일 전`;
 }
 
+function resolvePriorityTone(priorityRaw) {
+  const p = String(priorityRaw || "").trim().toUpperCase();
+  if (p === "P1" || p === "높음" || p === "HIGH") {
+    return { label: p || "P1", bg: "rgba(239,68,68,.12)", color: "#b91c1c" };
+  }
+  if (p === "P2" || p === "중간" || p === "MEDIUM") {
+    return { label: p || "P2", bg: "rgba(245,158,11,.14)", color: "#b45309" };
+  }
+  return { label: p || "P3", bg: "rgba(148,163,184,.14)", color: "#475569" };
+}
+
 export default function ComparePage() {
   const refreshMs = getRefreshIntervalMs();
   const [selectedCompanies, setSelectedCompanies] = useState(DEFAULT_COMPANIES);
@@ -352,12 +363,17 @@ export default function ComparePage() {
         trendCountMap.set(`${company}::${day}`, Number(row?.[company] || 0));
       }
     }
+    const trendMetricMap = new Map();
+    for (const row of trendMetricRows || []) {
+      const company = String(row?.company || "");
+      const date = String(row?.date || "");
+      if (!company || !date) continue;
+      trendMetricMap.set(`${company}::${date}`, row);
+    }
 
     return companiesForView.map((company) => {
-      const rows = (trendMetricRows || []).filter((row) => row.company === company);
-      const byDate = new Map(rows.map((row) => [String(row.date), row]));
       const points = dates.map((date) => {
-        const row = byDate.get(date);
+        const row = trendMetricMap.get(`${company}::${date}`);
         const countValue = Number(
           row?.count ??
             trendCountMap.get(`${company}::${date}`) ??
@@ -1011,13 +1027,37 @@ export default function ComparePage() {
                         </Typography>
                         <Stack spacing={0.8}>
                           {(insights.actions || []).map((item) => (
-                            <Typography
+                            <Stack
                               key={`${item.company}-${item.priority}`}
-                              variant="body2"
-                              sx={{ color: colors.slate[600], lineHeight: 1.55 }}
+                              direction="row"
+                              spacing={0.7}
+                              alignItems="baseline"
                             >
-                              <b>{item.company}</b> ({item.priority}) {item.action}
-                            </Typography>
+                              {(() => {
+                                const tone = resolvePriorityTone(item.priority);
+                                return (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      px: 0.7,
+                                      py: 0.15,
+                                      borderRadius: 0.9,
+                                      bgcolor: tone.bg,
+                                      color: tone.color,
+                                      whiteSpace: "nowrap",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {tone.label}
+                                  </Box>
+                                );
+                              })()}
+                              <Typography variant="body2" sx={{ color: colors.slate[600], lineHeight: 1.55 }}>
+                                <b>{item.company}</b> {item.action}
+                              </Typography>
+                            </Stack>
                           ))}
                         </Stack>
                       </Paper>
