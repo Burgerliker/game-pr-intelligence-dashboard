@@ -35,10 +35,12 @@ import {
   normalizeNexonDashboard,
 } from "../../lib/normalizeNexon";
 import {
+  brandChipSx,
   borderRadius,
   colors,
   contentCardSx,
   filterChipSx,
+  getBrandChipSx,
   gridLayouts,
   MUI_SPEC,
   metricCardSx,
@@ -1058,11 +1060,15 @@ export default function NexonPage() {
                       label="NEXON"
                       size="small"
                       sx={{
-                        bgcolor: colors.brand.maplestory.bg,
-                        border: `1px solid ${colors.brand.maplestory.border}`,
-                        color: colors.brand.maplestory.primary,
-                        fontWeight: 700,
-                        height: 24,
+                        ...getBrandChipSx("nexon"),
+                        ...brandChipSx,
+                        height: 22,
+                        minHeight: 22,
+                        "& .MuiChip-label": {
+                          px: 1,
+                          py: 0.5,
+                          lineHeight: "14px",
+                        },
                       }}
                     />
                     <Typography variant="body2" color="text.secondary">Game PR Intelligence</Typography>
@@ -1075,11 +1081,15 @@ export default function NexonPage() {
                       size="small"
                       label="PC · Mobile"
                       sx={{
-                        bgcolor: colors.brand.maplestory.bg,
-                        border: `1px solid ${colors.brand.maplestory.border}`,
-                        color: colors.brand.maplestory.primary,
-                        fontWeight: 600,
-                        height: 26,
+                        ...getBrandChipSx("maplestory"),
+                        ...brandChipSx,
+                        height: 22,
+                        minHeight: 22,
+                        "& .MuiChip-label": {
+                          px: 1,
+                          py: 0.5,
+                          lineHeight: "14px",
+                        },
                         mt: { xs: 0.4, md: 0 },
                       }}
                     />

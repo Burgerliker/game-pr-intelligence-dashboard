@@ -415,7 +415,8 @@ export const specTypeSx = {
 
 // Filter Chip (필터/컨트롤용)
 export const filterChipSx = {
-  height: 28,
+  height: 22,
+  minHeight: 22,
   borderRadius: "8px",
   border: `1px solid ${colors.slate[200]}`,
   bgcolor: colors.background.muted,
@@ -423,7 +424,9 @@ export const filterChipSx = {
   fontSize: 12,
   fontWeight: typography.weight.medium,
   "& .MuiChip-label": {
-    px: 1.5,
+    px: 1,
+    py: 0.5,
+    lineHeight: "14px",
   },
   "&:hover": {
     bgcolor: colors.slate[100],
