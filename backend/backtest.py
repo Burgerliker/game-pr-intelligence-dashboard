@@ -307,7 +307,8 @@ def run_backtest(
         raise ValueError("date_from은 date_to보다 이전이어야 합니다.")
 
     requested_weights = _normalize_weights(weights)
-    risk_weights = dict(LIVE_RISK_WEIGHTS)
+    # Backtest should honor requested weights so chart/result mapping is testable.
+    risk_weights = dict(requested_weights)
     baseline_start = start - timedelta(days=7)
     debug_backtest = os.getenv("DEBUG_BACKTEST", "").strip().lower() in {"1", "true", "yes", "on"}
     debug_timestamps = {
