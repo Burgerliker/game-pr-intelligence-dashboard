@@ -96,6 +96,7 @@ const STAT_ICON_MAP = {
   tag: Tag,
   fileText: FileText,
 };
+const SENTIMENT_COLORS = { 긍정: "#059669", 중립: "#94a3b8", 부정: "#dc2626" };
 const IP_EMOJI_MAP = {
   all: "🧭",
   maplestory: "🍁",
@@ -550,12 +551,12 @@ export default function NexonPage() {
   const controlButtonSx = navButtonSx;
   const getSentimentAccent = (sentiment) => {
     if (sentiment === "부정") {
-      return { bg: "#fef2f2", border: "#fca5a5", text: "#b91c1c", strong: "#dc2626" };
+      return { bg: "#fef2f2", border: "#fca5a5", text: SENTIMENT_COLORS.부정, strong: SENTIMENT_COLORS.부정 };
     }
     if (sentiment === "긍정") {
-      return { bg: "#ecfdf3", border: "#86efac", text: "#15803d", strong: "#16a34a" };
+      return { bg: "#ecfdf3", border: "#86efac", text: SENTIMENT_COLORS.긍정, strong: SENTIMENT_COLORS.긍정 };
     }
-    return { bg: "#f8fafc", border: "#cbd5e1", text: "#334155", strong: "#64748b" };
+    return { bg: "#f8fafc", border: "#cbd5e1", text: "#64748b", strong: SENTIMENT_COLORS.중립 };
   };
   const crisisChange = useMemo(() => calcCrisisChange(riskTimeseries), [riskTimeseries]);
   const crisisTrendRows = useMemo(() => {
@@ -1342,9 +1343,9 @@ export default function NexonPage() {
                   <Typography sx={{ fontWeight: 700 }}>{c.cluster}</Typography>
                   <Typography variant="caption" color="text.secondary">{c.article_count}건 · 부정 {c.negative_ratio}%</Typography>
                   <Stack direction="row" sx={{ mt: 1, height: 8, borderRadius: 999, overflow: "hidden", bgcolor: "#edf2fb" }}>
-                    <Box sx={{ width: `${c.sentiment?.positive || 0}%`, bgcolor: "success.main" }} />
-                    <Box sx={{ width: `${c.sentiment?.neutral || 0}%`, bgcolor: "warning.main" }} />
-                    <Box sx={{ width: `${c.sentiment?.negative || 0}%`, bgcolor: "error.main" }} />
+                    <Box sx={{ width: `${c.sentiment?.positive || 0}%`, bgcolor: SENTIMENT_COLORS.긍정 }} />
+                    <Box sx={{ width: `${c.sentiment?.neutral || 0}%`, bgcolor: SENTIMENT_COLORS.중립 }} />
+                    <Box sx={{ width: `${c.sentiment?.negative || 0}%`, bgcolor: SENTIMENT_COLORS.부정 }} />
                   </Stack>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
                     관련 키워드: {(c.keywords || []).join(", ")}
