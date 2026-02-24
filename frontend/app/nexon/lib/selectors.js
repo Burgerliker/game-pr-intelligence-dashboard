@@ -12,10 +12,10 @@ export function calcCrisisChange(riskTimeseries) {
 
 export function resolveTopRisk(themes) {
   if (!Array.isArray(themes) || themes.length === 0) return null;
-  const prioritized = themes
-    .filter((row) => String(row?.theme || "") !== "신작/성과")
-    .filter((row) => Number(row?.negative_ratio || 0) >= 5);
-  const source = prioritized.length ? prioritized : themes;
+  const nonLaunchThemes = themes.filter((row) => String(row?.theme || "") !== "신작/성과");
+  if (!nonLaunchThemes.length) return null;
+  const prioritized = nonLaunchThemes.filter((row) => Number(row?.negative_ratio || 0) >= 5);
+  const source = prioritized.length ? prioritized : nonLaunchThemes;
   return [...source].sort((a, b) => {
     const diffNeg = Number(b?.negative_ratio || 0) - Number(a?.negative_ratio || 0);
     if (diffNeg !== 0) return diffNeg;
@@ -27,12 +27,19 @@ export function resolveTopRisk(themes) {
 
 export function resolveTopIssues(themes) {
   return [...(themes || [])]
-    .sort((a, b) => Number(b?.article_count || 0) - Number(a?.article_count || 0))
+    .filter((x) => String(x?.theme || "") !== "신작/성과")
+    .sort((a, b) => {
+      const diffRisk = Number(b?.risk_score || 0) - Number(a?.risk_score || 0);
+      if (diffRisk !== 0) return diffRisk;
+      const diffNeg = Number(b?.negative_ratio || 0) - Number(a?.negative_ratio || 0);
+      if (diffNeg !== 0) return diffNeg;
+      return Number(b?.article_count || 0) - Number(a?.article_count || 0);
+    })
     .slice(0, 3)
     .map((x) => ({
       name: x?.theme || "-",
       count: Number(x?.article_count || 0),
-      severity: Number(x?.negative_ratio || 0) >= 40 ? "high" : "low",
+      severity: Number(x?.risk_score || 0) >= 45 ? "high" : "low",
     }));
 }
 

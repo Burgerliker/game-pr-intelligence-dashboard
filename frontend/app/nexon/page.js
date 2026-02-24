@@ -454,6 +454,7 @@ export default function NexonPage() {
   const keywordCloud = clusterData?.keyword_cloud || [];
   const topRisk = useMemo(() => resolveTopRisk(themes), [themes]);
   const topRiskThemeScore = topRisk ? Math.round(Number(topRisk?.risk_score || 0) * 1000) / 10 : null;
+  const topRiskArticleCount = Number(topRisk?.article_count || 0);
   const articleListHeight = useMemo(
     () => calcArticleListHeight(articleItems.length, ARTICLE_ROW_HEIGHT, ARTICLE_LIST_MIN_HEIGHT, ARTICLE_LIST_MAX_HEIGHT),
     [articleItems.length]
@@ -465,6 +466,10 @@ export default function NexonPage() {
     }
   };
   const riskValue = Number(riskScore?.risk_score || 0);
+  const shouldShowResponseInsight =
+    riskValue >= 45 &&
+    Number(topRiskThemeScore || 0) >= 35 &&
+    topRiskArticleCount >= 3;
   const alertLevel = String(riskScore?.alert_level || "P3").toUpperCase();
   const alertInfo =
     alertLevel === "P1"
@@ -543,6 +548,15 @@ export default function NexonPage() {
   const modeMismatchWarning = health?.mode === "backtest" ? "현재 과거 분석 데이터를 참조 중입니다." : "";
   const controlChipSx = filterChipSx;
   const controlButtonSx = navButtonSx;
+  const getSentimentAccent = (sentiment) => {
+    if (sentiment === "부정") {
+      return { bg: "#fef2f2", border: "#fca5a5", text: "#b91c1c", strong: "#dc2626" };
+    }
+    if (sentiment === "긍정") {
+      return { bg: "#ecfdf3", border: "#86efac", text: "#15803d", strong: "#16a34a" };
+    }
+    return { bg: "#f8fafc", border: "#cbd5e1", text: "#334155", strong: "#64748b" };
+  };
   const crisisChange = useMemo(() => calcCrisisChange(riskTimeseries), [riskTimeseries]);
   const crisisTrendRows = useMemo(() => {
     const byDate = new Map();
@@ -1086,7 +1100,7 @@ export default function NexonPage() {
 
               <Paper variant="outlined" sx={{ p: { xs: 1.8, md: 2 }, borderRadius: 2.5, borderColor: colors.slate[200] }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[600] }}>핵심 위험 이슈 TOP 3</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[600] }}>핵심 이슈 TOP 3</Typography>
                 </Stack>
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
                   {topIssues.map((issue, idx) => (
@@ -1238,67 +1252,79 @@ export default function NexonPage() {
 
         <Card variant="outlined" sx={sectionCardSx}><CardContent sx={contentCardSx}>
           <Typography variant="h6" sx={sectionTitleSx}>대응 인사이트</Typography>
-          <Grid container spacing={1.2}>
-            <Grid item xs={12} md={6}>
-              <Paper variant="outlined" sx={subPanelSx}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 위험 이슈</Typography>
-                  <Chip
-                    size="small"
-                    label={insightTone.label}
-                    sx={{
-                      fontWeight: 700,
-                      bgcolor: insightTone.softBg,
-                      color: insightTone.text,
-                      border: `1px solid ${insightTone.softBorder}`,
-                    }}
-                  />
-                </Stack>
-                <Typography variant="h6" sx={{ mt: 0.6, color: insightTone.text, fontWeight: 800 }}>{topRisk?.theme || "-"}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.7 }}>
-                  이슈 점수 {topRiskThemeScore ?? "-"}점 · 부정 {topRisk?.negative_ratio ?? "-"}%
-                </Typography>
-                <Box
-                  sx={{
-                    mt: 1.2,
-                    height: 6,
-                    borderRadius: 999,
-                    bgcolor: "#eef2ff",
-                    overflow: "hidden",
-                    border: "1px solid #e2e8f0",
-                  }}
-                >
+          {shouldShowResponseInsight ? (
+            <Grid container spacing={1.2}>
+              <Grid item xs={12} md={6}>
+                <Paper variant="outlined" sx={subPanelSx}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>핵심 위험 이슈</Typography>
+                    <Chip
+                      size="small"
+                      label={insightTone.label}
+                      sx={{
+                        fontWeight: 700,
+                        bgcolor: insightTone.softBg,
+                        color: insightTone.text,
+                        border: `1px solid ${insightTone.softBorder}`,
+                      }}
+                    />
+                  </Stack>
+                  <Typography variant="h6" sx={{ mt: 0.6, color: insightTone.text, fontWeight: 800 }}>{topRisk?.theme || "-"}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.7 }}>
+                    이슈 점수 {topRiskThemeScore ?? "-"}점 · 부정 {topRisk?.negative_ratio ?? "-"}%
+                  </Typography>
                   <Box
                     sx={{
-                      width: `${Math.max(0, Math.min(100, Number(topRiskThemeScore || 0)))}%`,
-                      height: "100%",
-                      background: `linear-gradient(90deg, ${insightTone.accent}, #f97316)`,
+                      mt: 1.2,
+                      height: 6,
+                      borderRadius: 999,
+                      bgcolor: "#eef2ff",
+                      overflow: "hidden",
+                      border: "1px solid #e2e8f0",
                     }}
-                  />
-                </Box>
-                <Typography variant="caption" sx={{ display: "block", mt: 0.65, color: "text.secondary" }}>
-                  위험 지수 기준으로 즉시 대응 우선순위를 표시합니다.
-                </Typography>
-              </Paper>
+                  >
+                    <Box
+                      sx={{
+                        width: `${Math.max(0, Math.min(100, Number(topRiskThemeScore || 0)))}%`,
+                        height: "100%",
+                        background: `linear-gradient(90deg, ${insightTone.accent}, #f97316)`,
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.65, color: "text.secondary" }}>
+                    위험 지수 기준으로 즉시 대응 우선순위를 표시합니다.
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Paper variant="outlined" sx={subPanelSx}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>주목할 언론사</Typography>
+                  <Typography variant="h6" sx={{ mt: 1, fontWeight: 800 }}>{outletRisk?.outlet || "-"}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
+                    기사 {outletRisk?.article_count || 0}건 · 부정 {outletRisk?.negative_ratio || 0}% · 위험 점수 {outletRisk?.score || 0}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Paper variant="outlined" sx={subPanelSx}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>대응 권고</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, lineHeight: 1.55 }}>
+                    {recommendedAction}
+                  </Typography>
+                </Paper>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={3}>
-              <Paper variant="outlined" sx={subPanelSx}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>주목할 언론사</Typography>
-                <Typography variant="h6" sx={{ mt: 1, fontWeight: 800 }}>{outletRisk?.outlet || "-"}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
-                  기사 {outletRisk?.article_count || 0}건 · 부정 {outletRisk?.negative_ratio || 0}% · 위험 점수 {outletRisk?.score || 0}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Paper variant="outlined" sx={subPanelSx}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>대응 권고</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, lineHeight: 1.55 }}>
-                  {recommendedAction}
-                </Typography>
-              </Paper>
-            </Grid>
-          </Grid>
+          ) : (
+            <Paper variant="outlined" sx={{ ...subPanelSx, borderStyle: "dashed" }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: colors.slate[700] }}>
+                현재 대응 필요 수준 아님
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.8, lineHeight: 1.6 }}>
+                전체 위험도 {riskValue.toFixed(1)}점 / 이슈 점수 {topRiskThemeScore ?? "-"}점 / 관련 기사 {topRiskArticleCount}건 기준으로
+                즉시 대응 인사이트는 숨기고 모니터링 상태를 유지합니다.
+              </Typography>
+            </Paper>
+          )}
         </CardContent></Card>
 
         <Card variant="outlined" sx={sectionCardSx}><CardContent sx={contentCardSx}>
@@ -1352,9 +1378,17 @@ export default function NexonPage() {
                   onRowsRendered={handleArticleRowsRendered}
                   rowComponent={({ index, style, items, ariaAttributes }) => {
                     const a = items[index];
+                    const sentimentAccent = getSentimentAccent(a.sentiment);
                     return (
                       <Box style={style} sx={{ px: 0.2, py: 0.45 }} {...ariaAttributes}>
-                        <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 1.2,
+                            borderRadius: 2,
+                            borderLeft: `4px solid ${sentimentAccent.strong}`,
+                          }}
+                        >
                           <Stack direction="row" justifyContent="space-between" spacing={1}>
                             <Typography
                               component={a.url ? "a" : "span"}
@@ -1377,9 +1411,18 @@ export default function NexonPage() {
                             <Chip
                               size="small"
                               label={a.sentiment || "중립"}
-                              color={a.sentiment === "부정" ? "error" : a.sentiment === "긍정" ? "success" : "default"}
                               variant="outlined"
-                              sx={controlChipSx}
+                              sx={{
+                                ...controlChipSx,
+                                minWidth: 58,
+                                justifyContent: "center",
+                                fontWeight: 800,
+                                borderWidth: 1.5,
+                                bgcolor: sentimentAccent.bg,
+                                borderColor: sentimentAccent.border,
+                                color: sentimentAccent.text,
+                                "& .MuiChip-label": { px: 1 },
+                              }}
                             />
                           </Stack>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.6 }}>
