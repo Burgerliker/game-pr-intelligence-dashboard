@@ -442,11 +442,12 @@ def run_backtest(
                 M_t += share * _outlet_weight(outlet)
 
         raw_issue_heat = 100.0 * (0.45 * V_heat + 0.35 * T_heat + 0.20 * M_t)
+        m_risk = M_t * negative_ratio_window
         raw = 100.0 * (
-            0.50 * S_t
-            + 0.25 * V_risk
-            + 0.15 * T_risk
-            + 0.10 * (M_t * negative_ratio_window)
+            risk_weights["S"] * S_t
+            + risk_weights["V"] * V_risk
+            + risk_weights["T"] * T_risk
+            + risk_weights["M"] * m_risk
         )
 
         if prev_risk is None:
@@ -467,7 +468,12 @@ def run_backtest(
             "M": round(float(M_t), 3),
         }
         dominant = max(
-            [("S", risk_weights["S"] * S_t), ("V", risk_weights["V"] * V_risk), ("T", risk_weights["T"] * T_risk), ("M", risk_weights["M"] * M_t)],
+            [
+                ("S", risk_weights["S"] * S_t),
+                ("V", risk_weights["V"] * V_risk),
+                ("T", risk_weights["T"] * T_risk),
+                ("M", risk_weights["M"] * m_risk),
+            ],
             key=lambda x: x[1],
         )[0]
 
@@ -503,7 +509,7 @@ def run_backtest(
                 risk_weights["S"] * float(components.get("S", 0.0))
                 + risk_weights["V"] * float(components.get("V", 0.0))
                 + risk_weights["T"] * float(components.get("T", 0.0))
-                + risk_weights["M"] * float(components.get("M", 0.0))
+                + risk_weights["M"] * float(components.get("M", 0.0)) * negative_ratio_window
             )
             print(
                 "[BACKTEST_DEBUG]",
