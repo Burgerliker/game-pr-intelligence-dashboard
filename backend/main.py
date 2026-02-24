@@ -117,7 +117,6 @@ BACKFILL_DISPLAY = int(os.getenv("BACKFILL_DISPLAY", "40"))
 BACKFILL_QUERIES: dict[str, list[str]] = {
     "maplestory": [
         "메이플스토리",
-        "메이플",
         "maplestory",
         "메이플m",
         "메이플스토리m",

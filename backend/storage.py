@@ -47,7 +47,7 @@ THEME_WEIGHTS_RISK: dict[str, float] = {
 RISK_FORMULA_VERSION = "v2"
 IP_RULES: dict[str, dict[str, Any]] = {
     "전체": {"slug": "all", "keywords": []},
-    "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "메이플", "maplestory"]},
+    "메이플스토리": {"slug": "maplestory", "keywords": ["메이플스토리", "maplestory"]},
     "던전앤파이터": {"slug": "dnf", "keywords": ["던전앤파이터", "던파", "dnf"]},
     "아크레이더스": {"slug": "arcraiders", "keywords": ["아크레이더스", "아크 레이더스", "arc raiders", "arcraiders"]},
     "FC온라인": {
