@@ -41,7 +41,7 @@ const FIXED_PARAMS = {
   ip: "maplestory",
   date_from: "2025-11-01",
   date_to: "2026-02-10",
-  step_hours: "1",
+  step_hours: "3",
   weight_s: "0.50",
   weight_v: "0.25",
   weight_t: "0.15",
