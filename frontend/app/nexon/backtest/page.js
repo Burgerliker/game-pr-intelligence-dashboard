@@ -130,27 +130,6 @@ export default function NexonBacktestPage() {
     }
     return out;
   }, [payload?.timeseries]);
-  const driverStats = useMemo(() => {
-    const rows = payload?.timeseries || [];
-    if (!rows.length) {
-      return { volume: { latest: 0, peak: 0 }, spread: { latest: 0, peak: 0 }, uncertain: { latest: 0, peak: 0 } };
-    }
-    const latest = rows[rows.length - 1];
-    return {
-      volume: {
-        latest: Number(latest.article_count_window ?? latest.article_count ?? 0),
-        peak: Math.max(...rows.map((r) => Number(r.article_count_window ?? r.article_count ?? 0))),
-      },
-      spread: {
-        latest: Number(latest.spread_ratio ?? 0),
-        peak: Math.max(...rows.map((r) => Number(r.spread_ratio ?? 0))),
-      },
-      uncertain: {
-        latest: Number(latest.uncertain_ratio ?? 0),
-        peak: Math.max(...rows.map((r) => Number(r.uncertain_ratio ?? 0))),
-      },
-    };
-  }, [payload?.timeseries]);
 
   useEffect(() => {
     if (!hasSeries || !chartRef.current || chartInstRef.current) return;
@@ -393,27 +372,6 @@ export default function NexonBacktestPage() {
                     고위험/주의 구간 수는 각 기준선을 넘긴 시간대의 횟수입니다. 하루에 여러 번 발생할 수 있습니다.
                   </Typography>
                   <Box ref={chartRef} sx={{ mt: 1.5, width: "100%", height: "clamp(560px, 55vw, 700px)" }} />
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1.2}
-                    useFlexGap
-                    flexWrap="wrap"
-                    sx={{ mt: 1.5 }}
-                  >
-                    {[
-                      { label: "기사량 영향", latest: driverStats.volume.latest.toLocaleString(), peak: driverStats.volume.peak.toLocaleString() },
-                      { label: "확산 영향", latest: driverStats.spread.latest.toFixed(3), peak: driverStats.spread.peak.toFixed(3) },
-                      { label: "판정 유보 영향", latest: driverStats.uncertain.latest.toFixed(3), peak: driverStats.uncertain.peak.toFixed(3) },
-                    ].map((d) => (
-                      <Box key={d.label} sx={{ ...metricCardSx, p: 1.5, flex: "1 1 180px", minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>{d.label}</Typography>
-                        <Typography variant="caption" color="text.secondary">최근 {d.latest} · 최고 {d.peak}</Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                    하단 영향도 선은 위기 지수 변동의 원인 비중을 보여줍니다. 값이 클수록 해당 요인의 영향이 큽니다.
-                  </Typography>
                 </>
               ) : null}
             </CardContent>
